@@ -22,6 +22,8 @@ class AdMobServiceWeb {
 
   async grantAdFreeTime(_minutes: number = 30): Promise<void> {}
   
+  async waitForPresentation(): Promise<void> {}
+
   async onStationChange(): Promise<boolean> {
     return false;
   }

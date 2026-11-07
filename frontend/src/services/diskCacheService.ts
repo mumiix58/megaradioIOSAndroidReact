@@ -119,7 +119,7 @@ interface CacheEntry<T> {
   version: number;
 }
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 
 export const diskCache = {
   getBackend(): string {
@@ -166,6 +166,15 @@ export const diskCache = {
       console.warn('[DiskCache] Get error:', key, e);
       return undefined;
     }
+  },
+
+  updatedAt(key: string): number {
+    try {
+      const raw = cacheStorage.getString(key);
+      if (!raw) return 0;
+      const entry = JSON.parse(raw);
+      return entry.version === CACHE_VERSION && Number.isFinite(entry.timestamp) ? entry.timestamp : 0;
+    } catch { return 0; }
   },
 
   getStale<T>(key: string): T | null {

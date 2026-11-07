@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import api from '../src/services/api';
+import { API_ENDPOINTS } from '../src/constants/api';
 import { useAuthStore } from '../src/store/authStore';
 
 interface Follower {
@@ -50,7 +51,7 @@ export default function FollowersScreen() {
     try {
       setLoading(true);
       // API docs: GET /api/user/followers/:userId
-      const response = await api.get(`https://themegaradio.com/api/user/followers/${user._id}`);
+      const response = await api.get(API_ENDPOINTS.user.followers(user._id));
       
       // API returns { followers: [{ user: {...}, followedAt: "..." }] }
       const rawData = response.data.followers || response.data || [];
@@ -95,7 +96,7 @@ export default function FollowersScreen() {
               setRemoving(followerId);
               // Note: This endpoint may need to be implemented on backend
               // POST /api/user-engagement/remove-follower/:userId
-              await api.post(`https://themegaradio.com/api/user-engagement/remove-follower/${followerId}`);
+              await api.post(`/api/user-engagement/remove-follower/${followerId}`);
               setFollowers(prev => prev.filter(f => f._id !== followerId));
             } catch (error: any) {
               console.error('Error removing follower:', error);

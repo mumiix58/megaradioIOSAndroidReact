@@ -371,6 +371,7 @@ if (existing) {
   // Sync DEVELOPMENT_TEAM from iOS target to watch target build configs
   // (Release/Archive builds skip the watch target without it).
   const repairTeamId = readIosDevelopmentTeam();
+  const releaseConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'app.json'), 'utf8')).expo;
   if (repairTeamId) {
     const watchCfgListUuid = watchTgt.buildConfigurationList;
     const cfgListSec = proj.hash.project.objects['XCConfigurationList'] || {};
@@ -381,13 +382,21 @@ if (existing) {
       watchCfgList.buildConfigurations.forEach((ref) => {
         const bc = bcSec[ref.value];
         if (!bc || !bc.buildSettings) return;
+        if (String(bc.buildSettings.MARKETING_VERSION) !== releaseConfig.version || String(bc.buildSettings.CURRENT_PROJECT_VERSION) !== releaseConfig.ios.buildNumber) {
+          bc.buildSettings.MARKETING_VERSION = releaseConfig.version;
+          bc.buildSettings.CURRENT_PROJECT_VERSION = releaseConfig.ios.buildNumber;
+          teamFixed++;
+        }
         if (bc.buildSettings.DEVELOPMENT_TEAM !== repairTeamId) {
           bc.buildSettings.DEVELOPMENT_TEAM = repairTeamId;
           teamFixed++;
         }
-        // Make sure Release isn't left with SKIP_INSTALL=YES or
-        // ENABLE_USER_SCRIPT_SANDBOXING=YES (would block embed phase).
-        if (bc.buildSettings.SKIP_INSTALL === 'YES') bc.buildSettings.SKIP_INSTALL = 'NO';
+        // The companion is embedded in the iOS app, not installed as a second
+        // top-level archive product (which makes the archive non-exportable).
+        if (bc.buildSettings.SKIP_INSTALL !== 'YES') {
+          bc.buildSettings.SKIP_INSTALL = 'YES';
+          teamFixed++;
+        }
         if (bc.buildSettings.ENABLE_USER_SCRIPT_SANDBOXING === 'YES') bc.buildSettings.ENABLE_USER_SCRIPT_SANDBOXING = 'NO';
       });
       if (teamFixed > 0) {
@@ -486,13 +495,16 @@ buildConfigUuids.forEach((uuid) => {
   s.INFOPLIST_FILE = '"MegaRadioWatch/Info.plist"';
   s.CODE_SIGN_ENTITLEMENTS = '"MegaRadioWatch/MegaRadioWatch.entitlements"';
   s.CODE_SIGN_STYLE = 'Automatic';
+  const releaseConfig = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'app.json'), 'utf8')).expo;
+  s.MARKETING_VERSION = releaseConfig.version;
+  s.CURRENT_PROJECT_VERSION = releaseConfig.ios.buildNumber;
   s.SWIFT_VERSION = '5.0';
   s.SWIFT_STRICT_CONCURRENCY = 'minimal';
   s.ASSETCATALOG_COMPILER_APPICON_NAME = 'AppIcon';
   s.ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = 'AccentColor';
   s.GENERATE_INFOPLIST_FILE = 'NO';
   s.ENABLE_PREVIEWS = 'YES';
-  s.SKIP_INSTALL = 'NO';
+  s.SKIP_INSTALL = 'YES';
   s.ENABLE_USER_SCRIPT_SANDBOXING = 'NO';
   s.IPHONEOS_DEPLOYMENT_TARGET = ''; // clear iOS-only setting
   delete s.IPHONEOS_DEPLOYMENT_TARGET;

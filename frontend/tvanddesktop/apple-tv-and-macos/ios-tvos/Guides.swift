@@ -153,22 +153,22 @@ struct GuidePage: View {
         switch step {
         case 1: return (
             Theme.red,
-            ["This is the discovery page. You can always reach here",
-             "by pressing the red button on the remote."],
+            ["Discover radio stations from around the world.",
+             "Select Discover in the sidebar with your Siri Remote."],
             720)
         case 2: return (
             Color(red: 0x55/255, green: 0xE9/255, blue: 0x52/255),
-            ["You can press green to access genres."],
+            ["Select Genres in the sidebar to browse by music style."],
             509)
         case 3: return (
             Color(red: 0x2D/255, green: 0x41/255, blue: 0xF4/255),
-            ["You can find any radio station you want here.",
-             "Press the blue on the remote!"],
+            ["Find a radio station by name.",
+             "Select Search in the sidebar to begin."],
             597)
         case 4: return (
             Color(red: 0xF4/255, green: 0xEC/255, blue: 0x2D/255),
-            ["Your favorite radios will be here.",
-             "Press yellow on the remote."],
+            ["Save stations with the heart button while listening.",
+             "Select Favorites in the sidebar to find them again."],
             597)
         default: return (Theme.red, [], 0)
         }

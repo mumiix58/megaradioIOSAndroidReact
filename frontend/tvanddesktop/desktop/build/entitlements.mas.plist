@@ -2,17 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   Mac App Store entitlements (App Sandbox required by Apple).
-  Replace YOUR_TEAM_ID with your Apple Developer Team ID before building MAS.
+  The renderer is packaged locally; API and radio requests are outbound only.
 -->
 <plist version="1.0">
 <dict>
   <key>com.apple.security.app-sandbox</key>
   <true/>
   <key>com.apple.security.network.client</key>
-  <true/>
-  <key>com.apple.security.network.server</key>
-  <true/>
-  <key>com.apple.security.files.user-selected.read-write</key>
   <true/>
   <key>com.apple.security.cs.allow-jit</key>
   <true/>

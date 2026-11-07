@@ -23,9 +23,11 @@
 	<key>CFBundlePackageType</key>
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>1.0.71</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>10</string>
+	<key>RCTNewArchEnabled</key>
+	<false/>
 	<key>UISupportedInterfaceOrientations</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
@@ -33,11 +35,11 @@
 	</array>
 	<key>WKApplication</key>
 	<true/>
-	<key>WKWatchOnly</key>
-	<false/>
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>com.visiongo.megaradio</string>
 	<key>WKRunsIndependentlyOfCompanionApp</key>
+	<false/>
+	<key>WKWatchOnly</key>
 	<false/>
 </dict>
 </plist>

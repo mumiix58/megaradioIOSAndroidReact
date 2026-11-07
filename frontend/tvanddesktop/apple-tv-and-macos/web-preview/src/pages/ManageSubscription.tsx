@@ -5,6 +5,8 @@ import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { useLocalization } from "@/contexts/LocalizationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { usePageKeyHandler } from "@/contexts/FocusRouterContext";
+import { isMacAppStore } from "@/lib/platform";
+import { DesktopPremium } from "./DesktopPremium";
 import { assetPath } from "@/lib/assetPath";
 
 /**
@@ -23,7 +25,9 @@ import { assetPath } from "@/lib/assetPath";
  */
 const ACCOUNT_URL = "https://www.themegaradio.com/account";
 
-export const ManageSubscription = (): JSX.Element => {
+export const ManageSubscription = (): JSX.Element => isMacAppStore() ? <DesktopPremium /> : <ManageSubscriptionQr />;
+
+const ManageSubscriptionQr = (): JSX.Element => {
   const { t } = useLocalization();
   const { user } = useAuth();
   const { info, loading, refresh } = useSubscriptionStatus();

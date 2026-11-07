@@ -418,10 +418,18 @@ index b2409a0..83cbeb3 100644
 +    }
  }
 diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
-index afa6b0f..eb691a6 100644
+index afa6b0f..030e09e 100644
 --- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
 +++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/service/MusicService.kt
-@@ -105,24 +105,35 @@ class MusicService : HeadlessJsTaskService() {
+@@ -46,6 +46,7 @@ class MusicService : HeadlessJsTaskService() {
+     private val binder = MusicBinder()
+     private val scope = MainScope()
+     private var progressUpdateJob: Job? = null
++    private var lastLiveRecoveryAt = 0L
+
+     /**
+      * Use [appKilledPlaybackBehavior] instead.
+@@ -105,24 +106,35 @@ class MusicService : HeadlessJsTaskService() {
       * information see https://github.com/doublesymmetry/react-native-track-player/issues/1666
       */
      private fun startAndStopEmptyNotificationToAvoidANR() {
@@ -438,13 +446,7 @@ index afa6b0f..eb691a6 100644
 +                    NotificationChannel(getString(TrackPlayerR.string.rntp_temporary_channel_id), getString(TrackPlayerR.string.rntp_temporary_channel_name), NotificationManager.IMPORTANCE_LOW)
 +                )
 +            }
- 
--        val notificationBuilder = NotificationCompat.Builder(this, getString(TrackPlayerR.string.rntp_temporary_channel_id))
--            .setPriority(PRIORITY_LOW)
--            .setCategory(Notification.CATEGORY_SERVICE)
--            .setSmallIcon(ExoPlayerR.drawable.exo_notification_small_icon)
--        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
--            notificationBuilder.foregroundServiceBehavior = NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE
++
 +            val notificationBuilder = NotificationCompat.Builder(this, getString(TrackPlayerR.string.rntp_temporary_channel_id))
 +                .setPriority(PRIORITY_LOW)
 +                .setCategory(Notification.CATEGORY_SERVICE)
@@ -453,7 +455,13 @@ index afa6b0f..eb691a6 100644
 +                notificationBuilder.foregroundServiceBehavior = NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE
 +            }
 +            val notification = notificationBuilder.build()
-+
+
+-        val notificationBuilder = NotificationCompat.Builder(this, getString(TrackPlayerR.string.rntp_temporary_channel_id))
+-            .setPriority(PRIORITY_LOW)
+-            .setCategory(Notification.CATEGORY_SERVICE)
+-            .setSmallIcon(ExoPlayerR.drawable.exo_notification_small_icon)
+-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+-            notificationBuilder.foregroundServiceBehavior = NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE
 +            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
 +                startForeground(EMPTY_NOTIFICATION_ID, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
 +            } else {
@@ -473,7 +481,7 @@ index afa6b0f..eb691a6 100644
      }
  
      @MainThread
-@@ -225,9 +236,9 @@ class MusicService : HeadlessJsTaskService() {
+@@ -225,9 +237,9 @@ class MusicService : HeadlessJsTaskService() {
  
          val openAppIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
              flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -486,3 +494,34 @@ index afa6b0f..eb691a6 100644
          }
  
          val accentColor = BundleUtils.getIntOrNull(options, "color")
+@@ -327,6 +339,12 @@ class MusicService : HeadlessJsTaskService() {
+
+     @MainThread
+     fun play() {
++        // A live radio pause must resume at the live edge, not at an expired HLS segment.
++        // KotlinAudio forwards this millisecond sentinel unchanged to ExoPlayer.seekTo.
++        if (player.isCurrentMediaItemLive && !player.isPlaying) {
++            player.seek(com.google.android.exoplayer2.C.TIME_UNSET, TimeUnit.MILLISECONDS)
++            if (player.playerState == AudioPlayerState.ERROR) player.prepare()
++        }
+         player.play()
+     }
+
+@@ -722,7 +740,16 @@ class MusicService : HeadlessJsTaskService() {
+
+         scope.launch {
+             event.playbackError.collect {
+-                emit(MusicEvents.PLAYBACK_ERROR, getPlaybackErrorBundle())
++                val now = android.os.SystemClock.elapsedRealtime()
++                if (player.playbackError?.code == "behind-live-window" && player.playWhenReady &&
++                    now - lastLiveRecoveryAt > 30_000L) {
++                    // Recover a stalled live window once per 30 seconds; surface persistent errors.
++                    lastLiveRecoveryAt = now
++                    player.seek(com.google.android.exoplayer2.C.TIME_UNSET, TimeUnit.MILLISECONDS)
++                    player.prepare()
++                } else {
++                    emit(MusicEvents.PLAYBACK_ERROR, getPlaybackErrorBundle())
++                }
+             }
+         }
+     }

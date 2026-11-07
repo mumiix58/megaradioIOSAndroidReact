@@ -5,89 +5,117 @@
 	};
 	objectVersion = 54;
 	objects = {
+
 /* Begin PBXBuildFile section */
+		005C3C995DC659E180F306F6 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1D46A8D193684088BD3DB37E /* PrivacyInfo.xcprivacy */; };
+		02A95F668A88412FBDA4DF95 /* WatchConnectivityBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3964C17CF92C4A37A8D673C4 /* WatchConnectivityBridge.swift */; };
+		06F76BFA2CE2420DB3B11505 /* MegaRadioWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 563CAE3FF2894151990D266A /* MegaRadioWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		1C6327F882084D1BBCE220DD /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7124A1A148664955873E3237 /* NowPlayingView.swift */; };
+		251459E3702C4DEC935B34B4 /* AppTrackingTransparency.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EEAE9EC824EA4357884706A2 /* AppTrackingTransparency.framework */; };
+		3AED6E62313044DD8768FC15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 996D851A9BFE4B44B05ECB50 /* Assets.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		492AA29FE785417D97A53581 /* CountryStationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6603BE28FE9A415F8FF246FF /* CountryStationsView.swift */; };
+		5416937CB9E24809B5251DA7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1D46A8D193684088BD3DB37E /* PrivacyInfo.xcprivacy */; };
+		63B8530D18434F2A89CFCC44 /* GenreStationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79870989CA94F7B8AE3DED8 /* GenreStationsView.swift */; };
+		652C3BDF24F243599132C751 /* MegaRadioWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00D505B04C4E9E989FDB85 /* MegaRadioWatchApp.swift */; };
+		74CB950E95594B9792F45948 /* CountriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335804C605664A109B1DB412 /* CountriesView.swift */; };
+		7678986B87BFC9C3617261A3 /* Pods_MegaRadio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA8DB19532FAD6A244F81F9E /* Pods_MegaRadio.framework */; };
+		7BA497B2859C493AA40A43E9 /* WatchConnectivityHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99975581E3D4EFDA1DEF701 /* WatchConnectivityHandler.swift */; };
+		7BBEDBD5842C4941AF80788A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02FDEA95716439BB8D909E3 /* ContentView.swift */; };
+		84B2F9EAC3E248C0B2C1C933 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56846FA378F64C3AB7D56FF3 /* FavoritesView.swift */; };
+		90E67363DF51405EA36B9831 /* MegaRadioAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70EE76AD9B774F77AFBD179B /* MegaRadioAppIntents.swift */; };
+		941359EBF04D4367BC4C8940 /* MegaRadioSceneCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE7B632293E04AB2B3E1DD19 /* MegaRadioSceneCoordinator.swift */; };
+		AC42E6F61F7A4713873BA7CE /* ATTModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 268BB30212B24FDB98AAEA5C /* ATTModule.m */; };
+		AC75D6D022194AED932B2601 /* WatchConnectivityBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 8A02D407E3444045AEB360F5 /* WatchConnectivityBridge.m */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
+		C458C06C502741FABB661AE3 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 6A6D4185090D48C0BBDDC596 /* GoogleService-Info.plist */; };
+		CED959D5963236831DD0733C /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92BA7B0235447A8074ACD36D /* ExpoModulesProvider.swift */; };
+		DDB82EF3AE8147E4BCFE30FC /* WatchSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885EB7D19A0D4272BFA4DAEE /* WatchSessionManager.swift */; };
+		EE13262E730C4C6CA6B66DBC /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B279516E6F4B98B4CE8A9C /* BrowseView.swift */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		F11749012D0307B40044C1D9 /* CarPlaySceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11749002D0307B40044C1D9 /* CarPlaySceneDelegate.swift */; };
 		F11749032D0307B40044C1D9 /* SiriPlayMediaHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11749022D0307B40044C1D9 /* SiriPlayMediaHandler.swift */; };
 		F11749052D0307B40044C1D9 /* PhoneSceneDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11749042D0307B40044C1D9 /* PhoneSceneDelegate.swift */; };
-		C458C06C502741FABB661AE3 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 6A6D4185090D48C0BBDDC596 /* GoogleService-Info.plist */; };
-		0783477F4E0E49679374576F /* MegaRadioWatch.app in Copy Files */ = {isa = PBXBuildFile; fileRef = 563CAE3FF2894151990D266A /* MegaRadioWatch.app */; };
-		C7529E8769CE4E16895FE5C3 /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B279516E6F4B98B4CE8A9C /* BrowseView.swift */; };
-		3FBBE4EFED4F4285924F07E1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02FDEA95716439BB8D909E3 /* ContentView.swift */; };
-		206E897906C94EF18D70CFD9 /* CountriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335804C605664A109B1DB412 /* CountriesView.swift */; };
-		00062CD2691B40A8A9EE05E6 /* CountryStationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6603BE28FE9A415F8FF246FF /* CountryStationsView.swift */; };
-		8C9649BF33234CAB8EB937AC /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56846FA378F64C3AB7D56FF3 /* FavoritesView.swift */; };
-		AB5ADCF1B466474EB00D4067 /* GenreStationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79870989CA94F7B8AE3DED8 /* GenreStationsView.swift */; };
-		1DD5964D0D914057A62C6481 /* GenresView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798C0B46DA9D4B82941069C6 /* GenresView.swift */; };
-		289A366A8BD9428E842E2B30 /* MegaRadioWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00D505B04C4E9E989FDB85 /* MegaRadioWatchApp.swift */; };
-		34648F3B47DC4DDC99E8B351 /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7124A1A148664955873E3237 /* NowPlayingView.swift */; };
-		51D038919C29476E890ADA5F /* WatchSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885EB7D19A0D4272BFA4DAEE /* WatchSessionManager.swift */; };
-		3AED6E62313044DD8768FC15 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 996D851A9BFE4B44B05ECB50 /* Assets.xcassets */; };
-		06F76BFA2CE2420DB3B11505 /* MegaRadioWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = 563CAE3FF2894151990D266A /* MegaRadioWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		EE13262E730C4C6CA6B66DBC /* BrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B279516E6F4B98B4CE8A9C /* BrowseView.swift */; };
-		7BBEDBD5842C4941AF80788A /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02FDEA95716439BB8D909E3 /* ContentView.swift */; };
-		74CB950E95594B9792F45948 /* CountriesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 335804C605664A109B1DB412 /* CountriesView.swift */; };
-		492AA29FE785417D97A53581 /* CountryStationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6603BE28FE9A415F8FF246FF /* CountryStationsView.swift */; };
-		84B2F9EAC3E248C0B2C1C933 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56846FA378F64C3AB7D56FF3 /* FavoritesView.swift */; };
-		63B8530D18434F2A89CFCC44 /* GenreStationsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A79870989CA94F7B8AE3DED8 /* GenreStationsView.swift */; };
 		FB25CC2BA0AB4A2FB9A9FEBA /* GenresView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 798C0B46DA9D4B82941069C6 /* GenresView.swift */; };
-		652C3BDF24F243599132C751 /* MegaRadioWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B00D505B04C4E9E989FDB85 /* MegaRadioWatchApp.swift */; };
-		1C6327F882084D1BBCE220DD /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7124A1A148664955873E3237 /* NowPlayingView.swift */; };
-		DDB82EF3AE8147E4BCFE30FC /* WatchSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 885EB7D19A0D4272BFA4DAEE /* WatchSessionManager.swift */; };
-		90E67363DF51405EA36B9831 /* MegaRadioAppIntents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70EE76AD9B774F77AFBD179B /* MegaRadioAppIntents.swift */; };
-		5416937CB9E24809B5251DA7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 1D46A8D193684088BD3DB37E /* PrivacyInfo.xcprivacy */; };
-		941359EBF04D4367BC4C8940 /* MegaRadioSceneCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE7B632293E04AB2B3E1DD19 /* MegaRadioSceneCoordinator.swift */; };
-		02A95F668A88412FBDA4DF95 /* WatchConnectivityBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3964C17CF92C4A37A8D673C4 /* WatchConnectivityBridge.swift */; };
-		AC75D6D022194AED932B2601 /* WatchConnectivityBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = 8A02D407E3444045AEB360F5 /* WatchConnectivityBridge.m */; };
-		7BA497B2859C493AA40A43E9 /* WatchConnectivityHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = B99975581E3D4EFDA1DEF701 /* WatchConnectivityHandler.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		F513CC8FAB184B37B14E42AA /* Embed Watch Content */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
+			dstSubfolderSpec = 16;
+			files = (
+				06F76BFA2CE2420DB3B11505 /* MegaRadioWatch.app in Embed Watch Content */,
+			);
+			name = "Embed Watch Content";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* MegaRadio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MegaRadio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = MegaRadio/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = MegaRadio/Info.plist; sourceTree = "<group>"; };
+		1D46A8D193684088BD3DB37E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = PrivacyInfo.xcprivacy; path = MegaRadio/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		268BB30212B24FDB98AAEA5C /* ATTModule.m */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.objc; name = ATTModule.m; path = MegaRadio/ATTModule.m; sourceTree = "<group>"; };
+		335804C605664A109B1DB412 /* CountriesView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CountriesView.swift; path = MegaRadioWatch/CountriesView.swift; sourceTree = "<group>"; };
+		3964C17CF92C4A37A8D673C4 /* WatchConnectivityBridge.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = WatchConnectivityBridge.swift; path = MegaRadio/WatchConnectivityBridge.swift; sourceTree = "<group>"; };
+		44C24E94F42C39E7E0575135 /* Pods-MegaRadio.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MegaRadio.release.xcconfig"; path = "Target Support Files/Pods-MegaRadio/Pods-MegaRadio.release.xcconfig"; sourceTree = "<group>"; };
+		563CAE3FF2894151990D266A /* MegaRadioWatch.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = undefined; name = MegaRadioWatch.app; path = MegaRadioWatch.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		56846FA378F64C3AB7D56FF3 /* FavoritesView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = FavoritesView.swift; path = MegaRadioWatch/FavoritesView.swift; sourceTree = "<group>"; };
+		6603BE28FE9A415F8FF246FF /* CountryStationsView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = CountryStationsView.swift; path = MegaRadioWatch/CountryStationsView.swift; sourceTree = "<group>"; };
+		6A6D4185090D48C0BBDDC596 /* GoogleService-Info.plist */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "MegaRadio/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		70EE76AD9B774F77AFBD179B /* MegaRadioAppIntents.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = MegaRadioAppIntents.swift; path = MegaRadio/MegaRadioAppIntents.swift; sourceTree = "<group>"; };
+		7124A1A148664955873E3237 /* NowPlayingView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = NowPlayingView.swift; path = MegaRadioWatch/NowPlayingView.swift; sourceTree = "<group>"; };
+		798C0B46DA9D4B82941069C6 /* GenresView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = GenresView.swift; path = MegaRadioWatch/GenresView.swift; sourceTree = "<group>"; };
+		885EB7D19A0D4272BFA4DAEE /* WatchSessionManager.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = WatchSessionManager.swift; path = MegaRadioWatch/WatchSessionManager.swift; sourceTree = "<group>"; };
+		8A02D407E3444045AEB360F5 /* WatchConnectivityBridge.m */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.objc; name = WatchConnectivityBridge.m; path = MegaRadio/WatchConnectivityBridge.m; sourceTree = "<group>"; };
+		92BA7B0235447A8074ACD36D /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-MegaRadio/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		996D851A9BFE4B44B05ECB50 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = MegaRadioWatch/Assets.xcassets; sourceTree = "<group>"; };
+		9B00D505B04C4E9E989FDB85 /* MegaRadioWatchApp.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = MegaRadioWatchApp.swift; path = MegaRadioWatch/MegaRadioWatchApp.swift; sourceTree = "<group>"; };
+		A79870989CA94F7B8AE3DED8 /* GenreStationsView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = GenreStationsView.swift; path = MegaRadioWatch/GenreStationsView.swift; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = MegaRadio/SplashScreen.storyboard; sourceTree = "<group>"; };
+		B1B279516E6F4B98B4CE8A9C /* BrowseView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = BrowseView.swift; path = MegaRadioWatch/BrowseView.swift; sourceTree = "<group>"; };
+		B4939F97145DD78F5D14D13C /* Pods-MegaRadio.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-MegaRadio.debug.xcconfig"; path = "Target Support Files/Pods-MegaRadio/Pods-MegaRadio.debug.xcconfig"; sourceTree = "<group>"; };
+		B99975581E3D4EFDA1DEF701 /* WatchConnectivityHandler.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = WatchConnectivityHandler.swift; path = MegaRadio/WatchConnectivityHandler.swift; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
+		BE7B632293E04AB2B3E1DD19 /* MegaRadioSceneCoordinator.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = MegaRadioSceneCoordinator.swift; path = MegaRadio/MegaRadioSceneCoordinator.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		EEAE9EC824EA4357884706A2 /* AppTrackingTransparency.framework */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = wrapper.framework; name = AppTrackingTransparency.framework; path = System/Library/Frameworks/AppTrackingTransparency.framework; sourceTree = SDKROOT; };
+		F02FDEA95716439BB8D909E3 /* ContentView.swift */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = ContentView.swift; path = MegaRadioWatch/ContentView.swift; sourceTree = "<group>"; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = MegaRadio/AppDelegate.swift; sourceTree = "<group>"; };
+		F11748442D0722820044C1D9 /* MegaRadio-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MegaRadio-Bridging-Header.h"; path = "MegaRadio/MegaRadio-Bridging-Header.h"; sourceTree = "<group>"; };
 		F11749002D0307B40044C1D9 /* CarPlaySceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CarPlaySceneDelegate.swift; path = MegaRadio/CarPlaySceneDelegate.swift; sourceTree = "<group>"; };
 		F11749022D0307B40044C1D9 /* SiriPlayMediaHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = SiriPlayMediaHandler.swift; path = MegaRadio/SiriPlayMediaHandler.swift; sourceTree = "<group>"; };
 		F11749042D0307B40044C1D9 /* PhoneSceneDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PhoneSceneDelegate.swift; path = MegaRadio/PhoneSceneDelegate.swift; sourceTree = "<group>"; };
-		F11748442D0722820044C1D9 /* MegaRadio-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "MegaRadio-Bridging-Header.h"; path = "MegaRadio/MegaRadio-Bridging-Header.h"; sourceTree = "<group>"; };
-		6A6D4185090D48C0BBDDC596 /* GoogleService-Info.plist */ = {isa = PBXFileReference; name = "GoogleService-Info.plist"; path = "MegaRadio/GoogleService-Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; explicitFileType = undefined; includeInIndex = 0; };
-		563CAE3FF2894151990D266A /* MegaRadioWatch.app */ = {isa = PBXFileReference; name = "MegaRadioWatch.app"; path = "MegaRadioWatch.app"; sourceTree = BUILT_PRODUCTS_DIR; fileEncoding = undefined; lastKnownFileType = undefined; explicitFileType = "wrapper.application"; includeInIndex = 0; };
-		B1B279516E6F4B98B4CE8A9C /* BrowseView.swift */ = {isa = PBXFileReference; name = "BrowseView.swift"; path = "MegaRadioWatch/BrowseView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		F02FDEA95716439BB8D909E3 /* ContentView.swift */ = {isa = PBXFileReference; name = "ContentView.swift"; path = "MegaRadioWatch/ContentView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		335804C605664A109B1DB412 /* CountriesView.swift */ = {isa = PBXFileReference; name = "CountriesView.swift"; path = "MegaRadioWatch/CountriesView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		6603BE28FE9A415F8FF246FF /* CountryStationsView.swift */ = {isa = PBXFileReference; name = "CountryStationsView.swift"; path = "MegaRadioWatch/CountryStationsView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		56846FA378F64C3AB7D56FF3 /* FavoritesView.swift */ = {isa = PBXFileReference; name = "FavoritesView.swift"; path = "MegaRadioWatch/FavoritesView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		A79870989CA94F7B8AE3DED8 /* GenreStationsView.swift */ = {isa = PBXFileReference; name = "GenreStationsView.swift"; path = "MegaRadioWatch/GenreStationsView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		798C0B46DA9D4B82941069C6 /* GenresView.swift */ = {isa = PBXFileReference; name = "GenresView.swift"; path = "MegaRadioWatch/GenresView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		9B00D505B04C4E9E989FDB85 /* MegaRadioWatchApp.swift */ = {isa = PBXFileReference; name = "MegaRadioWatchApp.swift"; path = "MegaRadioWatch/MegaRadioWatchApp.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		7124A1A148664955873E3237 /* NowPlayingView.swift */ = {isa = PBXFileReference; name = "NowPlayingView.swift"; path = "MegaRadioWatch/NowPlayingView.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		885EB7D19A0D4272BFA4DAEE /* WatchSessionManager.swift */ = {isa = PBXFileReference; name = "WatchSessionManager.swift"; path = "MegaRadioWatch/WatchSessionManager.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		8A33BB1F26D54B9987E9C867 /* Info.plist */ = {isa = PBXFileReference; name = "Info.plist"; path = "MegaRadioWatch/Info.plist"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = text.plist.xml; explicitFileType = undefined; includeInIndex = 0; };
-		71654DD2EF5448D9AFF2C9CD /* MegaRadioWatch.entitlements */ = {isa = PBXFileReference; name = "MegaRadioWatch.entitlements"; path = "MegaRadioWatch/MegaRadioWatch.entitlements"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		996D851A9BFE4B44B05ECB50 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Assets.xcassets; path = MegaRadioWatch/Assets.xcassets; sourceTree = "<group>"; };
-		70EE76AD9B774F77AFBD179B /* MegaRadioAppIntents.swift */ = {isa = PBXFileReference; name = "MegaRadioAppIntents.swift"; path = "MegaRadio/MegaRadioAppIntents.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		1D46A8D193684088BD3DB37E /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; name = "PrivacyInfo.xcprivacy"; path = "MegaRadio/PrivacyInfo.xcprivacy"; sourceTree = "<group>"; fileEncoding = undefined; lastKnownFileType = unknown; explicitFileType = undefined; includeInIndex = 0; };
-		BE7B632293E04AB2B3E1DD19 /* MegaRadioSceneCoordinator.swift */ = {isa = PBXFileReference; name = "MegaRadioSceneCoordinator.swift"; path = "MegaRadio/MegaRadioSceneCoordinator.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		3964C17CF92C4A37A8D673C4 /* WatchConnectivityBridge.swift */ = {isa = PBXFileReference; name = "WatchConnectivityBridge.swift"; path = "MegaRadio/WatchConnectivityBridge.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
-		8A02D407E3444045AEB360F5 /* WatchConnectivityBridge.m */ = {isa = PBXFileReference; name = "WatchConnectivityBridge.m"; path = "MegaRadio/WatchConnectivityBridge.m"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; explicitFileType = undefined; includeInIndex = 0; };
-		B99975581E3D4EFDA1DEF701 /* WatchConnectivityHandler.swift */ = {isa = PBXFileReference; name = "WatchConnectivityHandler.swift"; path = "MegaRadio/WatchConnectivityHandler.swift"; sourceTree = "<group>"; fileEncoding = 4; lastKnownFileType = sourcecode.swift; explicitFileType = undefined; includeInIndex = 0; };
+		FA8DB19532FAD6A244F81F9E /* Pods_MegaRadio.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Pods_MegaRadio.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
 /* Begin PBXFrameworksBuildPhase section */
 		13B07F8C1A680F5B00A75B9A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7678986B87BFC9C3617261A3 /* Pods_MegaRadio.framework in Frameworks */,
+				251459E3702C4DEC935B34B4 /* AppTrackingTransparency.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
+		0B39EAF66433A6906433974C /* Pods */ = {
+			isa = PBXGroup;
+			children = (
+				B4939F97145DD78F5D14D13C /* Pods-MegaRadio.debug.xcconfig */,
+				44C24E94F42C39E7E0575135 /* Pods-MegaRadio.release.xcconfig */,
+			);
+			name = Pods;
+			path = Pods;
+			sourceTree = "<group>";
+		};
 		13B07FAE1A68108700A75B9A /* MegaRadio */ = {
 			isa = PBXGroup;
 			children = (
@@ -107,6 +135,7 @@
 				3964C17CF92C4A37A8D673C4 /* WatchConnectivityBridge.swift */,
 				8A02D407E3444045AEB360F5 /* WatchConnectivityBridge.m */,
 				B99975581E3D4EFDA1DEF701 /* WatchConnectivityHandler.swift */,
+				268BB30212B24FDB98AAEA5C /* ATTModule.m */,
 			);
 			name = MegaRadio;
 			sourceTree = "<group>";
@@ -115,8 +144,18 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
+				FA8DB19532FAD6A244F81F9E /* Pods_MegaRadio.framework */,
+				EEAE9EC824EA4357884706A2 /* AppTrackingTransparency.framework */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5AA8B4529CC0247988CD8E01 /* MegaRadio */ = {
+			isa = PBXGroup;
+			children = (
+				92BA7B0235447A8074ACD36D /* ExpoModulesProvider.swift */,
+			);
+			name = MegaRadio;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -133,6 +172,8 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
+				0B39EAF66433A6906433974C /* Pods */,
+				D152D0CD552B793FA3263BBC /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -157,40 +198,33 @@
 			path = MegaRadio/Supporting;
 			sourceTree = "<group>";
 		};
-		BD0CBB5ABA874BDD9ED3DB16 /* MegaRadioWatch */ = {
-			isa = "PBXGroup";
+		D152D0CD552B793FA3263BBC /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
 			children = (
-				B1B279516E6F4B98B4CE8A9C /* BrowseView.swift */,
-				F02FDEA95716439BB8D909E3 /* ContentView.swift */,
-				335804C605664A109B1DB412 /* CountriesView.swift */,
-				6603BE28FE9A415F8FF246FF /* CountryStationsView.swift */,
-				56846FA378F64C3AB7D56FF3 /* FavoritesView.swift */,
-				A79870989CA94F7B8AE3DED8 /* GenreStationsView.swift */,
-				798C0B46DA9D4B82941069C6 /* GenresView.swift */,
-				9B00D505B04C4E9E989FDB85 /* MegaRadioWatchApp.swift */,
-				7124A1A148664955873E3237 /* NowPlayingView.swift */,
-				885EB7D19A0D4272BFA4DAEE /* WatchSessionManager.swift */,
-				8A33BB1F26D54B9987E9C867 /* Info.plist */,
-				71654DD2EF5448D9AFF2C9CD /* MegaRadioWatch.entitlements */,
-				996D851A9BFE4B44B05ECB50 /* Assets.xcassets */,
+				5AA8B4529CC0247988CD8E01 /* MegaRadio */,
 			);
-			name = MegaRadioWatch;
+			name = ExpoModulesProviders;
 			sourceTree = "<group>";
-			path = MegaRadioWatch;
 		};
 /* End PBXGroup section */
+
 /* Begin PBXNativeTarget section */
 		13B07F861A680F5B00A75B9A /* MegaRadio */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "MegaRadio" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
+				D65C82FFD9FBB0DB120C3067 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				F513CC8FAB184B37B14E42AA /* Embed Watch Content */,
+				5A15DB9ED96B132ECBB310BF /* [CP] Embed Pods Frameworks */,
+				BD29A0FB472E95ED09B159B4 /* [CP-User] [RNFB] Core Configuration */,
+				413C58F9705A8F98F474F7CF /* [CP-User] [RNFB] Crashlytics Configuration */,
+				4CE31E4DFB22942D9793A637 /* [CP-User] [RNGoogleMobileAds] Configuration */,
 			);
 			buildRules = (
 			);
@@ -201,13 +235,9 @@
 			productReference = 13B07F961A680F5B00A75B9A /* MegaRadio.app */;
 			productType = "com.apple.product-type.application";
 		};
-		E930CFDA76CA4FE89221BC95 /* "MegaRadioWatch" */ = {
+		E930CFDA76CA4FE89221BC95 /* MegaRadioWatch */ = {
 			isa = PBXNativeTarget;
-			name = "MegaRadioWatch";
-			productName = "MegaRadioWatch";
-			productReference = 563CAE3FF2894151990D266A;
-			productType = "com.apple.product-type.application";
-			buildConfigurationList = D01D0A48C22A49AEACB0FB92;
+			buildConfigurationList = D01D0A48C22A49AEACB0FB92 /* Build configuration list for PBXNativeTarget "MegaRadioWatch" */;
 			buildPhases = (
 				BB258B3234434DEDA03970C3 /* Sources */,
 				CEB585C0A2CB46A382FC52CF /* Resources */,
@@ -216,8 +246,13 @@
 			);
 			dependencies = (
 			);
+			name = MegaRadioWatch;
+			productName = MegaRadioWatch;
+			productReference = 563CAE3FF2894151990D266A /* MegaRadioWatch.app */;
+			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
+
 /* Begin PBXProject section */
 		83CBB9F71A601CBA00E9B192 /* Project object */ = {
 			isa = PBXProject;
@@ -243,10 +278,11 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* MegaRadio */,
-				E930CFDA76CA4FE89221BC95 /* "MegaRadioWatch" */,
+				E930CFDA76CA4FE89221BC95 /* MegaRadioWatch */,
 			);
 		};
 /* End PBXProject section */
+
 /* Begin PBXResourcesBuildPhase section */
 		13B07F8E1A680F5B00A75B9A /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
@@ -265,10 +301,12 @@
 			buildActionMask = 2147483647;
 			files = (
 				3AED6E62313044DD8768FC15 /* Assets.xcassets in Resources */,
+				005C3C995DC659E180F306F6 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
 /* Begin PBXShellScriptBuildPhase section */
 		00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -309,6 +347,51 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		413C58F9705A8F98F474F7CF /* [CP-User] [RNFB] Crashlytics Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Resources/DWARF/${TARGET_NAME}",
+				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "[CP-User] [RNFB] Crashlytics Configuration";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/usr/bin/env bash\n#\n# Copyright (c) 2016-present Invertase Limited & Contributors\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this library except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#   http://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n#\nset -e\n\nif [[ ${PODS_ROOT} ]]; then\n  echo \"info: Exec FirebaseCrashlytics Run from Pods\"\n  \"${PODS_ROOT}/FirebaseCrashlytics/run\"\nelse\n  echo \"info: Exec FirebaseCrashlytics Run from framework\"\n  \"${PROJECT_DIR}/FirebaseCrashlytics.framework/run\"\nfi\n";
+		};
+		4CE31E4DFB22942D9793A637 /* [CP-User] [RNGoogleMobileAds] Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "[CP-User] [RNGoogleMobileAds] Configuration";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/usr/bin/env bash\n#\n# Copyright (c) 2016-present Invertase Limited & Contributors\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this library except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#   http://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n#\n\n##########################################################################\n##########################################################################\n#\n#  NOTE THAT IF YOU CHANGE THIS FILE YOU MUST RUN pod install AFTERWARDS\n#\n#  This file is installed as an Xcode build script in the project file\n#  by cocoapods, and you will not see your changes until you pod install\n#\n##########################################################################\n##########################################################################\n\nset -e\n\n_MAX_LOOKUPS=2;\n_SEARCH_RESULT=''\n_RN_ROOT_EXISTS=''\n_CURRENT_LOOKUPS=1\n_PROJECT_ABBREVIATION=\"RNGoogleMobileAds\"\n_JSON_ROOT=\"'react-native-google-mobile-ads'\"\n_JSON_FILE_NAME='app.json'\n_JSON_OUTPUT_BASE64='e30=' # { }\n_CURRENT_SEARCH_DIR=${PROJECT_DIR}\n_PLIST_BUDDY=/usr/libexec/PlistBuddy\n_TARGET_PLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\n_DSYM_PLIST=\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist\"\n_PACKAGE_JSON_NAME='package.json'\n\n# plist arrays\n_PLIST_ENTRY_KEYS=()\n_PLIST_ENTRY_TYPES=()\n_PLIST_ENTRY_VALUES=()\n\nfunction setPlistValue {\n  echo \"info:      setting plist entry '$1' of type '$2' in file '$4'\"\n  ${_PLIST_BUDDY} -c \"Add :$1 $2 '$3'\" $4 || echo \"info:      '$1' already exists\"\n}\n\nfunction getJsonKeyValue () {\n  if [[ ${_RN_ROOT_EXISTS} ]]; then\n    ruby -KU -e \"require 'rubygems';require 'json'; output=JSON.parse('$1'); puts output[$_JSON_ROOT]['$2']\"\n  else\n    echo \"\"\n  fi;\n}\n\nfunction jsonBoolToYesNo () {\n  if [[ $1 == \"false\" ]]; then\n    echo \"NO\"\n  elif [[ $1 == \"true\" ]]; then\n    echo \"YES\"\n  else echo \"NO\"\n  fi\n}\n\necho \"info: -> ${_PROJECT_ABBREVIATION} build script started\"\necho \"info: 1) Locating ${_JSON_FILE_NAME} file:\"\n\nif [[ -z ${_CURRENT_SEARCH_DIR} ]]; then\n  _CURRENT_SEARCH_DIR=$(pwd)\nfi;\n\nwhile true; do\n  _CURRENT_SEARCH_DIR=$(dirname \"$_CURRENT_SEARCH_DIR\")\n  if [[ \"$_CURRENT_SEARCH_DIR\" == \"/\" ]] || [[ ${_CURRENT_LOOKUPS} -gt ${_MAX_LOOKUPS} ]]; then break; fi;\n  echo \"info:      ($_CURRENT_LOOKUPS of $_MAX_LOOKUPS) Searching in '$_CURRENT_SEARCH_DIR' for a ${_JSON_FILE_NAME} file.\"\n  _SEARCH_RESULT=$(find \"$_CURRENT_SEARCH_DIR\" -maxdepth 2 -name ${_JSON_FILE_NAME} -print | /usr/bin/head -n 1)\n  if [[ ${_SEARCH_RESULT} ]]; then\n    echo \"info:      ${_JSON_FILE_NAME} found at $_SEARCH_RESULT\"\n    break;\n  fi;\n  _CURRENT_LOOKUPS=$((_CURRENT_LOOKUPS+1))\ndone\n\n# Bail out if project is using Expo\n_PACKAGE_JSON_PATH=$(dirname \"${_SEARCH_RESULT}\")/${_PACKAGE_JSON_NAME}\n_IS_PROJECT_USING_EXPO=$(ruby -KU -e \"require 'json'; package=JSON.parse(File.read('${_PACKAGE_JSON_PATH}')); puts package['dependencies'].key?('expo')\")\n\nif [[ ${_IS_PROJECT_USING_EXPO} == \"true\" ]]; then\n  echo \"info: Expo project detected, assume Expo Config Plugin is used.\"\n  exit 0\nfi\n\nif [[ ${_SEARCH_RESULT} ]]; then\n  _JSON_OUTPUT_RAW=$(cat \"${_SEARCH_RESULT}\")\n  _RN_ROOT_EXISTS=$(ruby -KU -e \"require 'rubygems';require 'json'; output=JSON.parse('$_JSON_OUTPUT_RAW'); puts output[$_JSON_ROOT]\" || echo '')\n\n  if [[ ${_RN_ROOT_EXISTS} ]]; then\n    if ! python3 --version >/dev/null 2>&1; then echo \"python3 not found, app.json file processing error.\" && exit 1; fi\n    _JSON_OUTPUT_BASE64=$(python3 -c 'import json,sys,base64;print(base64.b64encode(bytes(json.dumps(json.loads(open('\"'${_SEARCH_RESULT}'\"', '\"'rb'\"').read())['${_JSON_ROOT}']), '\"'utf-8'\"')).decode())' || echo \"e30=\")\n  fi\n\n  _PLIST_ENTRY_KEYS+=(\"google_mobile_ads_json_raw\")\n  _PLIST_ENTRY_TYPES+=(\"string\")\n  _PLIST_ENTRY_VALUES+=(\"$_JSON_OUTPUT_BASE64\")\n\n  # config.delay_app_measurement_init\n  _DELAY_APP_MEASUREMENT=$(getJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"delay_app_measurement_init\")\n  if [[ $_DELAY_APP_MEASUREMENT == \"true\" ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GADDelayAppMeasurementInit\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"YES\")\n  fi\n\n  # config.ios_app_id\n  _IOS_APP_ID=$(getJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"ios_app_id\")\n  if [[ $_IOS_APP_ID ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GADApplicationIdentifier\")\n    _PLIST_ENTRY_TYPES+=(\"string\")\n    _PLIST_ENTRY_VALUES+=(\"$_IOS_APP_ID\")\n  fi\n\n  # config.sk_ad_network_items\n  _SK_AD_NETWORK_ITEMS=$(getJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"sk_ad_network_items\")\n  if [[ $_SK_AD_NETWORK_ITEMS ]]; then\n    _PLIST_ENTRY_KEYS+=(\"SKAdNetworkItems\")\n    _PLIST_ENTRY_TYPES+=(\"array\")\n    _PLIST_ENTRY_VALUES+=(\"\")\n\n    oldifs=$IFS\n    IFS=\"\n\"\n    array=($(echo \"$_SK_AD_NETWORK_ITEMS\"))\n    IFS=$oldifs\n    for i in \"${!array[@]}\"; do\n      _PLIST_ENTRY_KEYS+=(\"SKAdNetworkItems:$i:SKAdNetworkIdentifier\")\n      _PLIST_ENTRY_TYPES+=(\"string\")\n      _PLIST_ENTRY_VALUES+=(\"${array[i]}\")  \n    done\n  fi\n\n    # config.user_tracking_usage_description\n  _USER_TRACKING_USAGE_DESCRIPTION=$(getJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"user_tracking_usage_description\")\n  if [[ $_USER_TRACKING_USAGE_DESCRIPTION ]]; then\n    _PLIST_ENTRY_KEYS+=(\"NSUserTrackingUsageDescription\")\n    _PLIST_ENTRY_TYPES+=(\"string\")\n    _PLIST_ENTRY_VALUES+=(\"$_USER_TRACKING_USAGE_DESCRIPTION\")\n  fi\nelse\n  _PLIST_ENTRY_KEYS+=(\"google_mobile_ads_json_raw\")\n  _PLIST_ENTRY_TYPES+=(\"string\")\n  _PLIST_ENTRY_VALUES+=(\"$_JSON_OUTPUT_BASE64\")\n  echo \"warning:   A ${_JSON_FILE_NAME} file was not found, whilst this file is optional it is recommended to include it to auto-configure services.\"\nfi;\n\necho \"info: 2) Injecting Info.plist entries: \"\n\n# Log out the keys we're adding\nfor i in \"${!_PLIST_ENTRY_KEYS[@]}\"; do\n  echo \"    ->  $i) ${_PLIST_ENTRY_KEYS[$i]}\" \"${_PLIST_ENTRY_TYPES[$i]}\" \"${_PLIST_ENTRY_VALUES[$i]}\"\ndone\n\nif ! [[ -f \"${_TARGET_PLIST}\" ]]; then\n  echo \"error: unable to locate Info.plist to set properties. App will crash without GADApplicationIdentifier set.\"\n  exit 1\nfi\n\nif ! [[ $_IOS_APP_ID ]]; then\n  echo \"error: ios_app_id key not found in react-native-google-mobile-ads key in app.json. App will crash without it.\"\n  exit 1\nfi\n\nfor plist in \"${_TARGET_PLIST}\" \"${_DSYM_PLIST}\" ; do\n  if [[ -f \"${plist}\" ]]; then\n\n    # paths with spaces break the call to setPlistValue. temporarily modify\n    # the shell internal field separator variable (IFS), which normally\n    # includes spaces, to consist only of line breaks\n    oldifs=$IFS\n    IFS=\"\n\"\n\n    for i in \"${!_PLIST_ENTRY_KEYS[@]}\"; do\n      setPlistValue \"${_PLIST_ENTRY_KEYS[$i]}\" \"${_PLIST_ENTRY_TYPES[$i]}\" \"${_PLIST_ENTRY_VALUES[$i]}\" \"${plist}\"\n    done\n\n    # restore the original internal field separator value\n    IFS=$oldifs\n  else\n    echo \"warning:   A Info.plist build output file was not found (${plist})\"\n  fi\ndone\n\necho \"info: <- ${_PROJECT_ABBREVIATION} build script finished\"\n";
+		};
+		5A15DB9ED96B132ECBB310BF /* [CP] Embed Pods Frameworks */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-MegaRadio/Pods-MegaRadio-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
+			);
+			name = "[CP] Embed Pods Frameworks";
+			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-MegaRadio/Pods-MegaRadio-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -316,22 +399,138 @@
 			);
 			inputPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-MegaRadio/Pods-MegaRadio-resources.sh",
+				"${PODS_CONFIGURATION_BUILD_DIR}/AppAuth/AppAuthCore_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXApplication/ExpoApplication_privacy.bundle",
 				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/EXConstants.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/EXUpdates/EXUpdates.bundle",
-				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/RCTI18nStrings.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXConstants/ExpoConstants_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/EXNotifications/ExpoNotifications_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoDevice/ExpoDevice_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoFileSystem/ExpoFileSystem_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoLocalization/ExpoLocalization_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/ExpoSystemUI/ExpoSystemUI_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseABTesting/FirebaseABTesting_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCore/FirebaseCore_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCoreExtension/FirebaseCoreExtension_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCoreInternal/FirebaseCoreInternal_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseCrashlytics/FirebaseCrashlytics_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseInstallations/FirebaseInstallations_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/FirebaseRemoteConfig/FirebaseRemoteConfig_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/GTMAppAuth/GTMAppAuth_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/GTMSessionFetcher/GTMSessionFetcher_Core_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/Google-Mobile-Ads-SDK/GoogleMobileAdsResources.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleDataTransport/GoogleDataTransport_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleSignIn/GoogleSignIn.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleUserMessagingPlatform/UserMessagingPlatformResources.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/GoogleUtilities/GoogleUtilities_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/PromisesObjC/FBLPromises_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/PromisesSwift/Promises_Privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/RCT-Folly/RCT-Folly_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/RNCAsyncStorage/RNCAsyncStorage_resources.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/RNSVG/RNSVGFilters.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-Core/React-Core_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/React-cxxreact/React-cxxreact_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/SDWebImage/SDWebImage.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/boost/boost_privacy.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/glog/glog_privacy.bundle",
+				"${PODS_ROOT}/google-cast-sdk/GoogleCastSDK-ios-4.8.4_static_xcframework/GoogleCast.xcframework/ios-arm64/GoogleCast.framework/GoogleCastCoreResources.bundle",
+				"${PODS_ROOT}/google-cast-sdk/GoogleCastSDK-ios-4.8.4_static_xcframework/GoogleCast.xcframework/ios-arm64/GoogleCast.framework/GoogleCastUIResources.bundle",
+				"${PODS_ROOT}/google-cast-sdk/GoogleCastSDK-ios-4.8.4_static_xcframework/GoogleCast.xcframework/ios-arm64/GoogleCast.framework/GoogleCastOptionalUIResources.bundle",
+				"${PODS_ROOT}/google-cast-sdk/GoogleCastSDK-ios-4.8.4_static_xcframework/GoogleCast.xcframework/ios-arm64/GoogleCast.framework/MaterialDialogs.bundle",
+				"${PODS_ROOT}/google-cast-sdk/GoogleCastSDK-ios-4.8.4_static_xcframework/GoogleCast.xcframework/ios-arm64/GoogleCast.framework/GoogleSansBold.bundle",
+				"${PODS_ROOT}/google-cast-sdk/GoogleCastSDK-ios-4.8.4_static_xcframework/GoogleCast.xcframework/ios-arm64/GoogleCast.framework/GoogleSansMedium.bundle",
+				"${PODS_ROOT}/google-cast-sdk/GoogleCastSDK-ios-4.8.4_static_xcframework/GoogleCast.xcframework/ios-arm64/GoogleCast.framework/GoogleSansRegular.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/google-cast-sdk/GoogleCast.bundle",
+				"${PODS_CONFIGURATION_BUILD_DIR}/nanopb/nanopb_Privacy.bundle",
 			);
 			name = "[CP] Copy Pods Resources";
 			outputPaths = (
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/AppAuthCore_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoApplication_privacy.bundle",
 				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXConstants.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/EXUpdates.bundle",
-				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCTI18nStrings.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoConstants_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoNotifications_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoDevice_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoFileSystem_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoLocalization_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/ExpoSystemUI_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FirebaseABTesting_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FirebaseCore_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FirebaseCoreExtension_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FirebaseCoreInternal_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FirebaseCrashlytics_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FirebaseInstallations_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FirebaseRemoteConfig_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GTMAppAuth_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GTMSessionFetcher_Core_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleMobileAdsResources.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleDataTransport_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleSignIn.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/UserMessagingPlatformResources.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleUtilities_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/FBLPromises_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Promises_Privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RCT-Folly_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNCAsyncStorage_resources.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/RNSVGFilters.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-Core_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/React-cxxreact_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/SDWebImage.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/boost_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/glog_privacy.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleCastCoreResources.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleCastUIResources.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleCastOptionalUIResources.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/MaterialDialogs.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleSansBold.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleSansMedium.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleSansRegular.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleCast.bundle",
+				"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/nanopb_Privacy.bundle",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-MegaRadio/Pods-MegaRadio-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
+		BD29A0FB472E95ED09B159B4 /* [CP-User] [RNFB] Core Configuration */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/$(INFOPLIST_PATH)",
+			);
+			name = "[CP-User] [RNFB] Core Configuration";
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "#!/usr/bin/env bash\n#\n# Copyright (c) 2016-present Invertase Limited & Contributors\n#\n# Licensed under the Apache License, Version 2.0 (the \"License\");\n# you may not use this library except in compliance with the License.\n# You may obtain a copy of the License at\n#\n#   http://www.apache.org/licenses/LICENSE-2.0\n#\n# Unless required by applicable law or agreed to in writing, software\n# distributed under the License is distributed on an \"AS IS\" BASIS,\n# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n# See the License for the specific language governing permissions and\n# limitations under the License.\n#\n\n##########################################################################\n##########################################################################\n#\n#  NOTE THAT IF YOU CHANGE THIS FILE YOU MUST RUN pod install AFTERWARDS\n#\n#  This file is installed as an Xcode build script in the project file\n#  by cocoapods, and you will not see your changes until you pod install\n#\n##########################################################################\n##########################################################################\n\nset -e\n\n_MAX_LOOKUPS=2;\n_SEARCH_RESULT=''\n_RN_ROOT_EXISTS=''\n_CURRENT_LOOKUPS=1\n_JSON_ROOT=\"'react-native'\"\n_JSON_FILE_NAME='firebase.json'\n_JSON_OUTPUT_BASE64='e30=' # { }\n_CURRENT_SEARCH_DIR=${PROJECT_DIR}\n_PLIST_BUDDY=/usr/libexec/PlistBuddy\n_TARGET_PLIST=\"${BUILT_PRODUCTS_DIR}/${INFOPLIST_PATH}\"\n_DSYM_PLIST=\"${DWARF_DSYM_FOLDER_PATH}/${DWARF_DSYM_FILE_NAME}/Contents/Info.plist\"\n\n# plist arrays\n_PLIST_ENTRY_KEYS=()\n_PLIST_ENTRY_TYPES=()\n_PLIST_ENTRY_VALUES=()\n\nfunction setPlistValue {\n  echo \"note:      setting plist entry '$1' of type '$2' in file '$4'\"\n  ${_PLIST_BUDDY} -c \"Add :$1 $2 '$3'\" $4 || echo \"note:      '$1' already exists\"\n}\n\nfunction getFirebaseJsonKeyValue () {\n  if [[ ${_RN_ROOT_EXISTS} ]]; then\n    ruby -Ku -e \"require 'rubygems';require 'json'; output=JSON.parse('$1'); puts output[$_JSON_ROOT]['$2']\"\n  else\n    echo \"\"\n  fi;\n}\n\nfunction jsonBoolToYesNo () {\n  if [[ $1 == \"false\" ]]; then\n    echo \"NO\"\n  elif [[ $1 == \"true\" ]]; then\n    echo \"YES\"\n  else echo \"NO\"\n  fi\n}\n\necho \"note: -> RNFB build script started\"\necho \"note: 1) Locating ${_JSON_FILE_NAME} file:\"\n\nif [[ -z ${_CURRENT_SEARCH_DIR} ]]; then\n  _CURRENT_SEARCH_DIR=$(pwd)\nfi;\n\nwhile true; do\n  _CURRENT_SEARCH_DIR=$(dirname \"$_CURRENT_SEARCH_DIR\")\n  if [[ \"$_CURRENT_SEARCH_DIR\" == \"/\" ]] || [[ ${_CURRENT_LOOKUPS} -gt ${_MAX_LOOKUPS} ]]; then break; fi;\n  echo \"note:      ($_CURRENT_LOOKUPS of $_MAX_LOOKUPS) Searching in '$_CURRENT_SEARCH_DIR' for a ${_JSON_FILE_NAME} file.\"\n  _SEARCH_RESULT=$(find \"$_CURRENT_SEARCH_DIR\" -maxdepth 2 -name ${_JSON_FILE_NAME} -print | /usr/bin/head -n 1)\n  if [[ ${_SEARCH_RESULT} ]]; then\n    echo \"note:      ${_JSON_FILE_NAME} found at $_SEARCH_RESULT\"\n    break;\n  fi;\n  _CURRENT_LOOKUPS=$((_CURRENT_LOOKUPS+1))\ndone\n\nif [[ ${_SEARCH_RESULT} ]]; then\n  _JSON_OUTPUT_RAW=$(cat \"${_SEARCH_RESULT}\")\n  if ! _RN_ROOT_EXISTS=$(ruby -Ku -e \"require 'json'; output=JSON.parse('$_JSON_OUTPUT_RAW'); puts output[$_JSON_ROOT]\"); then\n    echo \"error: Failed to parse firebase.json, check for syntax errors.\"\n    exit 1\n  fi\n\n  if [[ ${_RN_ROOT_EXISTS} ]]; then\n    if ! python3 --version >/dev/null 2>&1; then echo \"error: python3 not found, firebase.json file processing error.\" && exit 1; fi\n    _JSON_OUTPUT_BASE64=$(python3 -c 'import json,sys,base64;print(base64.b64encode(bytes(json.dumps(json.loads(open('\"'${_SEARCH_RESULT}'\"', '\"'rb'\"').read())['${_JSON_ROOT}']), '\"'utf-8'\"')).decode())' || echo \"e30=\")\n  fi\n\n  _PLIST_ENTRY_KEYS+=(\"firebase_json_raw\")\n  _PLIST_ENTRY_TYPES+=(\"string\")\n  _PLIST_ENTRY_VALUES+=(\"$_JSON_OUTPUT_BASE64\")\n\n  # config.app_data_collection_default_enabled\n  _APP_DATA_COLLECTION_ENABLED=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"app_data_collection_default_enabled\")\n  if [[ $_APP_DATA_COLLECTION_ENABLED ]]; then\n    _PLIST_ENTRY_KEYS+=(\"FirebaseDataCollectionDefaultEnabled\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_APP_DATA_COLLECTION_ENABLED\")\")\n  fi\n\n  # config.analytics_auto_collection_enabled\n  _ANALYTICS_AUTO_COLLECTION=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"analytics_auto_collection_enabled\")\n  if [[ $_ANALYTICS_AUTO_COLLECTION ]]; then\n    _PLIST_ENTRY_KEYS+=(\"FIREBASE_ANALYTICS_COLLECTION_ENABLED\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_AUTO_COLLECTION\")\")\n  fi\n\n  # config.analytics_collection_deactivated\n  _ANALYTICS_DEACTIVATED=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"analytics_collection_deactivated\")\n  if [[ $_ANALYTICS_DEACTIVATED ]]; then\n    _PLIST_ENTRY_KEYS+=(\"FIREBASE_ANALYTICS_COLLECTION_DEACTIVATED\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_DEACTIVATED\")\")\n  fi\n\n  # config.analytics_idfv_collection_enabled\n  _ANALYTICS_IDFV_COLLECTION=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"analytics_idfv_collection_enabled\")\n  if [[ $_ANALYTICS_IDFV_COLLECTION ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GOOGLE_ANALYTICS_IDFV_COLLECTION_ENABLED\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_IDFV_COLLECTION\")\")\n  fi\n\n  # config.analytics_default_allow_analytics_storage\n  _ANALYTICS_STORAGE=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"analytics_default_allow_analytics_storage\")\n  if [[ $_ANALYTICS_STORAGE ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GOOGLE_ANALYTICS_DEFAULT_ALLOW_ANALYTICS_STORAGE\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_STORAGE\")\")\n  fi\n\n  # config.analytics_default_allow_ad_storage\n  _ANALYTICS_AD_STORAGE=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"analytics_default_allow_ad_storage\")\n  if [[ $_ANALYTICS_AD_STORAGE ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_STORAGE\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_AD_STORAGE\")\")\n  fi\n\n  # config.analytics_default_allow_ad_user_data\n  _ANALYTICS_AD_USER_DATA=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"analytics_default_allow_ad_user_data\")\n  if [[ $_ANALYTICS_AD_USER_DATA ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_USER_DATA\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_AD_USER_DATA\")\")\n  fi\n\n  # config.analytics_default_allow_ad_personalization_signals\n  _ANALYTICS_PERSONALIZATION=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"analytics_default_allow_ad_personalization_signals\")\n  if [[ $_ANALYTICS_PERSONALIZATION ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GOOGLE_ANALYTICS_DEFAULT_ALLOW_AD_PERSONALIZATION_SIGNALS\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_PERSONALIZATION\")\")\n  fi\n\n  # config.analytics_registration_with_ad_network_enabled\n  _ANALYTICS_REGISTRATION_WITH_AD_NETWORK=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"google_analytics_registration_with_ad_network_enabled\")\n  if [[ $_ANALYTICS_REGISTRATION_WITH_AD_NETWORK ]]; then\n    _PLIST_ENTRY_KEYS+=(\"GOOGLE_ANALYTICS_REGISTRATION_WITH_AD_NETWORK_ENABLED\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_REGISTRATION_WITH_AD_NETWORK\")\")\n  fi\n\n  # config.google_analytics_automatic_screen_reporting_enabled\n  _ANALYTICS_AUTO_SCREEN_REPORTING=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"google_analytics_automatic_screen_reporting_enabled\")\n  if [[ $_ANALYTICS_AUTO_SCREEN_REPORTING ]]; then\n    _PLIST_ENTRY_KEYS+=(\"FirebaseAutomaticScreenReportingEnabled\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_ANALYTICS_AUTO_SCREEN_REPORTING\")\")\n  fi\n\n  # config.perf_auto_collection_enabled\n  _PERF_AUTO_COLLECTION=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"perf_auto_collection_enabled\")\n  if [[ $_PERF_AUTO_COLLECTION ]]; then\n    _PLIST_ENTRY_KEYS+=(\"firebase_performance_collection_enabled\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_PERF_AUTO_COLLECTION\")\")\n  fi\n\n  # config.perf_collection_deactivated\n  _PERF_DEACTIVATED=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"perf_collection_deactivated\")\n  if [[ $_PERF_DEACTIVATED ]]; then\n    _PLIST_ENTRY_KEYS+=(\"firebase_performance_collection_deactivated\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_PERF_DEACTIVATED\")\")\n  fi\n\n  # config.messaging_auto_init_enabled\n  _MESSAGING_AUTO_INIT=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"messaging_auto_init_enabled\")\n  if [[ $_MESSAGING_AUTO_INIT ]]; then\n    _PLIST_ENTRY_KEYS+=(\"FirebaseMessagingAutoInitEnabled\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_MESSAGING_AUTO_INIT\")\")\n  fi\n\n  # config.in_app_messaging_auto_colllection_enabled\n  _FIAM_AUTO_INIT=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"in_app_messaging_auto_collection_enabled\")\n  if [[ $_FIAM_AUTO_INIT ]]; then\n    _PLIST_ENTRY_KEYS+=(\"FirebaseInAppMessagingAutomaticDataCollectionEnabled\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_FIAM_AUTO_INIT\")\")\n  fi\n\n  # config.app_check_token_auto_refresh\n  _APP_CHECK_TOKEN_AUTO_REFRESH=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"app_check_token_auto_refresh\")\n  if [[ $_APP_CHECK_TOKEN_AUTO_REFRESH ]]; then\n    _PLIST_ENTRY_KEYS+=(\"FirebaseAppCheckTokenAutoRefreshEnabled\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"$(jsonBoolToYesNo \"$_APP_CHECK_TOKEN_AUTO_REFRESH\")\")\n  fi\n\n  # config.crashlytics_disable_auto_disabler - undocumented for now - mainly for debugging, document if becomes useful\n  _CRASHLYTICS_AUTO_DISABLE_ENABLED=$(getFirebaseJsonKeyValue \"$_JSON_OUTPUT_RAW\" \"crashlytics_disable_auto_disabler\")\n  if [[ $_CRASHLYTICS_AUTO_DISABLE_ENABLED == \"true\" ]]; then\n    echo \"Disabled Crashlytics auto disabler.\" # do nothing\n  else\n    _PLIST_ENTRY_KEYS+=(\"FirebaseCrashlyticsCollectionEnabled\")\n    _PLIST_ENTRY_TYPES+=(\"bool\")\n    _PLIST_ENTRY_VALUES+=(\"NO\")\n  fi\nelse\n  _PLIST_ENTRY_KEYS+=(\"firebase_json_raw\")\n  _PLIST_ENTRY_TYPES+=(\"string\")\n  _PLIST_ENTRY_VALUES+=(\"$_JSON_OUTPUT_BASE64\")\n  echo \"warning:   A firebase.json file was not found, whilst this file is optional it is recommended to include it to configure firebase services in React Native Firebase.\"\nfi;\n\necho \"note: 2) Injecting Info.plist entries: \"\n\n# Log out the keys we're adding\nfor i in \"${!_PLIST_ENTRY_KEYS[@]}\"; do\n  echo \"    ->  $i) ${_PLIST_ENTRY_KEYS[$i]}\" \"${_PLIST_ENTRY_TYPES[$i]}\" \"${_PLIST_ENTRY_VALUES[$i]}\"\ndone\n\nfor plist in \"${_TARGET_PLIST}\" \"${_DSYM_PLIST}\" ; do\n  if [[ -f \"${plist}\" ]]; then\n\n    # paths with spaces break the call to setPlistValue. temporarily modify\n    # the shell internal field separator variable (IFS), which normally\n    # includes spaces, to consist only of line breaks\n    oldifs=$IFS\n    IFS=\"\n\"\n\n    for i in \"${!_PLIST_ENTRY_KEYS[@]}\"; do\n      setPlistValue \"${_PLIST_ENTRY_KEYS[$i]}\" \"${_PLIST_ENTRY_TYPES[$i]}\" \"${_PLIST_ENTRY_VALUES[$i]}\" \"${plist}\"\n    done\n\n    # restore the original internal field separator value\n    IFS=$oldifs\n  else\n    echo \"warning:   A Info.plist build output file was not found (${plist})\"\n  fi\ndone\n\necho \"note: <- RNFB build script finished\"\n";
+		};
+		D65C82FFD9FBB0DB120C3067 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/MegaRadio/MegaRadio.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-MegaRadio/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-MegaRadio/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-MegaRadio/expo-configure-project.sh\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		13B07F871A680F5B00A75B9A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -346,6 +545,8 @@
 				02A95F668A88412FBDA4DF95 /* WatchConnectivityBridge.swift in Sources */,
 				AC75D6D022194AED932B2601 /* WatchConnectivityBridge.m in Sources */,
 				7BA497B2859C493AA40A43E9 /* WatchConnectivityHandler.swift in Sources */,
+				CED959D5963236831DD0733C /* ExpoModulesProvider.swift in Sources */,
+				AC42E6F61F7A4713873BA7CE /* ATTModule.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -367,13 +568,18 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = B4939F97145DD78F5D14D13C /* Pods-MegaRadio.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CODE_SIGN_ENTITLEMENTS = MegaRadio/MegaRadio.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = M6T85HP76P;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -385,50 +591,54 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.69;
+				MARKETING_VERSION = 1.0.70;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.visiongo.megaradio";
-				PRODUCT_NAME = "MegaRadio";
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.visiongo.megaradio;
+				PRODUCT_NAME = MegaRadio;
 				SWIFT_OBJC_BRIDGING_HEADER = "MegaRadio/MegaRadio-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				VERSIONING_SYSTEM = "apple-generic";
-				TARGETED_DEVICE_FAMILY = "1,2";
 				SWIFT_STRICT_CONCURRENCY = minimal;
-				CODE_SIGN_ENTITLEMENTS = MegaRadio/MegaRadio.entitlements;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 44C24E94F42C39E7E0575135 /* Pods-MegaRadio.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
-				CURRENT_PROJECT_VERSION = 3;
+				CODE_SIGN_ENTITLEMENTS = MegaRadio/MegaRadio.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = M6T85HP76P;
 				INFOPLIST_FILE = MegaRadio/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.69;
+				MARKETING_VERSION = 1.0.70;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "com.visiongo.megaradio";
-				PRODUCT_NAME = "MegaRadio";
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.visiongo.megaradio;
+				PRODUCT_NAME = MegaRadio;
 				SWIFT_OBJC_BRIDGING_HEADER = "MegaRadio/MegaRadio-Bridging-Header.h";
-				SWIFT_VERSION = 5.0;
-				VERSIONING_SYSTEM = "apple-generic";
-				TARGETED_DEVICE_FAMILY = "1,2";
 				SWIFT_STRICT_CONCURRENCY = minimal;
-				CODE_SIGN_ENTITLEMENTS = MegaRadio/MegaRadio.entitlements;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;
 		};
@@ -464,9 +674,8 @@
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer";
 				COPY_PHASE_STRIP = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -482,18 +691,37 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers/react/nativemodule/core",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-runtimeexecutor/React_runtimeexecutor.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-runtimeexecutor/React_runtimeexecutor.framework/Headers/platform/ios",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers/platform/ios",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-Fabric/React_Fabric.framework/Headers/react/renderer/components/view/platform/cxx",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-NativeModulesApple/React_NativeModulesApple.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers/react/renderer/graphics/platform/ios",
+				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
 				);
-				LIBRARY_SEARCH_PATHS = "\"$(inherited)\"";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/usr/lib/swift",
+				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
-				SWIFT_VERSION = 5.0;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
 				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -531,7 +759,6 @@
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu99;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -540,75 +767,110 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
+				HEADER_SEARCH_PATHS = (
+					"$(inherited)",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon/ReactCommon.framework/Headers/react/nativemodule/core",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-runtimeexecutor/React_runtimeexecutor.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-runtimeexecutor/React_runtimeexecutor.framework/Headers/platform/ios",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/ReactCommon-Samples/ReactCommon_Samples.framework/Headers/platform/ios",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-Fabric/React_Fabric.framework/Headers/react/renderer/components/view/platform/cxx",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-NativeModulesApple/React_NativeModulesApple.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers",
+					"${PODS_CONFIGURATION_BUILD_DIR}/React-graphics/React_graphics.framework/Headers/react/renderer/graphics/platform/ios",
+				);
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					/usr/lib/swift,
 					"$(inherited)",
 				);
-				LIBRARY_SEARCH_PATHS = "\"$(inherited)\"";
+				LIBRARY_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(SDKROOT)/usr/lib/swift",
+				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
-				VALIDATE_PRODUCT = YES;
-				SWIFT_VERSION = 5.0;
 				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				USE_HERMES = true;
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
 		97D42A0EDFD041FB8C6C1A58 /* Debug */ = {
-			name = Debug;
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = MegaRadioWatch/MegaRadioWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = M6T85HP76P;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				INFOPLIST_FILE = "MegaRadioWatch/Info.plist";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = com.visiongo.megaradio.watchkitapp;
-				SDKROOT = watchos;
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				SUPPORTED_PLATFORMS = "watchsimulator watchos";
-				CODE_SIGN_ENTITLEMENTS = "MegaRadioWatch/MegaRadioWatch.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				SWIFT_VERSION = 5.0;
-				SWIFT_STRICT_CONCURRENCY = minimal;
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				GENERATE_INFOPLIST_FILE = NO;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				INFOPLIST_FILE = MegaRadioWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.70;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_DEBUG";
+				PRODUCT_BUNDLE_IDENTIFIER = com.visiongo.megaradio.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchsimulator watchos";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				WATCHOS_DEPLOYMENT_TARGET = 9.0;
 			};
+			name = Debug;
 		};
 		DF23A656C32E48328FB52A99 /* Release */ = {
-			name = Release;
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				INFOPLIST_FILE = "MegaRadioWatch/Info.plist";
-				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SKIP_INSTALL = NO;
-				PRODUCT_BUNDLE_IDENTIFIER = com.visiongo.megaradio.watchkitapp;
-				SDKROOT = watchos;
-				WATCHOS_DEPLOYMENT_TARGET = 9.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				SUPPORTED_PLATFORMS = "watchsimulator watchos";
-				CODE_SIGN_ENTITLEMENTS = "MegaRadioWatch/MegaRadioWatch.entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				SWIFT_VERSION = 5.0;
-				SWIFT_STRICT_CONCURRENCY = minimal;
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				GENERATE_INFOPLIST_FILE = NO;
+				CODE_SIGN_ENTITLEMENTS = MegaRadioWatch/MegaRadioWatch.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 10;
+				DEVELOPMENT_TEAM = M6T85HP76P;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MegaRadioWatch/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0.70;
+				OTHER_SWIFT_FLAGS = "$(inherited) -D EXPO_CONFIGURATION_RELEASE";
+				PRODUCT_BUNDLE_IDENTIFIER = com.visiongo.megaradio.watchkitapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = watchos;
+				SKIP_INSTALL = YES;
+				SUPPORTED_PLATFORMS = "watchsimulator watchos";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				WATCHOS_DEPLOYMENT_TARGET = 9.0;
 			};
+			name = Release;
 		};
 /* End XCBuildConfiguration section */
+
 /* Begin XCConfigurationList section */
 		13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "MegaRadio" */ = {
 			isa = XCConfigurationList;
@@ -638,19 +900,6 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
-/* Begin PBXCopyFilesBuildPhase section */
-		F513CC8FAB184B37B14E42AA /* Embed Watch Content */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "$(CONTENTS_FOLDER_PATH)/Watch";
-			dstSubfolderSpec = 16;
-			files = (
-				06F76BFA2CE2420DB3B11505 /* MegaRadioWatch.app in Embed Watch Content */,
-			);
-			name = "Embed Watch Content";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 	};
 	rootObject = 83CBB9F71A601CBA00E9B192 /* Project object */;
 }

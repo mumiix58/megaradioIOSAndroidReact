@@ -61,3 +61,9 @@ export function isQrLinkOnlyPlatform(): boolean {
   const p = detectPlatform();
   return p === 'tizen' || p === 'webos' || p === 'web' || p === 'electron';
 }
+
+/** Only the signed Mac App Store shell; never a TV or Windows/Linux build. */
+export function isMacAppStore(): boolean {
+  const desktop = typeof window !== "undefined" && (window as any).megaRadioDesktop;
+  return desktop?.isDesktop === true && desktop.platform === "darwin" && desktop.supportsNativeIap === true;
+}

@@ -77,6 +77,10 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
         source={{ uri: uri as string }}
         style={style}
         contentFit={fit}
+        // Show the bundled image while slow or broken remote logos are loading.
+        placeholder={fallbackSource}
+        placeholderContentFit="contain"
+        transition={0}
         cachePolicy="memory-disk"
         onError={(event) => { setStage(hasFallbackUri ? 1 : 2); onError?.(event); }}
       />
@@ -93,6 +97,9 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
         source={{ uri: fallbackUri as string }}
         style={style}
         contentFit={fit}
+        placeholder={fallbackSource}
+        placeholderContentFit="contain"
+        transition={0}
         cachePolicy="memory-disk"
         onError={(event) => { setStage(2); onError?.(event); }}
       />

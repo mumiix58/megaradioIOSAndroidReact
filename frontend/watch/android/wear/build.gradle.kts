@@ -16,8 +16,8 @@ android {
         applicationId = "com.megaradio"
         minSdk = 30  // Wear OS 3.0+
         targetSdk = 35
-        versionCode = 103
-        versionName = "1.0.70"
+        versionCode = 104
+        versionName = "1.0.71"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -53,10 +53,10 @@ dependencies {
     androidTestImplementation("androidx.compose.ui:ui-test-junit4:1.6.0")
     androidTestImplementation("androidx.test:runner:1.5.2")
     debugImplementation("androidx.compose.ui:ui-test-manifest:1.6.0")
-    // Wear OS Compose
-    implementation("androidx.wear.compose:compose-material:1.3.0")
-    implementation("androidx.wear.compose:compose-foundation:1.3.0")
-    implementation("androidx.wear.compose:compose-navigation:1.3.0")
+    // Wear Compose 1.4.1 guards restricted reduce-motion settings on API 35.
+    implementation("androidx.wear.compose:compose-material:1.4.1")
+    implementation("androidx.wear.compose:compose-foundation:1.4.1")
+    implementation("androidx.wear.compose:compose-navigation:1.4.1")
 
     // Compose
     implementation("androidx.compose.ui:ui:1.6.0")

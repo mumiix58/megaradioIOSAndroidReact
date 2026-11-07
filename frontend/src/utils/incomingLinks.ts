@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { localizedRouteKind } from './localizedRoutes';
 
 /** Pure routing: no fetching, playback, auth changes or new Linking subscriber. */
 export function incomingLinkPath(path: string): string {
@@ -22,9 +23,10 @@ export function incomingLinkPath(path: string): string {
     const parts = url.pathname.split('/').filter(Boolean);
     if (isApp && ['station', 'user', 'profile', 'genre'].includes(url.hostname)) parts.unshift(url.hostname);
     // Website canonical redirects can include a language prefix, e.g. /tr/station/x.
-    if (/^[a-z]{2}(?:-[a-z]{2})?$/i.test(parts[0] || '')) parts.shift();
-    const [kind, raw] = parts;
-    if (!['station', 'user', 'profile', 'genre'].includes(kind)) return path;
+    const language = /^[a-z]{2}(?:-[a-z]{2})?$/i.test(parts[0] || '') ? parts.shift()!.toLowerCase().split('-')[0] : 'en';
+    const [segment, raw] = parts;
+    const kind = localizedRouteKind(decodeURIComponent(segment || ''), language);
+    if (!kind) return path;
     if (!raw || parts.length !== 2) return '/link-error';
     const identifier = decodeURIComponent(raw).trim();
     if (!identifier || /[\/?#\u0000-\u001f]/.test(identifier)) return '/link-error';

@@ -32,12 +32,12 @@ options:
 # Project-level build settings shared by all targets.
 settings:
   base:
-    DEVELOPMENT_TEAM: "$(DEVELOPMENT_TEAM)" # Read from .env / Xcode personal settings
+    DEVELOPMENT_TEAM: M6T85HP76P
     SWIFT_VERSION: "5.9"
     ENABLE_USER_SCRIPT_SANDBOXING: NO       # Match iOS project policy
     CODE_SIGN_STYLE: Automatic
     MARKETING_VERSION: "1.0.0"
-    CURRENT_PROJECT_VERSION: "1"
+    CURRENT_PROJECT_VERSION: "3"
     GENERATE_INFOPLIST_FILE: NO             # We provide our own Info.plist
     INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.music"
     # ──────────────────────────────────────────────────────────────────
@@ -120,6 +120,8 @@ targets:
       - path: Favorites.swift               # /favorites
       - path: Settings.swift                # /settings + /login
       - path: CountrySelect.swift           # /country-select
+      - path: Premium.swift                # Existing subscriptions and restore
+      - path: LegalDocuments.swift         # Native, offline privacy policy and EULA reader
       - path: StoreKitIapService.swift      # tvOS StoreKit 2 IAP
       # ShazamRecognizer.swift is intentionally EXCLUDED — ShazamKit is
       # not available on tvOS at all. (Still on disk for future macOS use.)
@@ -127,22 +129,37 @@ targets:
       # `Bundle.main.url(forResource:withExtension:)` finds them by name.
       # `type: folder` (the previous setting) created a folder reference
       # that preserved subdirectories and prevented runtime lookup.
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Assets.xcassets
+        buildPhase: resources
       - path: Brand
         type: group
         buildPhase: resources
       - path: Assets/Images
+        excludes: [austria-1.png] # Unused, corrupt legacy PNG; flags come from CountryCatalog.
         type: group          # Web-preview assets (logo, icons, hero backgrounds)
         buildPhase: resources
       - path: Assets/Fonts
         type: group          # Ubuntu font family (Light/Regular/Medium/Bold)
         buildPhase: resources
     info:
-      # IMPORTANT: We provide a STATIC Info.plist on disk rather than letting
-      # xcodegen generate it from `properties:` below. This guarantees the
-      # critical `NSAppTransportSecurity.NSAllowsArbitraryLoads` key survives
-      # every regeneration. Without it the app cannot stream HTTP radio or
-      # show station logos hosted on legacy HTTP servers.
+      # Generated from this specification on every setup; keep release keys here.
       path: Info.plist
+      properties:
+        CFBundleDisplayName: MegaRadio
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        ITSAppUsesNonExemptEncryption: false
+        UIBackgroundModes: [audio]
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+          NSAllowsArbitraryLoadsForMedia: true
+        UIAppFonts:
+          - Ubuntu-Light.ttf
+          - Ubuntu-Regular.ttf
+          - Ubuntu-Medium.ttf
+          - Ubuntu-Bold.ttf
     entitlements:
       path: MegaRadioTV.entitlements
       properties:

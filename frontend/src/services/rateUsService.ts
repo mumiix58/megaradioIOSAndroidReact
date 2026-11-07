@@ -1,116 +1,165 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
-/**
- * RateUsService — manages when the rate-us prompt should appear.
- *
- * Strategy:
- *  - Track app launches and station plays
- *  - Trigger the prompt after the user has played at least 3 stations OR
- *    opened the app 3 times (whichever comes first)
- *  - Re-prompt every 30 days if user dismissed (and didn't rate)
- *  - Never show again if user rated
- */
+import { AppState, Linking, Platform } from 'react-native';
+import * as StoreReview from 'expo-store-review';
+import { usePlayerStore } from '../store/playerStore';
 
 const KEYS = {
   launches: '@rateus/launches',
-  stationPlays: '@rateus/station_plays',
-  lastShown: '@rateus/last_shown',
-  rated: '@rateus/rated',
-  dismissed: '@rateus/dismissed_count',
+  sessions: '@rateus/completed_listening_sessions',
+  lastRequest: '@rateus/last_requested',
+  legacyLastShown: '@rateus/last_shown',
 };
+const MIN_LAUNCHES = 3;
+const MIN_SESSIONS = 3;
+const MIN_LISTENING_MS = 2 * 60 * 1000;
+const REQUEST_COOLDOWN_MS = 120 * 24 * 60 * 60 * 1000;
 
-// Triggers
-const MIN_STATION_PLAYS = 3;
-const MIN_APP_LAUNCHES = 3;
-const RE_PROMPT_DAYS = 30;
-const MAX_DISMISS_COUNT = 3; // After 3 dismissals, stop showing
+/** Count foreground playback, then request neutrally after a completed session. */
+export class RateUsService {
+  private listeners = new Set<() => void>();
+  private stopPlayer?: () => void;
+  private stopAppState?: () => void;
+  private playingSince: number | null = null;
+  private listeningMs = 0;
+  private stationId: string | null = null;
+  private foreground = AppState.currentState === 'active';
+  private requestInFlight = false;
+  private completedSessionQueue: Promise<void> = Promise.resolve();
 
-class RateUsService {
-  private listeners: Array<() => void> = [];
-
-  /** Subscribe to be notified when modal should show */
-  onShouldShow(cb: () => void) {
-    this.listeners.push(cb);
+  onShouldShow(callback: () => void): () => void {
+    this.listeners.add(callback);
+    if (!this.stopPlayer && Platform.OS !== 'web') this.observePlayback();
     return () => {
-      this.listeners = this.listeners.filter((l) => l !== cb);
+      this.listeners.delete(callback);
+      if (this.listeners.size === 0) {
+        this.stopPlayer?.();
+        this.stopAppState?.();
+        this.stopPlayer = undefined;
+        this.stopAppState = undefined;
+        this.playingSince = null;
+        this.listeningMs = 0;
+      }
     };
   }
 
-  private async getInt(key: string): Promise<number> {
-    const v = await AsyncStorage.getItem(key);
-    return v ? parseInt(v, 10) || 0 : 0;
+  private async getNumber(key: string): Promise<number> {
+    const value = Number(await AsyncStorage.getItem(key));
+    return Number.isFinite(value) && value > 0 ? value : 0;
   }
 
-  /** Increment app launch counter — call once on app startup */
   async trackAppLaunch(): Promise<void> {
-    const current = await this.getInt(KEYS.launches);
-    await AsyncStorage.setItem(KEYS.launches, String(current + 1));
-    await this.maybeShow();
+    if (Platform.OS === 'web') return;
+    await AsyncStorage.setItem(KEYS.launches, String(await this.getNumber(KEYS.launches) + 1));
+    // Launching the app never requests a review.
   }
 
-  /** Increment station play counter — call when station starts playing */
-  async trackStationPlay(): Promise<void> {
-    const current = await this.getInt(KEYS.stationPlays);
-    await AsyncStorage.setItem(KEYS.stationPlays, String(current + 1));
-    await this.maybeShow();
+  /** Compatibility for callers that report play intent before audio succeeds. */
+  async trackStationPlay(): Promise<void> {}
+
+  private accumulatePlayingTime(): void {
+    if (this.playingSince !== null) {
+      this.listeningMs += Math.max(0, Date.now() - this.playingSince);
+      this.playingSince = null;
+    }
   }
 
-  /** Mark user as rated — never prompt again */
-  async markRated(): Promise<void> {
-    await AsyncStorage.setItem(KEYS.rated, '1');
+  private observePlayback(): void {
+    this.foreground = AppState.currentState === 'active';
+    const initial = usePlayerStore.getState();
+    this.stationId = initial.currentStation?._id ?? null;
+    if (this.foreground && initial.playbackState === 'playing' && this.stationId) {
+      this.playingSince = Date.now();
+    }
+    this.stopPlayer = usePlayerStore.subscribe((state, previous) => {
+      const nextStation = state.currentStation?._id ?? null;
+      if (state.playbackState === previous.playbackState && nextStation === this.stationId) return;
+      this.accumulatePlayingTime();
+      if (nextStation !== this.stationId) {
+        this.stationId = nextStation;
+        this.listeningMs = 0;
+      }
+      if (state.playbackState === 'error' || state.playbackState === 'idle') {
+        this.listeningMs = 0;
+      } else if (state.playbackState === 'paused' && previous.playbackState !== 'paused') {
+        const meaningful = this.listeningMs >= MIN_LISTENING_MS;
+        this.listeningMs = 0;
+        if (meaningful) {
+          this.completedSessionQueue = this.completedSessionQueue
+            .then(() => this.completeListeningSession())
+            .catch(() => {});
+        }
+      }
+      if (this.foreground && state.playbackState === 'playing' && this.stationId) {
+        this.playingSince = Date.now();
+      }
+    });
+    const subscription = AppState.addEventListener('change', (state) => {
+      this.accumulatePlayingTime();
+      this.foreground = state === 'active';
+      if (this.foreground && usePlayerStore.getState().playbackState === 'playing' && this.stationId) {
+        this.playingSince = Date.now();
+      }
+    });
+    this.stopAppState = () => subscription.remove();
   }
 
-  /** Mark dismissed — re-prompt later */
-  async markDismissed(): Promise<void> {
-    const count = await this.getInt(KEYS.dismissed);
-    await AsyncStorage.multiSet([
-      [KEYS.dismissed, String(count + 1)],
-      [KEYS.lastShown, String(Date.now())],
+  private async completeListeningSession(): Promise<void> {
+    await AsyncStorage.setItem(KEYS.sessions, String(await this.getNumber(KEYS.sessions) + 1));
+    if (await this.isEligible()) this.listeners.forEach(callback => callback());
+  }
+
+  private canPresent(): boolean {
+    return Platform.OS !== 'web'
+      && AppState.currentState === 'active'
+      && usePlayerStore.getState().playbackState === 'paused';
+  }
+
+  private async isEligible(): Promise<boolean> {
+    if (!this.canPresent()) return false;
+    const [launches, sessions, lastRequest, legacyLastShown] = await Promise.all([
+      this.getNumber(KEYS.launches), this.getNumber(KEYS.sessions),
+      this.getNumber(KEYS.lastRequest), this.getNumber(KEYS.legacyLastShown),
     ]);
+    const lastAttempt = Math.max(lastRequest, legacyLastShown);
+    return launches >= MIN_LAUNCHES && sessions >= MIN_SESSIONS
+      && (!lastAttempt || Date.now() - lastAttempt >= REQUEST_COOLDOWN_MS)
+      && this.canPresent();
   }
 
-  /** Reset all counters (for testing) */
+  async requestReviewIfEligible(): Promise<void> {
+    if (this.requestInFlight) return;
+    this.requestInFlight = true;
+    try {
+      if (!await this.isEligible() || !await StoreReview.isAvailableAsync() || !this.canPresent()) return;
+      // Store APIs never tell us whether the prompt appeared or a rating was sent.
+      // Persist the attempt first so restarts/concurrent events cannot repeat it.
+      await AsyncStorage.setItem(KEYS.lastRequest, String(Date.now()));
+      if (!this.canPresent()) return;
+      await StoreReview.requestReview();
+    } catch {
+      // A missing store or exhausted platform quota must not interrupt playback.
+    } finally {
+      this.requestInFlight = false;
+    }
+  }
+
+  /** Explicit profile action always has an observable result, unlike native quotas. */
+  async openStoreReview(): Promise<void> {
+    const url = Platform.OS === 'ios'
+      ? 'https://apps.apple.com/app/id6759302561?action=write-review'
+      : 'https://play.google.com/store/apps/details?id=com.megaradio';
+    try {
+      await Linking.openURL(url);
+      await AsyncStorage.setItem(KEYS.lastRequest, String(Date.now()));
+    } catch {
+      // Store navigation failure is non-blocking; no rating success is recorded.
+    }
+  }
+
   async reset(): Promise<void> {
     await AsyncStorage.multiRemove(Object.values(KEYS));
-  }
-
-  /** Internal: decide if modal should show now */
-  private async maybeShow(): Promise<void> {
-    try {
-      // Already rated → never show again
-      const rated = await AsyncStorage.getItem(KEYS.rated);
-      if (rated === '1') return;
-
-      // Dismissed too many times → give up
-      const dismissCount = await this.getInt(KEYS.dismissed);
-      if (dismissCount >= MAX_DISMISS_COUNT) return;
-
-      // Check cooldown since last shown
-      const lastShownStr = await AsyncStorage.getItem(KEYS.lastShown);
-      if (lastShownStr) {
-        const lastShown = parseInt(lastShownStr, 10);
-        const daysSince = (Date.now() - lastShown) / (1000 * 60 * 60 * 24);
-        if (daysSince < RE_PROMPT_DAYS) return;
-      }
-
-      // Engagement threshold — at least 3 station plays OR 3 app launches
-      const plays = await this.getInt(KEYS.stationPlays);
-      const launches = await this.getInt(KEYS.launches);
-
-      if (plays < MIN_STATION_PLAYS && launches < MIN_APP_LAUNCHES) return;
-
-      // All conditions met → notify listeners
-      console.log('[RateUs] Triggering rate-us prompt', { plays, launches, dismissCount });
-      this.listeners.forEach((l) => {
-        try {
-          l();
-        } catch (e) {
-          console.log('[RateUs] Listener error:', e);
-        }
-      });
-    } catch (e) {
-      console.log('[RateUs] maybeShow error:', e);
-    }
+    this.listeningMs = 0;
+    this.playingSince = null;
   }
 }
 

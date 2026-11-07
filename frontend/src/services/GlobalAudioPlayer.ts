@@ -5,6 +5,7 @@ import { Audio, AudioPlayer } from 'expo-audio';
 import { usePlayerStore } from '../store/playerStore';
 import stationService from '../services/stationService';
 import userService from '../services/userService';
+import api from './api';
 import type { Station } from '../types';
 
 // ============================================
@@ -264,13 +265,12 @@ class GlobalAudioPlayer {
 
   // Fetch now playing
   private async fetchNowPlaying(stationId: string): Promise<void> {
-    const backendUrl = process.env.EXPO_PUBLIC_BACKEND_URL || '';
-    
     try {
       // Use the correct endpoint: /api/now-playing/{id}
-      const response = await fetch(`${backendUrl}/api/now-playing/${stationId}`);
-      if (response.ok) {
-        const metadata = await response.json();
+      const response = await api.get(`/api/now-playing/${encodeURIComponent(stationId)}`);
+      if (this.currentStationId !== stationId) return;
+      if (response.status === 200) {
+        const metadata = response.data;
         console.log('[GlobalAudioPlayer] Now playing metadata:', metadata);
         if (metadata && (metadata.title || metadata.artist)) {
           usePlayerStore.getState().setNowPlaying(metadata);
@@ -286,6 +286,7 @@ class GlobalAudioPlayer {
     // Fallback to stationService
     try {
       const metadata = await stationService.getNowPlaying(stationId);
+      if (this.currentStationId !== stationId) return;
       if (metadata && (metadata.title || metadata.artist)) {
         console.log('[GlobalAudioPlayer] Now playing from stationService:', metadata);
         usePlayerStore.getState().setNowPlaying(metadata);

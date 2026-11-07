@@ -5,6 +5,10 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import api from './api';
+import axios from 'axios';
+import { API_BASE_URL } from '../constants/api';
+import { captureAccount, isAccountCurrent } from '../store/accountScope';
+import { notificationSettingsService } from './notificationSettingsService';
 import { API_ENDPOINTS } from '../constants/api';
 
 const PUSH_TOKEN_KEY = '@megaradio_push_token';
@@ -26,7 +30,7 @@ if (Platform.OS !== 'web') {
 export interface PushNotificationService {
   registerForPushNotifications: () => Promise<string | null>;
   sendPushTokenToBackend: (token: string) => Promise<void>;
-  deletePushTokenFromBackend: (token: string) => Promise<void>;
+  deletePushTokenFromBackend: (token: string, authToken?: string) => Promise<void>;
   getStoredPushToken: () => Promise<string | null>;
   addNotificationListener: (callback: (notification: Notifications.Notification) => void) => () => void;
   addNotificationResponseListener: (callback: (response: Notifications.NotificationResponse) => void) => () => void;
@@ -42,6 +46,8 @@ const pushNotificationService: PushNotificationService = {
    */
   async registerForPushNotifications(): Promise<string | null> {
     let token: string | null = null;
+    const account = captureAccount();
+    if (!account.token || !await notificationSettingsService.enabled()) return null;
 
     // Check if it's a real device (notifications don't work on simulators)
     if (!Device.isDevice) {
@@ -93,7 +99,7 @@ const pushNotificationService: PushNotificationService = {
         projectId: projectId,
       });
       token = tokenData.data;
-      console.log('[PushNotification] Token:', token);
+      if (!isAccountCurrent(account)) return null;
 
       // Store token locally
       await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
@@ -146,31 +152,28 @@ const pushNotificationService: PushNotificationService = {
   async sendPushTokenToBackend(token: string): Promise<void> {
     try {
       await api.post(API_ENDPOINTS.user.pushToken, {
+        tokenType: 'expo',
         token,                                        // "ExponentPushToken[xxxxxxx]"
         platform: Platform.OS,                        // 'ios' or 'android'
         deviceName: Device.deviceName ?? 'Unknown',   // Device name
       });
       console.log('[PushNotification] Token sent to backend successfully');
     } catch (error) {
-      console.error('[PushNotification] Failed to send token to backend:', error);
+      throw error;
     }
   },
 
   /**
    * Delete push token from backend (call on logout)
    */
-  async deletePushTokenFromBackend(token: string): Promise<void> {
-    try {
-      await api.delete(API_ENDPOINTS.user.deletePushToken, {
-        data: { token }
+  async deletePushTokenFromBackend(token: string, authToken?: string): Promise<void> {
+    if (authToken) {
+      // Logout cleanup uses the captured previous account, even after local auth is cleared.
+      await axios.delete(`${API_BASE_URL}${API_ENDPOINTS.user.deletePushToken}`, {
+        timeout: 5000, withCredentials: false, data: { token },
+        headers: { Authorization: `Bearer ${authToken}`, 'X-MegaRadio-Platform': Platform.OS },
       });
-      console.log('[PushNotification] Token deleted from backend');
-      
-      // Clear local storage
-      await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
-    } catch (error) {
-      console.error('[PushNotification] Failed to delete token from backend:', error);
-    }
+    } else await api.delete(API_ENDPOINTS.user.deletePushToken, { data: { token } });
   },
 
   /**
@@ -247,22 +250,18 @@ const pushNotificationService: PushNotificationService = {
    * Check if notifications are enabled
    */
   async isNotificationsEnabled(): Promise<boolean> {
-    try {
-      const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
-      return enabled === 'true';
-    } catch {
-      return false;
-    }
+    return notificationSettingsService.enabled();
   },
-
-  /**
-   * Set notifications enabled/disabled
-   */
   async setNotificationsEnabled(enabled: boolean): Promise<void> {
-    try {
-      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false');
-    } catch (error) {
-      console.error('[PushNotification] Failed to set notifications enabled:', error);
+    const account = captureAccount();
+    await notificationSettingsService.setEnabled(enabled);
+    if (!isAccountCurrent(account)) return;
+    if (enabled) {
+      const token = await this.registerForPushNotifications();
+      if (token && isAccountCurrent(account)) await this.sendPushTokenToBackend(token);
+    } else {
+      const token = await this.getStoredPushToken();
+      if (token && isAccountCurrent(account)) await this.deletePushTokenFromBackend(token);
     }
   },
 };

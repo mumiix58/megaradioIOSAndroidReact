@@ -17,6 +17,7 @@
 const { inAppPurchase } = require('electron');
 const fs = require('fs');
 const https = require('https');
+const { createHash } = require('crypto');
 const { fileURLToPath } = require('url');
 
 const API_BASE = 'https://api.themegaradio.com';
@@ -29,6 +30,8 @@ let listenerAttached = false;
 let cachedToken = null;
 let authGeneration = 0;
 let purchaseBusy = false;
+let pendingOperation = null;
+const verifyingTransactions = new Set();
 let purchaseTimer = null;
 let restoreTimer = null;
 function clearTimers() {
@@ -38,7 +41,7 @@ function clearTimers() {
 const PRODUCTS = new Set(['megaradio_premium_yearly', 'megaradio_premium_monthly1', 'megaradio_premium_lifetime', 'megaradio_remove_ads_yearly1']);
 function setToken(token) {
   const next = typeof token === 'string' && token ? token : null;
-  if (next !== cachedToken) { clearTimers(); cachedToken = next; authGeneration++; purchaseBusy = false; }
+  if (next !== cachedToken) { clearTimers(); cachedToken = next; authGeneration++; purchaseBusy = false; pendingOperation = null; }
 }
 
 function isMac() {
@@ -113,7 +116,7 @@ async function verifyOnBackend({ productId, originalTransactionId, receiptB64, t
     autoRenewing: true,
   }, token);
 
-  if (status === 200 && body && body.success !== false && !body.error && typeof body.plan === 'string' && body.plan) {
+  if (status === 200 && body && body.success === true && body.isActive === true && !body.error && ['remove_ads', 'premium_monthly', 'premium_yearly', 'premium_lifetime'].includes(body.plan)) {
     return { ok: true, server: body };
   }
   // Map backend error codes (per HOTFIX 2026-05-07 contract)
@@ -146,9 +149,18 @@ function attachTransactionListener() {
       console.log('[IAP] tx', state, productId, tx.transactionIdentifier);
 
       if (state === 'purchased' || state === 'restored') {
-        const token = cachedToken;
+        const operation = pendingOperation;
+        // A delayed transaction from a previous login is retried only by an
+        // explicit restore. Never attach it automatically to the current user.
+        if (!operation || operation.generation !== authGeneration) continue;
+        if (state === 'purchased' && (operation.kind !== 'purchase' || operation.productId !== productId || tx.payment?.applicationUsername !== operation.username)) continue;
+        if (state === 'restored' && operation.kind !== 'restore') continue;
+        const transactionKey = tx.transactionIdentifier;
+        if (!transactionKey || verifyingTransactions.has(transactionKey)) continue;
+        verifyingTransactions.add(transactionKey);
+        const token = operation.token;
         const generation = authGeneration;
-        if (!token || !PRODUCTS.has(productId)) continue;
+        if (!token || !PRODUCTS.has(productId)) { verifyingTransactions.delete(transactionKey); continue; }
         const receiptB64 = readReceiptB64();
         const verify = await verifyOnBackend({
           productId,
@@ -156,12 +168,14 @@ function attachTransactionListener() {
           receiptB64,
           token,
         });
-        if (generation !== authGeneration || token !== cachedToken) continue;
+        verifyingTransactions.delete(transactionKey);
+        if (generation !== authGeneration || token !== cachedToken || operation !== pendingOperation) continue;
         purchaseBusy = false;
         clearTimeout(purchaseTimer); purchaseTimer = null;
+        if (operation.kind === 'purchase') pendingOperation = null;
 
         if (verify.ok) {
-          clearTimeout(restoreTimer); restoreTimer = null;
+          operation.verified = true;
           send(state === 'restored' ? 'mr-iap-restored' : 'mr-iap-completed', {
             productId,
             transactionId: tx.transactionIdentifier,
@@ -183,6 +197,8 @@ function attachTransactionListener() {
           });
         }
       } else if (state === 'failed') {
+        if (pendingOperation?.kind !== 'purchase' || pendingOperation.productId !== productId || tx.payment?.applicationUsername !== pendingOperation.username) continue;
+        pendingOperation = null;
         purchaseBusy = false;
         clearTimeout(purchaseTimer); purchaseTimer = null;
         send('mr-iap-failed', {
@@ -202,6 +218,10 @@ function registerIpc(ipcMain, getMainWindow) {
   mainWindowRef = getMainWindow();
   attachTransactionListener();
   ipcMain.handle('mr-iap-purchase', async (_e, payload) => {
+    // The Mac app has no paid-only features. Keep restore/verification for
+    // existing accounts, but do not sell unsupported capabilities.
+    if (isMac()) return { ok: false, reason: 'no-new-purchases', message: 'Listening is included in this Mac app. New purchases are not offered.' };
+
     if (!isMac()) {
       return { ok: false, reason: 'not-mac', message: 'StoreKit only available on macOS App Store builds.' };
     }
@@ -211,28 +231,34 @@ function registerIpc(ipcMain, getMainWindow) {
     const { productId, token } = (typeof payload === 'string') ? { productId: payload } : (payload || {});
     if (!PRODUCTS.has(productId)) return { ok: false, reason: 'no-product', message: 'Unknown product' };
     if (!token || token !== cachedToken) return { ok: false, reason: 'no-auth', message: 'Sign in again before purchasing.' };
-    if (purchaseBusy) return { ok: false, reason: 'busy', message: 'A purchase is already in progress.' };
+    if (purchaseBusy || pendingOperation) return { ok: false, reason: 'busy', message: 'A purchase is already in progress.' };
     purchaseBusy = true;
     const generation = authGeneration;
+    const username = createHash('sha256').update(token).digest('hex');
+    const operation = { kind: 'purchase', token, generation, productId, username };
+    pendingOperation = operation;
     purchaseTimer = setTimeout(() => {
       if (generation !== authGeneration) return;
-      purchaseBusy = false; purchaseTimer = null;
+      purchaseBusy = false; purchaseTimer = null; pendingOperation = null;
       send('mr-iap-failed', { code: 'TIMEOUT', message: 'No verified purchase result received. Please try Restore Purchases.' });
     }, 120000);
     mainWindowRef = getMainWindow();
     attachTransactionListener();
     try {
       const session = await postJson('/api/auth/tv/verify', null, token, 'GET');
-      if (session.status !== 200 || session.body?.valid === false || token !== cachedToken || generation !== authGeneration) {
-        purchaseBusy = false; clearTimeout(purchaseTimer); purchaseTimer = null;
+      if (pendingOperation !== operation || token !== cachedToken || generation !== authGeneration) return { ok: false, reason: 'session', message: 'Account changed. Please retry.' };
+      if (session.status !== 200 || session.body?.valid !== true) {
+        purchaseBusy = false; pendingOperation = null; clearTimeout(purchaseTimer); purchaseTimer = null;
         return { ok: false, reason: 'session', message: 'Your session could not be verified. Please sign in again.' };
       }
-      const ok = await inAppPurchase.purchaseProduct(productId, 1);
-      if (!ok) { purchaseBusy = false; clearTimeout(purchaseTimer); purchaseTimer = null; }
+      const ok = await inAppPurchase.purchaseProduct(productId, { quantity: 1, username });
+      if (!ok && pendingOperation === operation) { purchaseBusy = false; pendingOperation = null; clearTimeout(purchaseTimer); purchaseTimer = null; }
       return { ok, productId };
     } catch (err) {
-      purchaseBusy = false;
-      clearTimeout(purchaseTimer); purchaseTimer = null;
+      if (pendingOperation === operation) {
+        purchaseBusy = false; pendingOperation = null;
+        clearTimeout(purchaseTimer); purchaseTimer = null;
+      }
       return { ok: false, reason: 'exception', message: String(err?.message || err) };
     }
   });
@@ -241,20 +267,24 @@ function registerIpc(ipcMain, getMainWindow) {
     if (!isMac()) return { ok: false, reason: 'not-mac' };
     const token = payload && payload.token;
     if (!token || token !== cachedToken) return { ok: false, reason: 'no-auth', message: 'Sign in before restoring purchases.' };
-    if (restoreTimer) return { ok: false, reason: 'busy', message: 'Restore already in progress.' };
+    if (restoreTimer || pendingOperation) return { ok: false, reason: 'busy', message: 'Restore already in progress.' };
     mainWindowRef = getMainWindow();
     attachTransactionListener();
     try {
       // Actual restored transaction supplies its productIdentifier. Never label
       // monthly/lifetime receipts as yearly. Entitlements arrive via verified event.
       const generation = authGeneration;
+      const operation = { kind: 'restore', token, generation, verified: false };
+      pendingOperation = operation;
       restoreTimer = setTimeout(() => {
         restoreTimer = null;
-        if (generation === authGeneration) send('mr-iap-failed', { code: 'RESTORE_TIMEOUT', message: 'No verified purchase was received. Check the store account and retry.' });
+        if (pendingOperation === operation) pendingOperation = null;
+        if (generation === authGeneration && !operation.verified) send('mr-iap-failed', { code: 'RESTORE_TIMEOUT', message: 'No verified purchase was received. Check the store account and retry.' });
       }, 20000);
       inAppPurchase.restoreCompletedTransactions();
       return { ok: true, pending: true };
     } catch (err) {
+      clearTimeout(restoreTimer); restoreTimer = null; pendingOperation = null;
       return { ok: false, reason: 'exception', message: String(err?.message || err) };
     }
   });

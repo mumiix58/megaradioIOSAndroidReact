@@ -1,9 +1,9 @@
 package com.megaradio.tv
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Context
 import android.util.Log
-import android.webkit.JavascriptInterface
 import android.webkit.WebView
 import com.megaradio.tv.channels.RecommendationsChannel
 import kotlinx.coroutines.CoroutineScope
@@ -35,12 +35,9 @@ class MegaRadioNativeBridge(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
-    @get:JavascriptInterface val platform: String = "androidtv"
-
-    @JavascriptInterface
     fun invoke(json: String) {
         val parsed = try { JSONObject(json) } catch (e: Exception) {
-            Log.w(TAG, "invoke: bad JSON: $json"); return
+            Log.w(TAG, "invoke: invalid JSON"); return
         }
         val id = parsed.optString("id")
         val fn = parsed.optString("fn")
@@ -71,15 +68,13 @@ class MegaRadioNativeBridge(
     }
 
     private fun openPlayStoreSubscriptions() {
-        try {
-            val pkg = activity.packageName
-            val url = "https://play.google.com/store/account/subscriptions?package=$pkg"
-            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW,
-                android.net.Uri.parse(url))
-            activity.startActivity(intent)
-        } catch (e: Exception) {
-            Log.w(TAG, "openManageSubscriptions failed: ${e.message}")
-        }
+        // Google Play's subscription website requires a browser that may not
+        // exist on a TV. Keep the remote-controlled flow inside the app.
+        AlertDialog.Builder(activity)
+            .setTitle(R.string.manage_subscriptions)
+            .setMessage(R.string.manage_subscriptions_instructions)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun resolve(id: String, payload: Any) {
@@ -87,7 +82,9 @@ class MegaRadioNativeBridge(
         val safeId = JSONObject.quote(id)
         val js = "window.MegaRadioBridge && window.MegaRadioBridge.__resolveIap" +
                 " && window.MegaRadioBridge.__resolveIap($safeId, $json);"
-        webView.post { webView.evaluateJavascript(js, null) }
+        webView.post {
+            if (TvNavigationPolicy.isTrusted(webView.url)) webView.evaluateJavascript(js, null)
+        }
     }
 
     companion object { private const val TAG = "MegaRadioNativeBridge" }
@@ -99,9 +96,13 @@ class MegaRadioNativeBridge(
  * "Continue Listening" → Recommendations Channel pipeline keeps working.
  */
 class MegaRadioBridge(private val ctx: Context) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    @JavascriptInterface
     fun onContinueListening(json: String) {
+        scope.launch { publish(json) }
+    }
+
+    private fun publish(json: String) {
         try {
             val arr = JSONArray(json)
             val items = (0 until arr.length()).map { i ->
@@ -122,4 +123,5 @@ class MegaRadioBridge(private val ctx: Context) {
     }
 
     companion object { private const val TAG = "MegaRadioBridge" }
+    fun close() { scope.cancel() }
 }

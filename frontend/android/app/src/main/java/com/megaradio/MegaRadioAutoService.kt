@@ -1,6 +1,21 @@
 package com.megaradio
 
 import android.content.Context
+import android.content.Intent
+import android.content.SharedPreferences
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.os.Handler
+import android.os.Looper
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.util.concurrent.Executors
+import org.json.JSONObject
+import org.json.JSONTokener
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
@@ -47,6 +62,27 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
         const val CONTENT_STYLE_GRID = 2
     }
 
+    private val handler = Handler(Looper.getMainLooper())
+    private val catalogExecutor = Executors.newSingleThreadExecutor()
+    private val preferences by lazy { getSharedPreferences("megaradio_auto", MODE_PRIVATE) }
+    private var destroyed = false
+    private var preparing = false
+    private var resumeAfterFocus = false
+    private var hasAudioFocus = false
+    private var isForeground = false
+    private var browseRevision = 0
+    private val prepareTimeout = Runnable { failPlayback() }
+    private val catalogListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "catalog") handler.post {
+            browseRevision++
+            categoryStationsMap.clear()
+            allStations.clear()
+            currentCategoryStations = emptyList()
+            currentStationIndex = -1
+            listOf(MEDIA_ROOT_ID, MEDIA_FAVORITES, MEDIA_RECENT, MEDIA_POPULAR, MEDIA_GENRES).forEach { notifyChildrenChanged(it) }
+        }
+    }
+
     private var mediaSession: MediaSessionCompat? = null
     private var mediaPlayer: MediaPlayer? = null
     private var audioManager: AudioManager? = null
@@ -65,12 +101,16 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
         super.onCreate()
         Log.d(TAG, "MegaRadioAutoService created")
         audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        initStationsData()
+        preferences.registerOnSharedPreferenceChangeListener(catalogListener)
         initMediaSession()
     }
 
     override fun onDestroy() {
         Log.d(TAG, "MegaRadioAutoService destroyed")
+        destroyed = true
+        preferences.unregisterOnSharedPreferenceChangeListener(catalogListener)
+        catalogExecutor.shutdownNow()
+        handler.removeCallbacksAndMessages(null)
         stopPlayback()
         mediaSession?.release()
         mediaSession = null
@@ -79,43 +119,37 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
 
     // ── Station Data ────────────────────────────────────────
 
-    private fun initStationsData() {
-        val popularStations = listOf(
-            StationInfo("pop_1", "Power FM", "Hit Radyosu", "https://listen.powerapp.com.tr/powerfm/abr/playlist.m3u8"),
-            StationInfo("pop_2", "Virgin Radio Turkey", "Today's Best Music", "https://live.virginradio.com.tr/vrt"),
-            StationInfo("pop_3", "Kral FM", "Turk Muziginin Kalbi", "https://stream.kralfm.com.tr/kralfm"),
-            StationInfo("pop_4", "Joy FM", "Joy Turk", "https://stream.joyfm.com.tr/joyfm"),
-            StationInfo("pop_5", "Metro FM", "Metro FM", "https://listen.powerapp.com.tr/metrofm/abr/playlist.m3u8"),
-            StationInfo("pop_6", "Slow Turk", "Slow Turk", "https://stream.slowturk.com.tr/slowturk"),
-            StationInfo("pop_7", "TRT FM", "TRT FM", "https://trtfm.radyotvonline.com/"),
-            StationInfo("pop_8", "Number One FM", "Number One", "https://stream.numberone.com.tr/")
-        )
+    private fun catalog(): JSONObject = try { JSONObject(preferences.getString("catalog", "{}") ?: "{}") } catch (_: Exception) { JSONObject() }
+    private fun label(key: String, fallback: String) = catalog().optJSONObject("labels")?.optString(key)?.takeIf { it.isNotBlank() } ?: fallback
 
-        val popGenre = listOf(
-            StationInfo("pop_power", "Power FM", "Pop Hits", "https://listen.powerapp.com.tr/powerfm/abr/playlist.m3u8"),
-            StationInfo("pop_virgin", "Virgin Radio", "Pop Music", "https://live.virginradio.com.tr/vrt"),
-            StationInfo("pop_joy", "Joy FM", "Pop Turk", "https://stream.joyfm.com.tr/joyfm")
-        )
+    private fun parseStations(array: JSONArray): List<StationInfo> = (0 until minOf(array.length(), 100)).mapNotNull { index ->
+        val item = array.optJSONObject(index) ?: return@mapNotNull null
+        fun field(vararg keys: String): String = keys.firstNotNullOfOrNull { key ->
+            item.optString(key).takeIf { it.isNotBlank() && it != "null" }
+        } ?: ""
+        val id = field("id", "_id", "stationuuid")
+        val name = field("name")
+        val stream = field("streamUrl", "urlResolved", "url_resolved", "url")
+        if (id.isBlank() || name.isBlank() || Uri.parse(stream).scheme !in listOf("http", "https")) null
+        else StationInfo(id, name, field("country", "subtitle"), stream, field("favicon", "logoUrl"))
+    }.distinctBy { it.id }
 
-        val rockGenre = listOf(
-            StationInfo("rock_1", "Rock FM", "Rock Music", "https://rockfm.stream")
-        )
+    private fun loadCached(key: String): List<StationInfo> = parseStations(catalog().optJSONArray(key) ?: JSONArray())
 
-        val turkishGenre = listOf(
-            StationInfo("turk_kral", "Kral FM", "Turk Muzigi", "https://stream.kralfm.com.tr/kralfm"),
-            StationInfo("turk_slow", "Slow Turk", "Slow Turkce", "https://stream.slowturk.com.tr/slowturk")
-        )
-
-        categoryStationsMap[MEDIA_POPULAR] = popularStations
-        categoryStationsMap[GENRE_POP] = popGenre
-        categoryStationsMap[GENRE_ROCK] = rockGenre
-        categoryStationsMap[GENRE_TURKISH] = turkishGenre
-
-        for ((_, stations) in categoryStationsMap) {
-            for (station in stations) {
-                allStations[station.id] = station
+    // Only public station data is fetched. No account token is persisted in the car cache.
+    private fun fetchArray(path: String, key: String): JSONArray {
+        val connection = URL("https://api.themegaradio.com$path").openConnection() as HttpURLConnection
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 15_000
+        try {
+            if (connection.responseCode !in 200..299) throw IllegalStateException("Catalog unavailable")
+            val data = JSONTokener(connection.inputStream.bufferedReader().use { it.readText() }).nextValue()
+            return when (data) {
+                is JSONArray -> data
+                is JSONObject -> data.optJSONArray(key) ?: data.optJSONArray("data") ?: JSONArray()
+                else -> JSONArray()
             }
-        }
+        } finally { connection.disconnect() }
     }
 
     // ── MediaSession ────────────────────────────────────────
@@ -155,6 +189,7 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
 
     private fun updateState(state: Int) {
         mediaSession?.setPlaybackState(buildState(state))
+        if (isForeground) getSystemService(NotificationManager::class.java).notify(7401, notification(state == PlaybackStateCompat.STATE_PLAYING))
     }
 
     private fun updateMetadata(station: StationInfo) {
@@ -175,12 +210,19 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
         when (change) {
             AudioManager.AUDIOFOCUS_LOSS -> stopPlayback()
             AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                mediaPlayer?.takeIf { it.isPlaying }?.pause()
+                hasAudioFocus = false
+                resumeAfterFocus = preparing || mediaPlayer?.isPlaying == true
+                if (!preparing) mediaPlayer?.takeIf { it.isPlaying }?.pause()
                 updateState(PlaybackStateCompat.STATE_PAUSED)
             }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> mediaPlayer?.setVolume(0.2f, 0.2f)
             AudioManager.AUDIOFOCUS_GAIN -> {
-                mediaPlayer?.takeIf { !it.isPlaying }?.start()
-                updateState(PlaybackStateCompat.STATE_PLAYING)
+                hasAudioFocus = true
+                mediaPlayer?.setVolume(1f, 1f)
+                if (resumeAfterFocus) {
+                    resumeAfterFocus = false
+                    if (!preparing) { mediaPlayer?.start(); updateState(PlaybackStateCompat.STATE_PLAYING) }
+                }
             }
         }
     }
@@ -204,10 +246,12 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
                 focusListener, AudioManager.STREAM_MUSIC, AudioManager.AUDIOFOCUS_GAIN
             )
         }
-        return result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        hasAudioFocus = result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        return hasAudioFocus
     }
 
     private fun releaseFocus() {
+        hasAudioFocus = false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             audioFocusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
         } else {
@@ -218,58 +262,84 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
 
     // ── Playback ────────────────────────────────────────────
 
-    private fun playStation(station: StationInfo) {
-        try {
-            Log.d(TAG, "Playing: ${station.name} -> ${station.streamUrl}")
-            if (!requestFocus()) {
-                Log.w(TAG, "Audio focus denied")
-                return
-            }
+    private fun notification(playing: Boolean) = NotificationCompat.Builder(this, "megaradio_auto_playback")
+        .setSmallIcon(R.drawable.ic_auto_icon)
+        .setContentTitle(currentStation?.name ?: "MegaRadio")
+        .setContentText(currentStation?.subtitle ?: "")
+        .setContentIntent(packageManager.getLaunchIntentForPackage(packageName)?.let {
+            PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+        })
+        .setOnlyAlertOnce(true).setSilent(true).setOngoing(playing)
+        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        .setStyle(androidx.media.app.NotificationCompat.MediaStyle().setMediaSession(mediaSession?.sessionToken).setShowActionsInCompactView(0))
+        .addAction(if (playing) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play,
+            if (playing) "Pause" else "Play", PendingIntent.getService(this, 1,
+                Intent(this, MegaRadioAutoService::class.java).setAction(if (playing) "pause" else "play"),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop", PendingIntent.getService(this, 2,
+            Intent(this, MegaRadioAutoService::class.java).setAction("stop"), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
+        .build()
 
-            mediaPlayer?.release()
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        when (intent?.action) {
+            "play" -> mediaSession?.controller?.transportControls?.play()
+            "pause" -> mediaSession?.controller?.transportControls?.pause()
+            "stop" -> stopPlayback()
+        }
+        return START_NOT_STICKY
+    }
+
+    private fun beginForeground(): Boolean = try {
+        if (Build.VERSION.SDK_INT >= 26) getSystemService(NotificationManager::class.java).createNotificationChannel(
+            NotificationChannel("megaradio_auto_playback", "MegaRadio", NotificationManager.IMPORTANCE_LOW))
+        ContextCompat.startForegroundService(this, Intent(this, MegaRadioAutoService::class.java))
+        startForeground(7401, notification(false))
+        isForeground = true
+        true
+    } catch (_: Exception) { failPlayback(); false }
+
+    private fun failPlayback() {
+        stopPlayback()
+        updateState(PlaybackStateCompat.STATE_ERROR)
+    }
+
+    private fun playStation(station: StationInfo) {
+        stopPlayback()
+        currentStation = station
+        updateMetadata(station)
+        if (!beginForeground() || !requestFocus()) { failPlayback(); return }
+        try {
+            preparing = true
+            updateState(PlaybackStateCompat.STATE_BUFFERING)
             mediaPlayer = MediaPlayer().apply {
-                setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_MEDIA)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
-                        .build()
-                )
+                setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_MUSIC).build())
                 setDataSource(station.streamUrl)
-                setOnPreparedListener { mp ->
-                    mp.start()
-                    updateState(PlaybackStateCompat.STATE_PLAYING)
-                    Log.d(TAG, "Now playing: ${station.name}")
+                setOnPreparedListener { player ->
+                    if (mediaPlayer !== player) return@setOnPreparedListener
+                    preparing = false
+                    handler.removeCallbacks(prepareTimeout)
+                    // A transient focus loss while buffering must not start audio over another app.
+                    if (hasAudioFocus) { player.start(); updateState(PlaybackStateCompat.STATE_PLAYING) }
                 }
-                setOnErrorListener { _, what, extra ->
-                    Log.e(TAG, "MediaPlayer error what=$what extra=$extra")
-                    updateState(PlaybackStateCompat.STATE_ERROR)
-                    true
-                }
-                setOnCompletionListener {
-                    Log.w(TAG, "Stream ended/disconnected")
-                    updateState(PlaybackStateCompat.STATE_STOPPED)
-                }
+                setOnErrorListener { _, _, _ -> failPlayback(); true }
+                setOnCompletionListener { stopPlayback() }
                 prepareAsync()
             }
-
-            currentStation = station
-            updateState(PlaybackStateCompat.STATE_BUFFERING)
-            updateMetadata(station)
-        } catch (e: Exception) {
-            Log.e(TAG, "playStation error", e)
-            updateState(PlaybackStateCompat.STATE_ERROR)
-        }
+            handler.postDelayed(prepareTimeout, 30_000)
+        } catch (_: Exception) { failPlayback() }
     }
 
     private fun stopPlayback() {
-        try {
-            mediaPlayer?.let {
-                if (it.isPlaying) it.stop()
-                it.release()
-            }
-        } catch (_: Exception) {}
+        handler.removeCallbacks(prepareTimeout)
+        preparing = false
+        resumeAfterFocus = false
+        val previous = mediaPlayer
         mediaPlayer = null
+        try { previous?.release() } catch (_: Exception) { }
         releaseFocus()
+        isForeground = false
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
         updateState(PlaybackStateCompat.STATE_STOPPED)
     }
 
@@ -282,7 +352,7 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
             if (mediaId.isNullOrEmpty() || mediaId == "no_fav") return
 
             // Find station in indexed map or in favorites
-            val station = allStations[mediaId] ?: loadFavorites().find { it.id == mediaId }
+            val station = allStations[mediaId] ?: (loadCached("favorites") + loadCached("recent")).find { it.id == mediaId }
             if (station == null) {
                 Log.w(TAG, "Station not found: $mediaId")
                 return
@@ -294,19 +364,26 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
         }
 
         override fun onPlay() {
-            Log.d(TAG, "onPlay")
-            mediaPlayer?.let {
-                if (!it.isPlaying && requestFocus()) {
-                    it.start()
+            if (preparing) return
+            if (mediaPlayer != null) {
+                if (beginForeground() && requestFocus()) {
+                    resumeAfterFocus = false
+                    mediaPlayer?.start()
                     updateState(PlaybackStateCompat.STATE_PLAYING)
                 }
-            } ?: currentStation?.let { playStation(it) }
+            } else currentStation?.let { playStation(it) }
         }
 
         override fun onPause() {
-            Log.d(TAG, "onPause")
-            mediaPlayer?.takeIf { it.isPlaying }?.pause()
-            updateState(PlaybackStateCompat.STATE_PAUSED)
+            resumeAfterFocus = false
+            if (preparing) stopPlayback()
+            else {
+                mediaPlayer?.takeIf { it.isPlaying }?.pause()
+                releaseFocus()
+                updateState(PlaybackStateCompat.STATE_PAUSED)
+                stopForeground(STOP_FOREGROUND_DETACH)
+                isForeground = false
+            }
         }
 
         override fun onStop() {
@@ -345,38 +422,12 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
             }
         }
         // Check favorites
-        val favs = loadFavorites()
+        val favs = loadCached("favorites")
         val idx = favs.indexOfFirst { it.id == mediaId }
         if (idx >= 0) {
             currentCategoryStations = favs
             currentStationIndex = idx
         }
-    }
-
-    // ── Favorites (React Native AsyncStorage) ───────────────
-
-    private fun loadFavorites(): List<StationInfo> {
-        val result = mutableListOf<StationInfo>()
-        try {
-            val prefs = applicationContext.getSharedPreferences(
-                "RN_AsyncLocalStorage", Context.MODE_PRIVATE
-            )
-            val json = prefs.getString(ASYNC_STORAGE_FAVORITES_KEY, null) ?: return result
-            val arr = JSONArray(json)
-            for (i in 0 until arr.length()) {
-                val obj = arr.getJSONObject(i)
-                result.add(StationInfo(
-                    id = obj.optString("id", ""),
-                    name = obj.optString("name", "Unknown"),
-                    subtitle = obj.optString("country", ""),
-                    streamUrl = obj.optString("streamUrl", ""),
-                    favicon = obj.optString("favicon", "")
-                ))
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "loadFavorites error", e)
-        }
-        return result
     }
 
     // ── Browse Tree ─────────────────────────────────────────
@@ -385,8 +436,13 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
         clientPackageName: String,
         clientUid: Int,
         rootHints: Bundle?
-    ): BrowserRoot {
-        Log.d(TAG, "onGetRoot from: $clientPackageName")
+    ): BrowserRoot? {
+        val ownsPackage = packageManager.getPackagesForUid(clientUid)?.contains(clientPackageName) == true
+        val trustedController = androidx.media.MediaSessionManager.getSessionManager(this).isTrustedForMediaControl(
+            androidx.media.MediaSessionManager.RemoteUserInfo(clientPackageName, -1, clientUid))
+        val googleCar = clientPackageName == "com.google.android.projection.gearhead" &&
+            packageManager.checkSignatures(clientPackageName, "com.google.android.gms") == android.content.pm.PackageManager.SIGNATURE_MATCH
+        if (!ownsPackage || (clientUid != applicationInfo.uid && !trustedController && !googleCar)) return null
         val extras = Bundle().apply {
             putBoolean(CONTENT_STYLE_SUPPORTED, true)
             putInt(CONTENT_STYLE_BROWSABLE_HINT, CONTENT_STYLE_GRID)
@@ -399,54 +455,54 @@ class MegaRadioAutoService : MediaBrowserServiceCompat() {
         parentId: String,
         result: Result<MutableList<MediaBrowserCompat.MediaItem>>
     ) {
-        Log.d(TAG, "onLoadChildren: $parentId")
-        result.detach()
-
-        val items = mutableListOf<MediaBrowserCompat.MediaItem>()
-
-        when (parentId) {
-            MEDIA_ROOT_ID -> {
-                items.add(browsable(MEDIA_FAVORITES, "Favoriler", "Favori radyolariniz", "ic_heart"))
-                items.add(browsable(MEDIA_RECENT, "Son Calinanlar", "Son dinlediginiz", "ic_clock"))
-                items.add(browsable(MEDIA_POPULAR, "Populer", "En populer radyolar", "ic_star"))
-                items.add(browsable(MEDIA_GENRES, "Turler", "Ture gore radyolar", "ic_music"))
-            }
-            MEDIA_GENRES -> {
-                items.add(browsable(GENRE_POP, "Pop", "Pop muzik radyolari", "ic_music"))
-                items.add(browsable(GENRE_ROCK, "Rock", "Rock muzik radyolari", "ic_music"))
-                items.add(browsable(GENRE_JAZZ, "Jazz", "Jazz muzik radyolari", "ic_music"))
-                items.add(browsable(GENRE_CLASSICAL, "Klasik", "Klasik muzik radyolari", "ic_music"))
-                items.add(browsable(GENRE_ELECTRONIC, "Elektronik", "Elektronik muzik", "ic_music"))
-                items.add(browsable(GENRE_HIPHOP, "Hip-Hop", "Hip-Hop radyolari", "ic_music"))
-                items.add(browsable(GENRE_TURKISH, "Turkce", "Turkce muzik radyolari", "ic_music"))
-                items.add(browsable(GENRE_NEWS, "Haber", "Haber radyolari", "ic_music"))
-            }
-            MEDIA_FAVORITES -> {
-                val favs = loadFavorites()
-                if (favs.isEmpty()) {
-                    items.add(playable("no_fav", "Henuz favori yok", "Uygulamadan ekleyin", ""))
-                } else {
-                    favs.forEach { items.add(playable(it.id, it.name, it.subtitle, it.streamUrl, it.favicon)) }
-                }
-            }
-            MEDIA_RECENT -> {
-                items.add(playable("recent_1", "NRJ Turkey", "Son dinlenen", "https://nrj.com/stream"))
-            }
-            MEDIA_POPULAR -> {
-                categoryStationsMap[MEDIA_POPULAR]?.forEach {
-                    items.add(playable(it.id, it.name, it.subtitle, it.streamUrl, it.favicon))
-                }
-            }
-            GENRE_POP, GENRE_ROCK, GENRE_JAZZ, GENRE_CLASSICAL,
-            GENRE_ELECTRONIC, GENRE_HIPHOP, GENRE_TURKISH, GENRE_NEWS -> {
-                categoryStationsMap[parentId]?.forEach {
-                    items.add(playable(it.id, it.name, it.subtitle, it.streamUrl, it.favicon))
-                }
-            }
-            else -> Log.w(TAG, "Unknown parentId: $parentId")
+        if (parentId == MEDIA_ROOT_ID) {
+            result.sendResult(mutableListOf(
+                browsable(MEDIA_FAVORITES, label("favorites", "Favorites"), "", "ic_heart"),
+                browsable(MEDIA_RECENT, label("recent", "Recently played"), "", "ic_clock"),
+                browsable(MEDIA_POPULAR, label("popular", "Popular stations"), "", "ic_star"),
+                browsable(MEDIA_GENRES, label("genres", "Genres"), "", "ic_music")
+            ))
+            return
         }
-
-        result.sendResult(items)
+        if (parentId == MEDIA_FAVORITES || parentId == MEDIA_RECENT) {
+            val stations = loadCached(if (parentId == MEDIA_FAVORITES) "favorites" else "recent")
+            categoryStationsMap[parentId] = stations
+            stations.forEach { allStations[it.id] = it }
+            result.sendResult(stations.map { playable(it.id, it.name, it.subtitle, it.streamUrl, it.favicon) }.toMutableList())
+            return
+        }
+        result.detach()
+        val revision = browseRevision
+        val country = catalog().optString("country", "")
+        catalogExecutor.execute {
+            try {
+                if (parentId == MEDIA_GENRES) {
+                    val genres = fetchArray("/api/genres", "genres")
+                    val items = (0 until minOf(genres.length(), 100)).mapNotNull { i ->
+                        val genre = genres.optJSONObject(i) ?: return@mapNotNull null
+                        val slug = genre.optString("slug")
+                        if (slug.isBlank()) null else browsable("genre_$slug", genre.optString("name", slug), "", "ic_music")
+                    }.toMutableList()
+                    handler.post { if (!destroyed) result.sendResult(if (revision == browseRevision) items else mutableListOf()) }
+                } else {
+                    val path = when {
+                        parentId == MEDIA_POPULAR -> "/api/stations/popular?limit=50&excludeBroken=true&country=" + URLEncoder.encode(country, "UTF-8")
+                        parentId.startsWith("genre_") -> "/api/genres/" + URLEncoder.encode(parentId.removePrefix("genre_"), "UTF-8") + "/stations?limit=50&excludeBroken=true"
+                        else -> { handler.post { if (!destroyed) result.sendResult(mutableListOf()) }; return@execute }
+                    }
+                    val stations = parseStations(fetchArray(path, "stations"))
+                    handler.post {
+                        if (!destroyed) {
+                            if (revision == browseRevision) {
+                                categoryStationsMap[parentId] = stations
+                                stations.forEach { allStations[it.id] = it }
+                                result.sendResult(stations.map { playable(it.id, it.name, it.subtitle, it.streamUrl, it.favicon) }.toMutableList())
+                            } else result.sendResult(mutableListOf())
+                        }
+                    }
+                }
+            } catch (_: Exception) { handler.post { if (!destroyed) result.sendError(Bundle()) } }
+        }
     }
 
     // ── MediaItem Builders ──────────────────────────────────

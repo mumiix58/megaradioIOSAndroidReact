@@ -17,3 +17,13 @@ export function isPlaylistStream(url: string | undefined): boolean {
   // Signed/parameterized playlists still need resolution.
   return typeof url === 'string' && /\.(pls|m3u8?|asx)(?:[?#]|$)/i.test(url);
 }
+/** HLS can use an extensionless URL or .m3u, as KRAL POP does in our API. */
+export function isHlsStream(url: string, station?: {
+  hls?: boolean; url?: string; urlResolved?: string; url_resolved?: string;
+  streamUrl?: string; urlHigh?: string; urlLow?: string;
+}): boolean {
+  if (/\.m3u8(?:[?#]|$)/i.test(url)) return true;
+  if (station?.hls !== true) return false;
+  return /\.m3u(?:[?#]|$)/i.test(url) || [station.url, station.urlResolved,
+    station.url_resolved, station.streamUrl, station.urlHigh, station.urlLow].includes(url);
+}

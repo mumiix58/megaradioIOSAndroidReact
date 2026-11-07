@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MegaRadio</string>
+    <string name="play">Play</string>
+    <string name="pause">Pause</string>
+    <string name="manage_subscriptions">Manage subscriptions</string>
+    <string name="manage_subscriptions_instructions">On your Android phone, open Google Play with the account used to subscribe. Select your profile, then Payments &amp; subscriptions → Subscriptions → MegaRadio. You can also manage your subscription at play.google.com/store/account/subscriptions.</string>
+    <string name="webview_update_required">Please update Android System WebView in Google Play, then reopen MegaRadio.</string>
 </resources>

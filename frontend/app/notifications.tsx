@@ -65,12 +65,12 @@ export default function NotificationsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { t } = useTranslation();
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const [refreshing, setRefreshing] = useState(false);
 
   // Fetch notifications
   const { data, isLoading, refetch } = useQuery<NotificationsResponse>({
-    queryKey: ['notifications'],
+    queryKey: ['notifications', user?._id],
     queryFn: async () => {
       const response = await api.get(API_ENDPOINTS.user.notifications);
       return response.data;

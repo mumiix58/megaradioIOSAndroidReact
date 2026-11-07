@@ -1,12 +1,14 @@
 package com.megaradio.tv.channels
 
+import android.content.ContentValues
+import android.os.Build
+import android.media.tv.TvContract
 import android.content.ContentUris
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.tvprovider.media.tv.Channel
 import androidx.tvprovider.media.tv.ChannelLogoUtils
-import androidx.tvprovider.media.tv.PreviewProgram
 import androidx.tvprovider.media.tv.TvContractCompat
 import com.megaradio.tv.R
 
@@ -29,28 +31,38 @@ object RecommendationsChannel {
     )
 
     fun publish(context: Context, stations: List<RecItem>) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        if (!context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)) return
         val channelId = ensureChannel(context)
-        // Wipe old rows
-        context.contentResolver.delete(
-            TvContractCompat.PreviewPrograms.CONTENT_URI,
-            "${TvContractCompat.PreviewPrograms.COLUMN_CHANNEL_ID}=?",
-            arrayOf(channelId.toString()),
-        )
+        // TV providers reject SQL selections. Enumerate this channel's rows and
+        // remove each by its item URI, leaving other channels untouched.
+        context.contentResolver.query(
+            TvContract.buildPreviewProgramsUriForChannel(channelId),
+            arrayOf(TvContract.PreviewPrograms._ID), null, null, null,
+        )?.use { rows ->
+            while (rows.moveToNext()) {
+                context.contentResolver.delete(
+                    TvContract.buildPreviewProgramUri(rows.getLong(0)), null, null,
+                )
+            }
+        }
         stations.take(10).forEach { s ->
-            val program = PreviewProgram.Builder()
-                .setChannelId(channelId)
-                .setType(TvContractCompat.PreviewPrograms.TYPE_STATION)
-                .setTitle(s.title)
-                .setDescription(s.description ?: "")
-                .setPosterArtUri(Uri.parse(s.iconUrl))
-                .setPosterArtAspectRatio(TvContractCompat.PreviewPrograms.ASPECT_RATIO_1_1)
-                .setIntent(Intent(Intent.ACTION_VIEW, Uri.parse("megaradio://play?station=${s.id}")))
-                .setInternalProviderId(s.id)
-                .build()
-            context.contentResolver.insert(
-                TvContractCompat.PreviewPrograms.CONTENT_URI,
-                program.toContentValues(),
-            )
+            val target = Intent(Intent.ACTION_VIEW,
+                Uri.parse("megaradio://play").buildUpon().appendQueryParameter("station", s.id).build())
+                .setPackage(context.packageName)
+            // Public provider columns avoid inherited @RestrictTo builder APIs.
+            val values = ContentValues().apply {
+                put(TvContract.PreviewPrograms.COLUMN_CHANNEL_ID, channelId)
+                put(TvContract.PreviewPrograms.COLUMN_TYPE, TvContract.PreviewPrograms.TYPE_STATION)
+                put(TvContract.PreviewPrograms.COLUMN_TITLE, s.title)
+                put(TvContract.PreviewPrograms.COLUMN_SHORT_DESCRIPTION, s.description ?: "")
+                put(TvContract.PreviewPrograms.COLUMN_POSTER_ART_URI, s.iconUrl)
+                put(TvContract.PreviewPrograms.COLUMN_POSTER_ART_ASPECT_RATIO,
+                    TvContract.PreviewPrograms.ASPECT_RATIO_1_1)
+                put(TvContract.PreviewPrograms.COLUMN_INTENT_URI, target.toUri(Intent.URI_INTENT_SCHEME))
+                put(TvContract.PreviewPrograms.COLUMN_INTERNAL_PROVIDER_ID, s.id)
+            }
+            context.contentResolver.insert(TvContract.PreviewPrograms.CONTENT_URI, values)
         }
     }
 

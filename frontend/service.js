@@ -3,8 +3,9 @@
 // CRITICAL: This file runs in a separate JS context, so we can't access React state directly
 // We use AsyncStorage to communicate between the app and this service
 
-import TrackPlayer, { Event, State } from 'react-native-track-player';
+import TrackPlayer, { Event, State, TrackType } from 'react-native-track-player';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { isHlsStream } from './src/utils/streamSources';
 
 // Import Zustand store for direct state sync (works on iOS same-context, graceful fail on Android headless)
 let playerStoreRef = null;
@@ -72,6 +73,7 @@ const playStation = async (station) => {
     await TrackPlayer.add({
       id: 'placeholder_previous',
       url: streamUrl,
+      type: isHlsStream(streamUrl, station) ? TrackType.HLS : TrackType.Default,
       title: 'Previous Station',
       artist: 'MegaRadio',
       artwork: artwork,
@@ -83,6 +85,7 @@ const playStation = async (station) => {
     await TrackPlayer.add({
       id: station._id || station.id,
       url: streamUrl,
+      type: isHlsStream(streamUrl, station) ? TrackType.HLS : TrackType.Default,
       title: station.name,
       artist: station.country || 'Radio',
       artwork: artwork,
@@ -94,6 +97,7 @@ const playStation = async (station) => {
     await TrackPlayer.add({
       id: 'placeholder_next',
       url: streamUrl,
+      type: isHlsStream(streamUrl, station) ? TrackType.HLS : TrackType.Default,
       title: 'Next Station',
       artist: 'MegaRadio',
       artwork: artwork,

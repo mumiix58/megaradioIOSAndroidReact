@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { searchCatalog } from '../src/services/searchService';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -132,94 +133,38 @@ export default function SearchScreen() {
   };
 
   // Unified search function
-  const performSearch = useCallback(async (searchQuery: string) => {
-    console.log('performSearch called with:', searchQuery);
-    if (searchQuery.length < 2) {
-      setAllResults([]);
-      setHasSearched(false);
-      setIsSearching(false);
+  const searchVersion = useRef(0);
+  const [searchError, setSearchError] = useState(false);
+  const performSearch = useCallback(async (searchQuery: string, signal: AbortSignal, version: number) => {
+    if (!searchQuery.trim()) {
+      setAllResults([]); setHasSearched(false); setIsSearching(false); setSearchError(false);
       return;
     }
-
-    setIsSearching(true);
+    setIsSearching(true); setSearchError(false);
     try {
-      const lowerQuery = searchQuery.toLowerCase();
-      
-      console.log('Starting API calls...');
-      
-      // Fetch stations
-      let stationsResponse: Station[] = [];
-      try {
-        console.log('Fetching stations...');
-        stationsResponse = await stationService.searchStations(searchQuery, 30);
-        console.log('Stations fetched:', stationsResponse?.length || 0);
-      } catch (err) {
-        console.error('Stations fetch error:', err);
-      }
-      
-      // Fetch genres
-      let genresResponse: SearchGenre[] = [];
-      try {
-        console.log('Fetching genres...');
-        const genreRes = await api.get(API_ENDPOINTS.genres.discoverable);
-        genresResponse = genreRes.data || [];
-        console.log('Genres fetched:', genresResponse?.length || 0);
-      } catch (err) {
-        console.error('Genres fetch error:', err);
-      }
-      
-      // Fetch profiles
-      let profilesResponse: PublicProfile[] = [];
-      try {
-        console.log('Fetching profiles...');
-        const profileRes = await api.get(API_ENDPOINTS.publicProfiles, { params: { limit: 50 } });
-        profilesResponse = profileRes.data?.data || profileRes.data || [];
-        console.log('Profiles fetched:', profilesResponse?.length || 0);
-      } catch (err) {
-        console.error('Profiles fetch error:', err);
-      }
-
-      console.log('API responses - Stations:', stationsResponse?.length, 'Genres:', genresResponse?.length, 'Profiles:', profilesResponse?.length);
-
-      // Convert stations to results
-      const stationResults = (stationsResponse || []).map(stationToResult);
-
-      // Filter genres by name
-      const filteredGenres = (genresResponse || []).filter((g: SearchGenre) => 
-        g.name?.toLowerCase().includes(lowerQuery)
-      );
-      const genreResults = filteredGenres.map(genreToResult);
-
-      // Filter profiles by name
-      const filteredProfiles = (profilesResponse || []).filter((p: PublicProfile) => 
-        p.name?.toLowerCase().includes(lowerQuery)
-      );
-      const profileResults = filteredProfiles.map(profileToResult);
-
-      // Combine all results
-      const combined = [...stationResults, ...genreResults, ...profileResults];
-      console.log('Combined results:', combined.length);
-      console.log('Setting state: allResults, hasSearched, isSearching...');
-      
-      setAllResults(combined);
+      const { stations, genres, profiles } = await searchCatalog(searchQuery.trim(), signal);
+      if (signal.aborted || version !== searchVersion.current) return;
+      const lower = searchQuery.toLowerCase();
+      setAllResults([
+        ...stations.map(stationToResult),
+        ...(genres || []).filter((g: SearchGenre) => g.name?.toLowerCase().includes(lower)).map(genreToResult),
+        ...(profiles || []).filter((p: PublicProfile) => p.name?.toLowerCase().includes(lower)).map(profileToResult),
+      ]);
       setHasSearched(true);
-      setIsSearching(false);
-      console.log('State updated successfully');
-    } catch (error: any) {
-      console.error('Search error:', error?.message || error);
-      setAllResults([]);
-      setHasSearched(true);
-      setIsSearching(false);
+    } catch {
+      if (!signal.aborted && version === searchVersion.current) {
+        setSearchError(true); setAllResults([]); setHasSearched(true);
+      }
+    } finally {
+      if (!signal.aborted && version === searchVersion.current) setIsSearching(false);
     }
   }, []);
 
-  // Handle query change with debounce - increased delay for better performance
   useEffect(() => {
-    const timer = setTimeout(() => {
-      performSearch(query);
-    }, 600);
-
-    return () => clearTimeout(timer);
+    const version = ++searchVersion.current;
+    const controller = new AbortController();
+    const timer = setTimeout(() => performSearch(query, controller.signal, version), query.trim() ? 300 : 0);
+    return () => { clearTimeout(timer); controller.abort(); };
   }, [query, performSearch]);
 
   // Filter results based on active filter
@@ -429,7 +374,7 @@ export default function SearchScreen() {
                 source={{ uri: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=200&h=200&fit=crop' }}
                 style={styles.emptyImage}
               />
-              <Text style={styles.emptyTitle}>{t('no_results_found', "We couldn't find any result!")}</Text>
+              <Text style={styles.emptyTitle}>{searchError ? t('search_failed', 'Search is unavailable. Please try again.') : t('no_results_found', "We couldn't find any result!")}</Text>
               <Text style={styles.emptyText}>
                 {t('try_different_search_term', 'Try searching for something else')}
               </Text>

@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Localization from 'expo-localization';
 import api from './api';
 import { API_ENDPOINTS } from '../constants/api';
+import { subscriptionTranslations } from './subscriptionTranslations';
+import { adPrivacyTranslations } from './adPrivacyTranslations';
 
 // Storage key for language preference
 const LANGUAGE_KEY = '@megaradio_language';
@@ -26,6 +28,7 @@ const notifyLanguageChange = (lang: string) => {
 
 // Default fallback translations (English) - includes missing keys from API
 const defaultTranslations: Record<string, string> = {
+  rate_us_invite: 'Share your experience',
   // Tab bar navigation
   tab_discover: 'Discover',
   tab_favorites: 'Favorites',
@@ -316,6 +319,7 @@ let translationsCache: Record<string, Record<string, string>> = {
 
 // Turkish translations for fast startup (most requested language)
 const turkishTranslations: Record<string, string> = {
+  rate_us_invite: 'Deneyiminizi paylaşın',
   // Tab bar navigation
   tab_discover: 'Keşfet',
   tab_favorites: 'Favoriler',
@@ -591,6 +595,7 @@ const turkishTranslations: Record<string, string> = {
 
 // German translations
 const germanTranslations: Record<string, string> = {
+  rate_us_invite: 'Teile deine Erfahrungen',
   // Tab bar navigation
   tab_discover: 'Entdecken',
   tab_favorites: 'Favoriten',
@@ -707,6 +712,9 @@ const germanTranslations: Record<string, string> = {
 };
 
 // Pre-populate Turkish and German cache
+Object.assign(defaultTranslations, subscriptionTranslations.en, adPrivacyTranslations.en);
+Object.assign(turkishTranslations, subscriptionTranslations.tr, adPrivacyTranslations.tr);
+Object.assign(germanTranslations, subscriptionTranslations.de, adPrivacyTranslations.de);
 translationsCache['tr'] = turkishTranslations;
 translationsCache['de'] = germanTranslations;
 
@@ -734,6 +742,8 @@ export const fetchTranslations = async (lang: string): Promise<Record<string, st
     const mergedTranslations = { 
       ...defaultTranslations,  // English as base
       ...localFallback,        // Local translations for known languages
+      ...subscriptionTranslations[lang],
+      ...adPrivacyTranslations[lang],
       ...apiTranslations       // API translations override
     };
     
@@ -754,7 +764,7 @@ export const fetchTranslations = async (lang: string): Promise<Record<string, st
       return { ...defaultTranslations, ...germanTranslations };
     }
     
-    return defaultTranslations;
+    return { ...defaultTranslations, ...subscriptionTranslations[lang], ...adPrivacyTranslations[lang] };
   }
 };
 
@@ -807,7 +817,7 @@ export const initI18n = async (): Promise<void> => {
   console.log('[i18n] Initializing with stored language:', storedLang);
   
   // Use cached translations for fast startup (tr and en are pre-cached)
-  const initialTranslations = translationsCache[storedLang] || defaultTranslations;
+  const initialTranslations = translationsCache[storedLang] || { ...defaultTranslations, ...subscriptionTranslations[storedLang], ...adPrivacyTranslations[storedLang] };
 
   await i18n
     .use(initReactI18next)
