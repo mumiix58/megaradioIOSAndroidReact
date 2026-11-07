@@ -1,4 +1,6 @@
 import { Link, useLocation } from "wouter";
+import { detectPlatform } from "@/lib/platform";
+import { handleEntryBack } from "@/lib/platformBack";
 import { resolveStationImageUrl, handleStationImageError } from "@/lib/imageUtils";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -110,13 +112,13 @@ export const DiscoverNoUser = (): JSX.Element => {
 
   // Fetch popular stations filtered by selected country (or global if GLOBAL selected)
   // CACHE: 24 hours - Uses localStorage cache for instant display
-  const { data: popularStationsData } = useQuery({
+  const { data: popularStationsData, isLoading: isPopularLoading, isFetching: isPopularFetching, refetch: refetchPopular } = useQuery({
     queryKey: ['/api/stations/popular', { limit: 12, country: selectedCountryCode }],
     queryFn: () => {
       if (selectedCountryCode === 'GLOBAL') {
-        return megaRadioApi.getPopularStations({ limit: 12 });
+        return megaRadioApi.getPopularStations({ limit: 12, throwOnError: true });
       }
-      return megaRadioApi.getPopularStations({ limit: 12, country: selectedCountryCode });
+      return megaRadioApi.getPopularStations({ limit: 12, country: selectedCountryCode, throwOnError: true });
     },
     staleTime: 24 * 60 * 60 * 1000, // 24 hours
     gcTime: 24 * 60 * 60 * 1000, // 24 hours
@@ -126,7 +128,7 @@ export const DiscoverNoUser = (): JSX.Element => {
   // Fetch initial 100 stations for TRUE infinite scroll (or global if GLOBAL selected)
   // Loads enough stations to fill the viewport, then lazy loads more as user scrolls
   // CACHE: 7 days - Uses localStorage cache for instant display
-  const { data: initialStationsData, isLoading: isInitialLoading } = useQuery({
+  const { data: initialStationsData, isLoading: isInitialLoading, isError: isInitialError, isFetching: isInitialFetching, refetch: refetchInitial } = useQuery({
     queryKey: ['/api/stations/country/initial', selectedCountryCode, STATIONS_PER_LOAD],
     queryFn: () => {
       if (selectedCountryCode === 'GLOBAL') {
@@ -139,6 +141,15 @@ export const DiscoverNoUser = (): JSX.Element => {
     retry: 2,
     initialData: cachedInitialStations,
   });
+
+  const catalogUnavailable = !isInitialLoading && !isPopularLoading &&
+    displayedStations.length === 0 && !(popularStationsData?.stations?.length) &&
+    !(initialStationsData?.stations?.length);
+  const retryCatalog = () => {
+    if (isInitialFetching || isPopularFetching) return;
+    void refetchInitial();
+    void refetchPopular();
+  };
 
   // Save fetched data to localStorage cache for future warm-starts
   useEffect(() => {
@@ -520,8 +531,7 @@ export const DiscoverNoUser = (): JSX.Element => {
       }
     },
     onBack: () => {
-      // Show exit confirmation modal
-      setIsExitModalOpen(true);
+      handleEntryBack(detectPlatform(), window, () => setIsExitModalOpen(true));
       setExitModalFocusIndex(0); // Focus on "Cancel" button
     }
   });
@@ -587,6 +597,13 @@ export const DiscoverNoUser = (): JSX.Element => {
     }
 
     const key = (window as any).tvKey;
+    // Discover's existing sidebar focus doubles as the recovery action only
+    // when no live catalog is available. Other navigation/Return stays intact.
+    if (catalogUnavailable && focusIndex === 0 && (e.keyCode === 13 || e.keyCode === key?.ENTER)) {
+      e.preventDefault();
+      retryCatalog();
+      return;
+    }
     
     switch(e.keyCode) {
       case key?.UP:
@@ -1145,6 +1162,15 @@ export const DiscoverNoUser = (): JSX.Element => {
             minHeight: `${1013 + recentOffset + forYouOffset + (Math.ceil(displayedStations.length / 7) * 294) + 364}px`
           }}
         >
+        {catalogUnavailable && (
+          <div role="status" data-testid="catalog-unavailable" className="absolute left-[74px] top-0 z-30 w-[1580px] rounded-[14px] bg-[#24242e] p-[32px] text-white text-[28px]">
+            <p>{isInitialError ? t('check_connection') : t('no_results_found')}</p>
+            <button type="button" data-testid="catalog-retry" onClick={retryCatalog} disabled={isInitialFetching || isPopularFetching}
+              className={`mt-[20px] rounded-[10px] px-[30px] py-[14px] bg-[#ff4199] ${focusIndex === 0 ? 'ring-4 ring-white' : ''}`}>
+              {t('retry')} (OK)
+            </button>
+          </div>
+        )}
         {/* Recently Played Section */}
         {recentStations.length > 0 && (
           <div data-testid="section-recently-played">

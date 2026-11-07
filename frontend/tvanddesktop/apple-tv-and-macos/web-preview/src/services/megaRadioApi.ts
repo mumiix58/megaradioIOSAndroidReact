@@ -292,6 +292,7 @@ export const megaRadioApi = {
     country?: string;
     language?: string;
     genre?: string;
+    throwOnError?: boolean;
   }): Promise<{ stations: Station[] }> => {
     const queryParams = new URLSearchParams();
     if (params?.limit) queryParams.append('limit', params.limit.toString());
@@ -309,13 +310,14 @@ export const megaRadioApi = {
       
       if (!response.ok) {
         console.error(`[getPopularStations] HTTP ${response.status}: ${response.statusText}`);
-        return { stations: [] };
+        throw new Error(`HTTP ${response.status}`);
       }
       
       const data = await response.json();
       const stations = data.stations || (Array.isArray(data) ? data : []);
       return { stations: slimStations(stations) };
     } catch (error) {
+      if (params?.throwOnError) throw error;
       console.error('[getPopularStations] Error:', error instanceof Error ? error.message : String(error));
       return { stations: [] };
     }

@@ -40,12 +40,16 @@ function copyDir(src, dst) {
 console.log('▸ Building TV web bundle...');
 // Read version from config.xml so the embedded version + manifest are in sync,
 // and the UpdateBanner can compare against /api/tv/version.
-let tizenVersion = '1.0.2';
+let tizenVersion;
 try {
   const cfg = fs.readFileSync(path.join(__dirname, 'config.xml'), 'utf8');
   const m = cfg.match(/version="(\d+\.\d+\.\d+)"/);
-  if (m) tizenVersion = m[1];
-} catch (_) {}
+  if (!m) throw new Error('Missing Samsung widget version');
+  tizenVersion = m[1];
+} catch (error) {
+  console.error('Cannot determine Samsung package version:', error.message);
+  process.exit(1);
+}
 console.log('  embedded VITE_APP_VERSION =', tizenVersion);
 try {
   const shell = process.platform === 'win32' ? true : (fs.existsSync('/bin/bash') ? '/bin/bash' : true);

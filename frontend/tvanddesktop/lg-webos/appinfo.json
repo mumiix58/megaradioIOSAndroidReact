@@ -5,7 +5,7 @@
   "type": "web",
   "main": "index.html",
   "title": "MegaRadio",
-  "appDescription": "Free radio streaming for LG WebOS TV — discover stations worldwide, save favorites and listen with HD quality.",
+  "appDescription": "Listen to internet radio on LG webOS TV. Discover stations worldwide, search by name and save favorites. An internet connection is required; stream availability and audio quality vary by station.",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "splashBackground": "splash.png",
@@ -15,7 +15,7 @@
   "supportTouchMode": "none",
   "handlesRelaunch": true,
   "transparent": false,
-  "disableBackHistoryAPI": false,
+  "disableBackHistoryAPI": true,
   "accessibility": {
     "supportsAudioGuidance": false
   },
