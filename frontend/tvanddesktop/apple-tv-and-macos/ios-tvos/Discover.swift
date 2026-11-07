@@ -25,6 +25,7 @@ struct DiscoverPage: View {
     @State private var genres: [Genre] = []
     @State private var loading = true
     @State private var error: String?
+    @State private var contentFocusRequest = 0
 
     var body: some View {
         Stage1920x1080 {
@@ -50,10 +51,11 @@ struct DiscoverPage: View {
             LoginHeaderButton().offset(x: 1694, y: 67)
 
             // ── Left sidebar.
-            AppSidebar(active: .discover)
+            AppSidebar(active: .discover, onMoveRight: { contentFocusRequest += 1 })
 
             // ── Scrollable content area starts at (162, 170) inside the stage.
             DiscoverScrollArea(
+                focusRequest: contentFocusRequest,
                 popular: popular,
                 stations: workingStations,
                 genres: genres,
@@ -65,7 +67,8 @@ struct DiscoverPage: View {
                 },
                 onGenre: { g in router.go(.genreList(g.name)) }
             )
-            .frame(width: 1758, height: 910)
+            .frame(width: 1758, height: player.currentStation == nil ? 910 : 731)
+            .focusSection()
             .offset(x: 162, y: 170)
         }
         .task(id: country.selectedCountryCode) { await load() }
@@ -94,6 +97,7 @@ struct DiscoverPage: View {
 // ────────────────────────────────────────────────────────────────────
 
 private struct DiscoverScrollArea: View {
+    let focusRequest: Int
     let popular: [Station]
     let stations: [Station]
     let genres: [Genre]
@@ -123,7 +127,7 @@ private struct DiscoverScrollArea: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 20) {
                             ForEach(genres) { g in
-                                GenrePill(name: g.name) { onGenre(g) }
+                                GenrePill(name: g.name, focusRequest: g.id == genres.first?.id ? focusRequest : 0) { onGenre(g) }
                             }
                         }
                         .padding(.horizontal, 74)
@@ -198,6 +202,7 @@ private struct SectionTitle: View {
 ///   • Inset shadow inset 1.1 1.1 12.1 rgba(255,255,255,0.12)
 struct StationCardLarge: View {
     let station: Station
+    var focusRequest: Int = 0
     let onPlay: () -> Void
     @FocusState private var isFocused: Bool
 
@@ -212,15 +217,7 @@ struct StationCardLarge: View {
                 // Inner white artwork container.
                 ZStack {
                     RoundedRectangle(cornerRadius: 6.6).fill(Color.white)
-                    AsyncImage(url: station.artworkURL) { phase in
-                        if let img = phase.image {
-                            img.resizable().scaledToFill()
-                        } else {
-                            BrandImage(name: "fallback-favicon")
-                                .padding(24)
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 6.6))
+                    StationArtwork(url: station.artworkURL, size: 132, cornerRadius: 6.6)
                 }
                 .frame(width: 132, height: 132)
                 .offset(x: 34, y: 34)
@@ -257,12 +254,14 @@ struct StationCardLarge: View {
         }
         .buttonStyle(.tvTransparent)
         .focused($isFocused)
+        .onChange(of: focusRequest) { _, _ in isFocused = true }
         .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
 
 struct GenrePill: View {
     let name: String
+    var focusRequest: Int = 0
     let onTap: () -> Void
     @FocusState private var isFocused: Bool
 
@@ -286,12 +285,14 @@ struct GenrePill: View {
         }
         .buttonStyle(.tvTransparent)
         .focused($isFocused)
+        .onChange(of: focusRequest) { _, _ in isFocused = true }
     }
 }
 
 // Compact "recently played" card matches the 180×220 web spec.
 struct RecentStationCard: View {
     let station: Station
+    var focusRequest: Int = 0
     let onPlay: () -> Void
     @FocusState private var isFocused: Bool
 

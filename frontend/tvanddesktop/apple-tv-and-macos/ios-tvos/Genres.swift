@@ -9,6 +9,7 @@ struct GenresPage: View {
 
     @State private var genres: [Genre] = []
     @State private var loading = true
+    @State private var contentFocusRequest = 0
 
     private var popularGenres: [Genre] { Array(genres.prefix(8)) }
 
@@ -36,7 +37,7 @@ struct GenresPage: View {
             MegaRadioLogo(scale: 164.421 / 323.069).offset(x: 30, y: 64)
             nowPlayingIndicator.offset(x: 1547, y: 67)
             CountryTriggerHeader().offset(x: 1618, y: 67)
-            AppSidebar(active: .genres)
+            AppSidebar(active: .genres, onMoveRight: { contentFocusRequest += 1 })
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
@@ -45,7 +46,7 @@ struct GenresPage: View {
 
                     LazyVGrid(columns: cols, spacing: 19) {
                         ForEach(popularGenres) { g in
-                            GenreCard(name: g.name, count: g.stationCount ?? 0, hPad: 40) {
+                            GenreCard(name: g.name, count: g.stationCount ?? 0, hPad: 40, focusRequest: g.id == popularGenres.first?.id ? contentFocusRequest : 0) {
                                 router.go(.genreList(g.name))
                             }
                         }
@@ -64,11 +65,11 @@ struct GenresPage: View {
                     }
                     .padding(.bottom, 100)
                 }
-                .padding(.init(top: 60, leading: 237, bottom: 0, trailing: 79))
+                .padding(.init(top: 60, leading: 12, bottom: 0, trailing: 12))
             }
-            .frame(width: 1920, height: 940, alignment: .topLeading)
+            .frame(width: 1628, height: player.currentStation == nil ? 940 : 761, alignment: .topLeading)
             .focusSection()
-            .offset(x: 0, y: 140)
+            .offset(x: 225, y: 140)
 
             if loading {
                 ProgressView().tint(Theme.accent).scaleEffect(2)
@@ -101,6 +102,7 @@ private struct GenreCard: View {
     let name: String
     let count: Int
     let hPad: CGFloat
+    var focusRequest: Int = 0
     let onTap: () -> Void
     @FocusState private var isFocused: Bool
 
@@ -121,6 +123,7 @@ private struct GenreCard: View {
         }
         .buttonStyle(.tvTransparent)
         .focused($isFocused)
+        .onChange(of: focusRequest) { _, _ in isFocused = true }
     }
 }
 
@@ -133,6 +136,7 @@ struct GenreListPage: View {
     @EnvironmentObject var router: TVRouter
     @EnvironmentObject var player: AudioPlayer
     @State private var stations: [Station] = []
+    @State private var contentFocusRequest = 0
     @State private var loading = true
 
     var body: some View {
@@ -140,7 +144,7 @@ struct GenreListPage: View {
             MegaRadioLogo(scale: 164.421 / 323.069).offset(x: 30, y: 64)
             CountryTriggerHeader().offset(x: 1453, y: 67)
             LoginHeaderButton().offset(x: 1694, y: 67)
-            AppSidebar(active: .genres)
+            AppSidebar(active: .genres, onMoveRight: { contentFocusRequest += 1 })
 
             VStack(alignment: .leading, spacing: 30) {
                 HStack(spacing: 16) {
@@ -165,7 +169,7 @@ struct GenreListPage: View {
                             spacing: 30
                         ) {
                             ForEach(stations) { s in
-                                StationCardLarge(station: s) {
+                                StationCardLarge(station: s, focusRequest: s.id == stations.first?.id ? contentFocusRequest : 0) {
                                     player.play(s)
                                     router.go(.radioPlaying)
                                 }
@@ -177,8 +181,8 @@ struct GenreListPage: View {
                     .focusSection()
                 }
             }
-            .frame(width: 1700, height: 910, alignment: .topLeading)
-            .offset(x: 192, y: 170)
+            .frame(width: 1628, height: player.currentStation == nil ? 910 : 731, alignment: .topLeading)
+            .offset(x: 237, y: 170)
         }
         .task { await load() }
     }

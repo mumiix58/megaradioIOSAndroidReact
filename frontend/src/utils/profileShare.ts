@@ -1,3 +1,5 @@
+import i18n from 'i18next';
+import { localizedSharePath } from './localizedRoutes';
 import Constants from 'expo-constants';
 import userService from '../services/userService';
 
@@ -9,7 +11,7 @@ export async function profileShareContent(profile: ShareableProfile) {
   if (publicProfile.isPublicProfile !== true) throw new Error('Paylaşmak için profilinizi herkese açık yapmalısınız.');
   const website = Constants.expoConfig?.extra?.websiteUrl;
   if (!website) throw new Error('Paylaşım adresi yapılandırılmamış.');
-  const url = `${String(website).replace(/\/$/, '')}/user/${encodeURIComponent(identifier)}`;
+  const url = `${String(website).replace(/\/$/, '')}${localizedSharePath('users', identifier, i18n.language || 'en')}`;
   const name = profile.name || profile.fullName || publicProfile.fullName || publicProfile.name || 'MegaRadio';
   return { title: `${name} - MegaRadio`, message: `${name} adlı kullanıcının MegaRadio profili:\n${url}`, url };
 }

@@ -1,3 +1,4 @@
+import { isMacAppStore } from "@/lib/platform";
 import { useLocation } from "wouter";
 import { useSubscriptionStatus } from "@/hooks/useSubscriptionStatus";
 import { useLocalization } from "@/contexts/LocalizationContext";
@@ -23,7 +24,7 @@ export const PastDueBanner = (): JSX.Element | null => {
   const { t } = useLocalization();
   const [location, setLocation] = useLocation();
 
-  if (!info || info.status !== "past_due") return null;
+  if (isMacAppStore() || !info || info.status !== "past_due") return null;
   const muted = ["/manage-subscription", "/premium-upgrade", "/onboarding-premium"].some(
     (p) => location.startsWith(p)
   );

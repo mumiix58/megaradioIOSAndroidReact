@@ -2,7 +2,8 @@
 // All data is fetched fresh from API
 
 import api from './api';
-import { API_ENDPOINTS, API_BASE_URL } from '../constants/api';
+import { API_ENDPOINTS } from '../constants/api';
+import { streamService } from './streamService';
 import type { Station } from '../types';
 
 export interface StationQueryParams {
@@ -23,7 +24,7 @@ export const stationService = {
       return response.data;
     } catch (error) {
       console.error('[stationService] getStation error:', error);
-      return null;
+      throw error;
     }
   },
 
@@ -35,7 +36,7 @@ export const stationService = {
       return response.data;
     } catch (error) {
       console.error('[stationService] getStations error:', error);
-      return { stations: [], totalCount: 0 };
+      throw error;
     }
   },
 
@@ -62,7 +63,7 @@ export const stationService = {
       return { stations, count: stations.length };
     } catch (error) {
       console.error('[stationService] getPopularStations error:', error);
-      return { stations: [], count: 0 };
+      throw error;
     }
   },
 
@@ -76,7 +77,7 @@ export const stationService = {
       return response.data;
     } catch (error) {
       console.error('[stationService] getPrecomputedStations error:', error);
-      return { stations: [], totalCount: 0, page: 1, limit, totalPages: 0 };
+      throw error;
     }
   },
 
@@ -90,7 +91,7 @@ export const stationService = {
       return response.data;
     } catch (error) {
       console.error('[stationService] getNearbyStations error:', error);
-      return { stations: [], count: 0 };
+      throw error;
     }
   },
 
@@ -103,12 +104,12 @@ export const stationService = {
       return response.data;
     } catch (error) {
       console.error('[stationService] getSimilarStations error:', error);
-      return [];
+      throw error;
     }
   },
 
   // Search stations - direct API call
-  async searchStations(query: string, limit: number = 20): Promise<Station[]> {
+  async searchStations(query: string, limit: number = 20, signal?: AbortSignal): Promise<Station[]> {
     try {
       if (!query || query.trim().length === 0) {
         return [];
@@ -117,6 +118,7 @@ export const stationService = {
       console.log('[stationService] searchStations - query:', query);
       const response = await api.get(API_ENDPOINTS.stations.list, {
         params: { search: query, limit },
+        signal,
       });
       
       const data = response.data;
@@ -131,7 +133,7 @@ export const stationService = {
       return stations;
     } catch (error) {
       console.error('[stationService] searchStations error:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -155,7 +157,7 @@ export const stationService = {
       return stations;
     } catch (error) {
       console.error('[stationService] getTop100 error:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -168,7 +170,7 @@ export const stationService = {
       return response.data || [];
     } catch (error) {
       console.error('[stationService] getCommunityFavorites error:', error);
-      return [];
+      throw error;
     }
   },
 
@@ -181,28 +183,12 @@ export const stationService = {
       return response.data?.data || response.data || [];
     } catch (error) {
       console.error('[stationService] getPublicProfiles error:', error);
-      return [];
+      throw error;
     }
   },
 
-  // Get proxy URL
-  getProxyUrl(url: string): string {
-    const encodedUrl = encodeURIComponent(url);
-    return `${API_BASE_URL}${API_ENDPOINTS.stream.proxy(encodedUrl)}`;
-  },
-
-  // Resolve stream
-  async resolveStream(url: string) {
-    try {
-      const response = await api.get(API_ENDPOINTS.stream.resolve, {
-        params: { url },
-      });
-      return response.data;
-    } catch (error) {
-      console.error('[stationService] resolveStream error:', error);
-      return null;
-    }
-  },
+  getProxyUrl: streamService.proxyUrl,
+  resolveStream: streamService.resolve,
 
   // Record click
   async recordClick(stationId: string) {

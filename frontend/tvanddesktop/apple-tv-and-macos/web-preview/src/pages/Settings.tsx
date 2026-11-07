@@ -10,6 +10,7 @@ import { useHelp } from "@/contexts/HelpContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCast } from "@/contexts/CastContext";
 import { usePaywall } from "@/contexts/PaywallContext";
+import { isMacAppStore } from "@/lib/platform";
 import { assetPath } from "@/lib/assetPath";
 
 type PlayAtStartMode = "last-played" | "random" | "favorite" | "none";
@@ -96,7 +97,7 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
 const getFlagUrl = (countryCode: string) =>
   `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`;
 
-type SettingsCategory = 'language' | 'keyboard' | 'playback' | 'timer' | 'accessibility' | 'account' | 'cast';
+type SettingsCategory = 'language' | 'keyboard' | 'playback' | 'timer' | 'accessibility' | 'account' | 'cast' | 'legal';
 
 function CategoryIcon({ type }: { type: SettingsCategory }) {
   const size = 24;
@@ -146,6 +147,8 @@ function CategoryIcon({ type }: { type: SettingsCategory }) {
           <line x1="12" y1="16" x2="16" y2="22" stroke={fill} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
+    case 'legal':
+      return <span aria-hidden="true" style={{ fontSize: 26 }}>§</span>;
     case 'account':
       return (
         <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
@@ -165,6 +168,7 @@ function CategoryIcon({ type }: { type: SettingsCategory }) {
 
 export const Settings = (): JSX.Element => {
   const { t, language, setLanguage } = useLocalization();
+  const macStore = isMacAppStore();
   const { sleepTimerMinutes, remainingSeconds, setSleepTimer, cancelSleepTimer, isTimerActive } = useSleepTimer();
   const [, setLocation] = useLocation();
   const [playAtStart, setPlayAtStart] = useState<PlayAtStartMode>("none");
@@ -188,7 +192,7 @@ export const Settings = (): JSX.Element => {
 
   const optionListRef = useRef<HTMLDivElement>(null);
 
-  const categories: SettingsCategory[] = ['language', 'keyboard', 'playback', 'timer', 'accessibility', 'account', 'cast'];
+  const categories: SettingsCategory[] = ['language', 'keyboard', 'playback', 'timer', 'accessibility', 'account', 'cast', ...(macStore ? ['legal' as const] : [])];
 
   const sleepTimerOptions: (number | null)[] = [15, 30, 60, 120, null];
   const sleepTimerLabels: Record<string, string> = {
@@ -220,6 +224,7 @@ export const Settings = (): JSX.Element => {
       case 'accessibility': return t('accessibility') || 'Accessibility';
       case 'account': return t('account') || 'Account';
       case 'cast': return t('cast') || 'Cast';
+      case 'legal': return 'Privacy & Terms';
     }
   };
 
@@ -230,8 +235,9 @@ export const Settings = (): JSX.Element => {
       case 'playback': return settingsOptions.length;
       case 'timer': return sleepTimerOptions.length;
       case 'accessibility': return 2;
-      case 'account': return isAuthenticated ? 1 : 1;
+      case 'account': return macStore ? 2 : 1;
       case 'cast': return 1;
+      case 'legal': return 2;
       default: return 0;
     }
   };
@@ -310,11 +316,15 @@ export const Settings = (): JSX.Element => {
         else setLargeText(!largeText);
         break;
       case 'account':
+        if (macStore && optionIndex === 0) { setLocation('/premium-upgrade'); break; }
         if (isAuthenticated) {
           logout();
         } else {
           setLocation('/login');
         }
+        break;
+      case 'legal':
+        setLocation(optionIndex === 0 ? '/privacy' : '/terms');
         break;
       case 'cast':
         break;
@@ -372,7 +382,7 @@ export const Settings = (): JSX.Element => {
         e.preventDefault();
         if (categoryIndex < categories.length - 1) {
           setCategoryIndex(prev => prev + 1);
-        } else if (!isPremium) {
+        } else if (!isPremium && !macStore) {
           // Past the last category — jump to Go Premium button
           setFocusSection('premium');
         }
@@ -678,13 +688,18 @@ export const Settings = (): JSX.Element => {
           );
         });
 
+      case 'legal':
+        return <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <p style={{ color: '#aaa', fontSize: 22 }}>Read these documents here, including when offline. No sign-in is required.</p>
+          {(['Privacy Policy', 'Terms of Use (EULA)'] as const).map((label, index) => <button key={label} data-testid={index === 0 ? 'settings-privacy' : 'settings-terms'} onClick={() => setLocation(index === 0 ? '/privacy' : '/terms')} style={{ padding: 24, borderRadius: 16, background: '#252525', color: '#fff', fontSize: 26, textAlign: 'left', border: focusSection === 'options' && optionIndex === index ? '3px solid #ff4199' : '3px solid transparent', cursor: 'pointer' }}>{label}</button>)}
+        </div>;
       case 'account': {
-        var accountFocused = isFocusedOnOptions && optionIndex === 0;
+        var accountFocused = isFocusedOnOptions && optionIndex === (macStore ? 1 : 0);
         var isPremium = user && user.subscription && user.subscription.tier === 'premium';
         // Premium upsell / management row — appears for ALL users (signed in
         // or not). Sits ABOVE the login/logout button so it's the first thing
         // the user sees when opening the Account tab.
-        var premiumRow = (
+        var premiumRow = macStore ? <button data-testid="settings-account-listening" onClick={() => setLocation('/premium-upgrade')} style={{ width: '100%', padding: 24, fontSize: 24, color: '#fff', border: isFocusedOnOptions && optionIndex === 0 ? '3px solid #ff4199' : '3px solid #555', borderRadius: 16, background: '#252525', textAlign: 'left', cursor: 'pointer' }}>Account &amp; Listening · Restore Existing Purchases</button> : (
           <div
             style={{
               ...optionRowBase,
@@ -921,7 +936,7 @@ export const Settings = (): JSX.Element => {
           </div>
 
           <div style={{ marginTop: '40px', paddingLeft: '24px', paddingRight: '24px', paddingTop: '24px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
-            {!isPremium && (
+            {!isPremium && !macStore && (
               <button
                 onClick={() => setLocation('/premium-upgrade')}
                 onMouseEnter={() => setFocusSection('premium')}
@@ -963,7 +978,7 @@ export const Settings = (): JSX.Element => {
                   {(() => {
                     const src = (typeof window !== 'undefined' && (window as unknown as { __MR_BOOT_SRC__?: string }).__MR_BOOT_SRC__) === 'cdn' ? 'C' : 'L';
                     const build = (import.meta as any).env?.VITE_APP_VERSION;
-                    return 'Version 3.0 · ' + src + (build ? ' (' + build + ')' : '');
+                    return macStore ? 'Version ' + (build || '1.0.3') : 'Version 3.0 · ' + src + (build ? ' (' + build + ')' : '');
                   })()}
                 </p>
               </div>

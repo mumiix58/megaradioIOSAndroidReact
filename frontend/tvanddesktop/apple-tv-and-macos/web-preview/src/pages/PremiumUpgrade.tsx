@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLocalization } from "@/contexts/LocalizationContext";
 import { usePageKeyHandler } from "@/contexts/FocusRouterContext";
 import { assetPath } from "@/lib/assetPath";
-import { supportsNativeIap } from "@/lib/platform";
+import { isMacAppStore, supportsNativeIap } from "@/lib/platform";
 import { PremiumUpgradeNative } from "./PremiumUpgradeNative";
 import { DesktopPremium } from './DesktopPremium';
 
@@ -26,7 +26,7 @@ import { DesktopPremium } from './DesktopPremium';
  * Premium it shows up identically across all platforms.
  */
 export function PremiumUpgrade(): JSX.Element {
-  if ((window as any).megaRadioNative?.supportsNativeIap === true) return <DesktopPremium />;
+  if (isMacAppStore()) return <DesktopPremium />;
   if (supportsNativeIap()) {
     return <PremiumUpgradeNative />;
   }

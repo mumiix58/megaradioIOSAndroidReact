@@ -18,7 +18,8 @@ class WearDataLayerModule(private val context: ReactApplicationContext) : ReactC
     private var artist = ""
     override fun getName() = "WearDataLayer"
 
-    @ReactMethod fun initialize() {
+    @ReactMethod override fun initialize() {
+        super.initialize()
         if (initialized) return
         initialized = true
         WearCommandBus.listener = { command ->
@@ -47,21 +48,28 @@ class WearDataLayerModule(private val context: ReactApplicationContext) : ReactC
                 .addOnFailureListener { Log.w("WearDataLayer", "State sync failed: ${it.javaClass.simpleName}") }
         } catch (error: Exception) { Log.w("WearDataLayer", "Invalid companion data: ${error.javaClass.simpleName}") }
     }
-    private fun publishList(path: String, json: String) {
+    private fun publishList(path: String, json: String, requestId: String? = null, error: String = "") {
         try {
             val input = JSONArray(json)
             val compact = JSONArray()
-            for (index in 0 until minOf(input.length(), 100)) compact.put(input.get(index))
+            val limit = if (path in setOf("/megaradio/countries", "/megaradio/genres")) 500 else 100
+            for (index in 0 until minOf(input.length(), limit)) compact.put(input.get(index))
             var payload = compact.toString()
             while (payload.toByteArray(Charsets.UTF_8).size > 90000 && compact.length() > 0) {
                 compact.remove(compact.length() - 1)
                 payload = compact.toString()
             }
-            publish(path) { it.putString("data", payload) }
+            publish(path) {
+                it.putString("data", payload)
+                if (requestId != null) it.putString("requestId", requestId)
+                if (error.isNotEmpty()) it.putString("error", error)
+            }
         } catch (_: Exception) {}
     }
     @ReactMethod fun updateFavorites(json: String) = publishList("/megaradio/favorites", json)
     @ReactMethod fun updateStations(json: String) = publishList("/megaradio/stations", json)
+    @ReactMethod fun updateStationResponse(requestId: String, json: String, error: String) =
+        publishList("/megaradio/station_response", json, requestId, error)
     @ReactMethod fun updateGenres(json: String) = publishList("/megaradio/genres", json)
     @ReactMethod fun updateCountries(json: String) = publishList("/megaradio/countries", json)
     @ReactMethod fun updateNowPlaying(json: String, isPlaying: Boolean, songTitle: String, artistName: String) {

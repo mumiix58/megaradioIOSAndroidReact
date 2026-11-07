@@ -121,32 +121,10 @@ export const authService = {
   async mobileGoogleLogin(params: GoogleLoginParams): Promise<MobileLoginResponse> {
     const { deviceInfo } = useAuthStore.getState();
     
-    const response = await fetch(`${API_BASE}/api/auth/mobile/google`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': 'mr_VUzdIUHuXaagvWUC208Vzi_3lqEV1Vzw',
-        'X-Device-Type': 'mobile',
-      },
-      body: JSON.stringify({
-        ...params,
-        deviceType: deviceInfo.deviceType || 'mobile',
-        deviceName: deviceInfo.deviceName || 'Mobile Device',
-      }),
+    const response = await api.post(`${API_BASE}/api/auth/mobile/google`, {
+      ...params, deviceType: 'mobile', deviceName: deviceInfo.deviceName || 'Mobile Device',
     });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || data.message || 'Google login failed');
-    }
-    
-    return {
-      success: data.success !== false,
-      token: data.token,
-      user: data.user,
-      message: data.message,
-    };
+    return mobileAuthResponse(response.data);
   },
 
   /**
@@ -171,8 +149,9 @@ export const authService = {
         authenticated: response.data.authenticated || false,
         user: response.data.user,
       };
-    } catch (error) {
-      return { authenticated: false };
+    } catch (error: any) {
+      if (error.response?.status === 401) return { authenticated: false };
+      throw error;
     }
   },
 

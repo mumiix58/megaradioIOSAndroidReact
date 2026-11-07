@@ -2,6 +2,9 @@ import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import type { User } from '../types';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { invalidateSession, isCurrentSession, sessionVersion } from '../services/sessionRuntime';
+import { queryClient } from '../services/queryClient';
 
 const TOKEN_KEY = 'megaradio_auth_token';
 const USER_KEY = 'megaradio_user_data';
@@ -44,6 +47,8 @@ interface AuthState {
   updateUser: (user: User) => Promise<void>;
   logout: () => Promise<void>;
   clearAuth: () => void;
+  expireSession: (expectedToken: string) => Promise<void>;
+  revalidateSession: () => Promise<void>;
 }
 
 // Secure storage helpers (cross-platform)
@@ -116,208 +121,114 @@ const initialState = {
   deviceInfo: getDeviceInfo(),
 };
 
+let authWrites: Promise<void> = Promise.resolve();
+function persist(operation: () => Promise<void>) {
+  authWrites = authWrites.catch(() => {}).then(operation);
+  return authWrites;
+}
+function resetPrivateMemory() {
+  invalidateSession();
+  void queryClient.cancelQueries();
+  queryClient.clear();
+  require('./premiumStore').usePremiumStore.getState().reset();
+  require('./songHistoryStore').useSongHistoryStore.setState({ entries: [], loaded: false });
+  require('./favoritesStore').useFavoritesStore.setState({ favorites: [], customOrder: [], isLoaded: false, isLoading: false, error: null });
+  require('./recentlyPlayedStore').useRecentlyPlayedStore.setState({ stations: [], loaded: false, isLoading: false });
+}
+async function clearLegacyData() {
+  await AsyncStorage.multiRemove([
+    '@megaradio_favorites', '@megaradio_favorites_order', '@megaradio_favorites_sync_queue',
+    'megaradio_recently_played', 'megaradio_premium_status', 'megaradio_android_auto_favorites',
+  ]);
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   ...initialState,
+  setUser: user => set({ user, isAuthenticated: user !== null, error: null }),
+  setToken: token => set({ token }),
+  setAuthenticated: isAuthenticated => set({ isAuthenticated }),
+  setLoading: isLoading => set({ isLoading }),
+  setError: error => set({ error }),
 
-  setUser: (user) =>
-    set({
-      user,
-      isAuthenticated: user !== null,
-      error: null,
-    }),
-
-  setToken: (token) =>
-    set({ token }),
-
-  setAuthenticated: (isAuthenticated) =>
-    set({ isAuthenticated }),
-
-  setLoading: (isLoading) =>
-    set({ isLoading }),
-
-  setError: (error) =>
-    set({ error }),
-
-  // Load stored auth on app startup
   loadStoredAuth: async () => {
-    set({ isLoading: true });
-    
+    const version = sessionVersion();
     try {
-      console.log('[AuthStore] Loading stored auth...');
-      const [storedToken, storedUser] = await Promise.all([
-        secureStorage.getItem(TOKEN_KEY),
-        secureStorage.getItem(USER_KEY),
-      ]);
-      
-      console.log('[AuthStore] Token found:', !!storedToken);
-      console.log('[AuthStore] User found:', !!storedUser);
-      
-      if (storedToken && storedUser) {
-        const user = JSON.parse(storedUser) as User;
-        set({
-          token: storedToken,
-          user,
-          isAuthenticated: true,
-          isAuthLoaded: true,
-          isLoading: false,
-        });
-        console.log('[AuthStore] Auth restored successfully');
-      } else {
-        set({ isLoading: false, isAuthLoaded: true });
-        console.log('[AuthStore] No stored auth found');
-      }
-    } catch (error) {
-      console.error('[AuthStore] Error loading stored auth:', error);
-      set({ isLoading: false, isAuthLoaded: true });
+      const [token, storedUser] = await Promise.all([secureStorage.getItem(TOKEN_KEY), secureStorage.getItem(USER_KEY)]);
+      if (!isCurrentSession(version)) return;
+      if (token && storedUser) {
+        set({ token, user: JSON.parse(storedUser), isAuthenticated: true, isAuthLoaded: true, isLoading: false });
+        await require('./premiumStore').usePremiumStore.getState().loadPremiumStatus();
+        await get().revalidateSession();
+      } else set({ isAuthLoaded: true, isLoading: false });
+    } catch {
+      if (isCurrentSession(version)) set({ isAuthLoaded: true, isLoading: false });
     }
+    void import('../services/authRevocationService').then(service => service.revokeSession()).catch(() => {});
   },
 
-  // Save auth after successful login
-  saveAuth: async (user: User, token: string) => {
+  revalidateSession: async () => {
+    const token = get().token;
+    if (!token) return;
     try {
-      await Promise.all([
-        secureStorage.setItem(TOKEN_KEY, token),
-        secureStorage.setItem(USER_KEY, JSON.stringify(user)),
-      ]);
-      
-      set({
-        user,
-        token,
-        isAuthenticated: true,
-        error: null,
-      });
-      
-      // Set FlowAlive user identity
-      try {
-        const { flowaliveService } = await import('../services/flowaliveService');
-        await flowaliveService.setUser(user);
-      } catch (e) {
-        console.log('[AuthStore] FlowAlive setUser error:', e);
-      }
-      
-      // Load favorites from server after login - NO DELAY to avoid "no favorites" flash
-      // Import dynamically to avoid circular dependency
-      const { useFavoritesStore } = await import('./favoritesStore');
-      
-      // Immediately load favorites from server (no setTimeout!)
-      console.log('[AuthStore] Login successful, loading favorites from server...');
-      try {
-        await useFavoritesStore.getState().loadFavorites();
-        console.log('[AuthStore] Favorites loaded after login');
-      } catch (error) {
-        console.error('[AuthStore] Failed to load favorites:', error);
-      }
-
-      // GÖREV 2: Sync subscription from backend after login
-      if (Platform.OS !== 'web') {
-        try {
-          const { iapService } = await import('../services/iapService');
-          await iapService.syncSubscriptionFromBackend();
-          console.log('[AuthStore] Backend subscription synced after login');
-        } catch (syncError) {
-          console.warn('[AuthStore] Subscription sync after login failed:', syncError);
-        }
-      }
-    } catch (error) {
-      console.error('Error saving auth:', error);
-    }
+      const { default: authService } = await import('../services/authService');
+      const result = await authService.mobileCheckAuth();
+      if (get().token !== token) return;
+      if (!result.authenticated) await get().expireSession(token);
+      else if (result.user) await get().updateUser({ ...get().user!, ...result.user });
+    } catch { /* An unavailable service is not an invalid session. */ }
   },
 
-  // Update user data (e.g., after avatar upload)
-  updateUser: async (user: User) => {
+  saveAuth: async (user, token) => {
+    resetPrivateMemory();
+    const version = sessionVersion();
+    set({ user: null, token: null, isAuthenticated: false });
+    await persist(async () => {
+      await clearLegacyData();
+      await Promise.all([secureStorage.setItem(TOKEN_KEY, token), secureStorage.setItem(USER_KEY, JSON.stringify(user))]);
+    });
+    if (!isCurrentSession(version)) return;
+    set({ user, token, isAuthenticated: true, isAuthLoaded: true, isLoading: false, error: null });
+    await require('./premiumStore').usePremiumStore.getState().loadPremiumStatus();
+    if (!isCurrentSession(version)) return;
+    const { useFavoritesStore } = await import('./favoritesStore');
+    await useFavoritesStore.getState().loadFavorites();
+    if (!isCurrentSession(version)) return;
     try {
-      await secureStorage.setItem(USER_KEY, JSON.stringify(user));
-      set({ user });
-    } catch (error) {
-      console.error('Error updating user:', error);
-    }
+      const { iapService } = await import('../services/iapService');
+      await iapService.syncSubscriptionFromBackend();
+    } catch { /* Keep only this account's previously verified offline entitlement. */ }
   },
 
-  // Logout - clear everything
+  updateUser: async user => {
+    const token = get().token;
+    if (!token || user._id !== get().user?._id) return;
+    await persist(() => secureStorage.setItem(USER_KEY, JSON.stringify(user)));
+    if (get().token === token) set({ user });
+  },
+
   logout: async () => {
-    try {
-      const currentUser = get().user;
-      
-      // Delete push token from backend FIRST (while we still have auth token)
-      if (Platform.OS !== 'web') {
-        try {
-          const pushNotificationService = (await import('../services/pushNotificationService')).default;
-          const pushToken = await pushNotificationService.getStoredPushToken();
-          if (pushToken) {
-            console.log('[AuthStore] Deleting push token from backend...');
-            await pushNotificationService.deletePushTokenFromBackend(pushToken);
-          }
-        } catch (e) {
-          console.log('[AuthStore] Failed to delete push token:', e);
-        }
-      }
-      
-      // Clear FlowAlive user identity
+    const token = get().token;
+    // Stop old async results immediately; cleanup requests explicitly use the old token.
+    resetPrivateMemory();
+    set({ ...initialState, isAuthLoaded: true, isLoading: false });
+    await persist(async () => {
+      await Promise.all([secureStorage.removeItem(TOKEN_KEY), secureStorage.removeItem(USER_KEY)]);
+      await clearLegacyData();
+    });
+    if (token) {
       try {
-        const { flowaliveService } = await import('../services/flowaliveService');
-        await flowaliveService.clearUser();
-        flowaliveService.trackUserLogout();
-      } catch (e) {
-        console.log('[AuthStore] FlowAlive clearUser error:', e);
-      }
-      
-      // BEFORE clearing: backup favorites keyed by user ID so they survive logout/re-login
-      const AsyncStorage = await import('@react-native-async-storage/async-storage');
-      if (currentUser?._id) {
-        try {
-          const currentFavJson = await AsyncStorage.default.getItem('@megaradio_favorites');
-          if (currentFavJson) {
-            const parsed = JSON.parse(currentFavJson);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              await AsyncStorage.default.setItem(
-                `@megaradio_favorites_backup_${currentUser._id}`,
-                currentFavJson
-              );
-              console.log('[AuthStore] Backed up', parsed.length, 'favorites for user', currentUser._id);
-            }
-          }
-        } catch (e) {
-          console.log('[AuthStore] Failed to backup favorites:', e);
-        }
-      }
-      
-      await Promise.all([
-        secureStorage.removeItem(TOKEN_KEY),
-        secureStorage.removeItem(USER_KEY),
-      ]);
-      
-      // Clear active favorites on logout to ensure clean state for new users
-      await Promise.all([
-        AsyncStorage.default.removeItem('@megaradio_favorites'),
-        AsyncStorage.default.removeItem('@megaradio_favorites_order'),
-        AsyncStorage.default.removeItem('@megaradio_push_token'),
-      ]);
-      
-      // Reset favorites store state
-      const { useFavoritesStore } = await import('./favoritesStore');
-      useFavoritesStore.setState({ favorites: [], customOrder: [], isLoaded: false });
-      
-      console.log('[AuthStore] Logout complete - favorites backed up and cleared');
-    } catch (error) {
-      console.error('Error clearing auth storage:', error);
+        const push = (await import('../services/pushNotificationService')).default;
+        const pushToken = await push.getStoredPushToken();
+        if (pushToken) await push.deletePushTokenFromBackend(pushToken, token);
+      } catch { /* Revocation still runs when push cleanup is unavailable. */ }
+      await import('../services/authRevocationService').then(service => service.revokeSession(token)).catch(() => {});
     }
-    
-    set({
-      ...initialState,
-      isLoading: false,
-      deviceInfo: get().deviceInfo,
-    });
   },
 
-  // Clear auth state (without storage)
-  clearAuth: () => {
-    set({
-      user: null,
-      token: null,
-      isAuthenticated: false,
-      error: null,
-    });
+  expireSession: async expectedToken => {
+    if (get().token !== expectedToken) return;
+    await get().logout();
   },
+  clearAuth: () => { void get().logout(); },
 }));
-
 export default useAuthStore;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -19,7 +19,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colors, gradients, spacing, borderRadius, typography } from '../../src/constants/theme';
 import { useLocationStore } from '../../src/store/locationStore';
 import { useResponsive } from '../../src/hooks/useResponsive';
-import api from '../../src/services/api';
+import { genreService } from '../../src/services/genreService';
 import type { Genre } from '../../src/types';
 
 const GENRES_CACHE_KEY = '@megaradio_genres_cache';
@@ -47,10 +47,19 @@ export default function GenresTabScreen() {
   const [totalGenres, setTotalGenres] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadError, setLoadError] = useState<number | null>(null);
+  const requestState = useRef({ generation: 0, busy: false });
 
   // Fetch genres with pagination
   const fetchGenres = useCallback(async (pageNum: number, reset: boolean = false) => {
+    if (reset) {
+      requestState.current.generation++;
+      requestState.current.busy = false;
+    }
+    if (requestState.current.busy) return;
+    const generation = requestState.current.generation;
+    requestState.current.busy = true;
     try {
       if (pageNum === 1) {
         setIsLoading(true);
@@ -58,29 +67,18 @@ export default function GenresTabScreen() {
         setIsLoadingMore(true);
       }
 
-      // Build params
-      const params: any = {
-        limit: PAGE_SIZE,
-        page: pageNum,
-      };
-      
-      // Add country filter if available
-      if (countryCode) {
-        params.country = countryCode;
-      }
-
+      setLoadError(null);
       console.log('[Genres] Fetching page:', pageNum, 'country:', countryCode);
-
-      const response = await api.get('https://themegaradio.com/api/genres', { params });
-      const data = response.data;
-
-      const newGenres = data.data || data.genres || [];
-      const total = data.total || data.count || 0;
+      const data = await genreService.getGenres(pageNum, PAGE_SIZE, countryCode || undefined);
+      if (generation !== requestState.current.generation) return;
+      const newGenres = data.data;
+      const total = data.total;
 
       console.log('[Genres] Got', newGenres.length, 'genres, total:', total);
 
       setTotalGenres(total);
-      setHasMore(newGenres.length === PAGE_SIZE && (reset ? newGenres.length : genres.length + newGenres.length) < total);
+      setPage(pageNum);
+      setHasMore(newGenres.length === PAGE_SIZE && pageNum * PAGE_SIZE < total);
 
       if (reset) {
         setGenres(newGenres);
@@ -104,19 +102,32 @@ export default function GenresTabScreen() {
         });
       }
     } catch (error) {
+      if (generation !== requestState.current.generation) return;
       console.error('[Genres] Fetch error:', error);
+      setLoadError(pageNum);
     } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
+      if (generation === requestState.current.generation) {
+        requestState.current.busy = false;
+        setIsLoading(false);
+        setIsLoadingMore(false);
+      }
     }
-  }, [countryCode, genres.length]);
+  }, [countryCode]);
 
   // Load cached data on mount
   useEffect(() => {
+    const generation = ++requestState.current.generation;
+    requestState.current.busy = false;
+    setGenres([]);
+    setTotalGenres(0);
+    setHasMore(false);
+    setLoadError(null);
+    setIsLoading(true);
     const loadCache = async () => {
       try {
         const cacheKey = getGenresCacheKey(countryCode);
         const cached = await AsyncStorage.getItem(cacheKey);
+        if (generation !== requestState.current.generation) return false;
         if (cached) {
           const { data, total, timestamp } = JSON.parse(cached);
           const isStale = Date.now() - timestamp > GENRES_CACHE_TTL;
@@ -134,25 +145,25 @@ export default function GenresTabScreen() {
       return false;
     };
 
-    loadCache().then(hasCached => {
+    loadCache().then(() => {
+      if (generation !== requestState.current.generation) return;
       // Always fetch fresh data (but show cache first if available)
       setPage(1);
       fetchGenres(1, true);
     });
-  }, [countryCode]);
+    return () => { requestState.current.generation++; };
+  }, [countryCode, fetchGenres]);
 
   // Load more when reaching end
   const loadMore = useCallback(() => {
-    if (!isLoadingMore && hasMore && !searchQuery.trim() && !isLoading) {
+    if (!isLoadingMore && hasMore && !loadError && !searchQuery.trim() && !isLoading) {
       const nextPage = page + 1;
-      setPage(nextPage);
       fetchGenres(nextPage, false);
     }
-  }, [isLoadingMore, hasMore, page, fetchGenres, searchQuery, isLoading]);
+  }, [isLoadingMore, hasMore, loadError, page, fetchGenres, searchQuery, isLoading]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    setPage(1);
     await fetchGenres(1, true);
     setRefreshing(false);
   };
@@ -211,6 +222,11 @@ export default function GenresTabScreen() {
   );
 
   const renderFooter = () => {
+    if (loadError) return (
+      <TouchableOpacity style={styles.footerLoader} onPress={() => fetchGenres(loadError, loadError === 1)}>
+        <Text style={styles.emptyText}>{t('error_loading', 'Unable to load.')} {t('retry', 'Try again')}</Text>
+      </TouchableOpacity>
+    );
     if (!isLoadingMore) return null;
     return (
       <View style={styles.footerLoader}>
@@ -279,10 +295,10 @@ export default function GenresTabScreen() {
               onEndReached={loadMore}
               onEndReachedThreshold={0.3}
               ListFooterComponent={renderFooter}
-              ListEmptyComponent={
+              ListEmptyComponent={loadError ? null :
                 <View style={styles.emptyContainer}>
                   <Text style={styles.emptyText}>
-                    {searchQuery ? t('no_genres_found', 'Tür bulunamadı') : t('no_genres', 'Tür yok')}
+                    {searchQuery ? t('no_genres_found', 'No genres found') : t('no_genres', 'No genres available')}
                   </Text>
                 </View>
               }

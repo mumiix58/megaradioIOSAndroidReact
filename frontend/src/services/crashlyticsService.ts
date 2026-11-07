@@ -21,66 +21,59 @@ const getCrashlytics = () => {
 
 class CrashlyticsService {
   private initialized = false;
+  private initialization: Promise<void> | null = null;
+  private globalHandlerInstalled = false;
+
+  // Native setters return promises. A reporting failure must never create a new
+  // unhandled rejection while we are already handling an application failure.
+  private safely(action: (sdk: any) => unknown): void {
+    try {
+      const c = getCrashlytics();
+      if (c) void Promise.resolve(action(c())).catch(() => {});
+    } catch {}
+  }
 
   async initialize(): Promise<void> {
     if (this.initialized || Platform.OS === 'web') return;
-    try {
-      const c = getCrashlytics();
-      if (c) {
-        await c().setCrashlyticsCollectionEnabled(true);
-        this.initialized = true;
-        console.log('[Crashlytics] Firebase Crashlytics initialized');
-      }
-    } catch (error) {
-      console.warn('[Crashlytics] Failed to initialize:', error);
+    if (!this.initialization) {
+      this.initialization = (async () => {
+        try {
+          const c = getCrashlytics();
+          if (!c) return;
+          await c().setCrashlyticsCollectionEnabled(true);
+          this.initialized = true;
+        } catch (error) {
+          console.warn('[Crashlytics] Failed to initialize:', error);
+        }
+      })().finally(() => { this.initialization = null; });
     }
+    await this.initialization;
   }
 
   // Record a non-fatal error
   recordError(error: Error, context?: string): void {
-    try {
-      const c = getCrashlytics();
-      if (c) {
-        if (context) {
-          c().log(`[${context}] ${error.message}`);
-        }
-        c().recordError(error);
-      }
-    } catch (e) {
-      // Silent fail - don't crash while reporting crashes
-    }
+    this.safely(sdk => {
+      if (context) this.safely(c => c.log(`[${context}] ${error.message}`));
+      return sdk.recordError(error);
+    });
   }
 
   // Log a message (appears in Crashlytics logs for the next crash)
   log(message: string): void {
-    try {
-      const c = getCrashlytics();
-      if (c) c().log(message);
-    } catch (e) {}
+    this.safely(sdk => sdk.log(message));
   }
 
-  // Set user identifier for crash reports
+  // Use an opaque application ID; callers clear it on logout.
   setUserId(userId: string): void {
-    try {
-      const c = getCrashlytics();
-      if (c) c().setUserId(userId);
-    } catch (e) {}
+    this.safely(sdk => sdk.setUserId(userId));
   }
 
-  // Set custom key-value pairs for crash context
   setAttribute(key: string, value: string): void {
-    try {
-      const c = getCrashlytics();
-      if (c) c().setAttribute(key, value);
-    } catch (e) {}
+    this.safely(sdk => sdk.setAttribute(key, value));
   }
 
-  // Set multiple attributes at once
   setAttributes(attributes: Record<string, string>): void {
-    try {
-      const c = getCrashlytics();
-      if (c) c().setAttributes(attributes);
-    } catch (e) {}
+    this.safely(sdk => sdk.setAttributes(attributes));
   }
 
   // Set premium status for crash filtering
@@ -106,36 +99,27 @@ class CrashlyticsService {
 
   // Force a test crash (for development only)
   testCrash(): void {
-    try {
-      const c = getCrashlytics();
-      if (c) c().crash();
-    } catch (e) {}
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      this.safely(sdk => sdk.crash());
+    }
   }
 
-  // Setup global JS error handler to report uncaught errors
   setupGlobalErrorHandler(): void {
-    if (Platform.OS === 'web') return;
-    
+    if (Platform.OS === 'web' || this.globalHandlerInstalled || typeof ErrorUtils === 'undefined') return;
+    // Instantiating RNFB installs its own JS fatal handler. Preserve it rather than
+    // reporting the same fatal exception again as a second non-fatal issue.
+    try {
+      const c = getCrashlytics();
+      if (c) c();
+    } catch {}
     const originalHandler = ErrorUtils.getGlobalHandler();
-    
     ErrorUtils.setGlobalHandler((error: Error, isFatal?: boolean) => {
-      try {
-        const c = getCrashlytics();
-        if (c) {
-          c().log(`[GlobalError] isFatal=${isFatal} message=${error.message}`);
-          c().recordError(error);
-        }
-      } catch (e) {
-        // Silent fail
-      }
-      
-      // Call the original handler
-      if (originalHandler) {
-        originalHandler(error, isFatal);
-      }
+      this.setAttribute('last_js_error_fatal', String(Boolean(isFatal)));
+      this.log(`[GlobalError] isFatal=${Boolean(isFatal)}`);
+      if (originalHandler) originalHandler(error, isFatal);
+      else this.recordError(error, 'GlobalError');
     });
-    
-    console.log('[Crashlytics] Global error handler installed');
+    this.globalHandlerInstalled = true;
   }
 }
 

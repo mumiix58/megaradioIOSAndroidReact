@@ -216,7 +216,7 @@ export default function UserProfileScreen() {
     
     // Fetch full station data first - need stream URL for TrackPlayer
     try {
-      const response = await api.get(`https://themegaradio.com/api/station/${station.id}`);
+      const response = await api.get(`/api/station/${station.id}`);
       if (response.data && (response.data.url || response.data.streamUrl)) {
         await playStation(response.data);
       } else {

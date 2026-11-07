@@ -186,7 +186,7 @@ struct SettingsPage: View {
         Button { router.go(.premium) } label: {
             HStack(spacing: 10) {
                 Image(systemName: "star.fill").font(.system(size: 20))
-                Text("Go Premium").font(.ubuntu(20, .bold))
+                Text("Subscriptions").font(.ubuntu(20, .bold))
             }
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
@@ -215,7 +215,8 @@ struct SettingsPage: View {
             VStack(alignment: .leading, spacing: 0) {
                 (Text("mega").font(.ubuntu(18, .bold)) + Text("radio").font(.ubuntu(18, .light)))
                     .foregroundColor(.white)
-                Text("Version 3.0").font(.ubuntu(14)).foregroundColor(.white.opacity(0.3))
+                Text("Version \(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—") (\(Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "—"))")
+                    .font(.ubuntu(14)).foregroundColor(.white.opacity(0.3))
             }
         }
     }
@@ -401,8 +402,8 @@ struct SettingsPage: View {
             HStack(spacing: 20) {
                 Image(systemName: "star.fill").font(.system(size: 22)).foregroundColor(Theme.accent)
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Upgrade to Premium").font(.ubuntu(22, .bold)).foregroundColor(Theme.accent)
-                    Text("Ad-free · High-quality streams").font(.ubuntu(14)).foregroundColor(.white.opacity(0.55))
+                    Text("Account & Subscriptions").font(.ubuntu(22, .bold)).foregroundColor(Theme.accent)
+                    Text("Existing purchases · Privacy & Terms").font(.ubuntu(14)).foregroundColor(.white.opacity(0.55))
                 }
                 Spacer(minLength: 0)
             }
@@ -489,7 +490,8 @@ struct SettingsPage: View {
 struct LoginPage: View {
     @EnvironmentObject var auth: AuthStore
     @EnvironmentObject var router: TVRouter
-    @FocusState private var skipFocused: Bool
+    private enum LoginFocus: Hashable { case retry, skip }
+    @FocusState private var focus: LoginFocus?
 
     private var codeChars: [String] {
         guard let c = auth.pendingCode, !c.isEmpty else { return [] }
@@ -530,8 +532,21 @@ struct LoginPage: View {
 
                     if auth.pendingCode != nil {
                         waitingIndicator
+                        if let deadline = auth.codeExpiresAt {
+                            HStack(spacing: 8) {
+                                Text("Code expires in")
+                                Text(deadline, style: .timer)
+                            }
+                            .font(.ubuntu(18)).foregroundColor(.white.opacity(0.5))
+                            .padding(.top, 10)
+                        }
+                    } else if auth.isRequestingCode {
+                        ProgressView("Requesting a sign-in code…")
+                            .font(.ubuntu(22)).tint(Theme.accent)
+                            .accessibilityIdentifier("tv-login-loading")
                     } else {
-                        Text("Loading…").font(.ubuntu(22)).foregroundColor(.white.opacity(0.5))
+                        Text(auth.isAuthenticated ? "Connected. Opening MegaRadio…" : "Ready to connect")
+                            .font(.ubuntu(22)).foregroundColor(.white.opacity(0.5))
                     }
                 }
 
@@ -539,9 +554,17 @@ struct LoginPage: View {
             }
         }
         .frame(width: 1920, height: 1080)
-        .onAppear {
-            skipFocused = true
-            if auth.pendingCode == nil { Task { await auth.startPairing() } }
+        .accessibilityIdentifier("tv-login")
+        .onAppear { focus = .skip }
+        .task {
+            if auth.isAuthenticated { router.replace(.discover) }
+            else if auth.pendingCode == nil { await auth.startPairing() }
+        }
+        .onChange(of: auth.isAuthenticated) { _, signedIn in
+            if signedIn { router.replace(.discover) }
+        }
+        .onChange(of: auth.lastError) { _, error in
+            if error != nil { focus = .retry }
         }
         .onDisappear { auth.stopPairing() }
         .onExitCommand { router.go(.discover) }
@@ -608,21 +631,22 @@ struct LoginPage: View {
 
     private var skipButton: some View {
         Button { router.go(.discover) } label: {
-            Text("Skip")
+            Text("Continue without signing in")
                 .font(.ubuntu(24, .medium)).foregroundColor(.white)
-                .padding(.horizontal, 40).frame(minWidth: 300).frame(height: 64)
+                .padding(.horizontal, 40).frame(minWidth: 440).frame(height: 64)
                 .background(
                     RoundedRectangle(cornerRadius: 32)
-                        .fill(skipFocused ? Theme.accent.opacity(0.2) : Color.white.opacity(0.08))
+                        .fill(focus == .skip ? Theme.accent.opacity(0.2) : Color.white.opacity(0.08))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 32)
-                        .stroke(skipFocused ? Theme.accent : .white.opacity(0.2), lineWidth: 3)
+                        .stroke(focus == .skip ? Theme.accent : .white.opacity(0.2), lineWidth: 3)
                 )
-                .shadow(color: skipFocused ? Theme.accent.opacity(0.4) : .clear, radius: 20)
+                .shadow(color: focus == .skip ? Theme.accent.opacity(0.4) : .clear, radius: 20)
         }
         .buttonStyle(.tvTransparent)
-        .focused($skipFocused)
+        .focused($focus, equals: .skip)
+        .accessibilityIdentifier("tv-login-continue")
     }
 
     @ViewBuilder private func errorState(_ msg: String) -> some View {
@@ -630,12 +654,18 @@ struct LoginPage: View {
             Text("Connection Error").font(.ubuntu(32, .bold)).foregroundColor(.white)
             Text(msg).font(.ubuntu(22)).foregroundColor(.white.opacity(0.6))
                 .multilineTextAlignment(.center).frame(maxWidth: 600)
+                .accessibilityIdentifier("tv-login-error")
             Button { Task { await auth.startPairing() } } label: {
                 Text("Retry").font(.ubuntu(24, .bold)).foregroundColor(.white)
                     .frame(width: 300, height: 64)
                     .background(RoundedRectangle(cornerRadius: 32).fill(Theme.accent))
+                    .overlay(RoundedRectangle(cornerRadius: 32)
+                        .stroke(focus == .retry ? .white : .clear, lineWidth: 3))
+                    .scaleEffect(focus == .retry ? 1.04 : 1)
             }
             .buttonStyle(.tvTransparent)
+            .focused($focus, equals: .retry)
+            .accessibilityIdentifier("tv-login-retry")
         }
     }
 }

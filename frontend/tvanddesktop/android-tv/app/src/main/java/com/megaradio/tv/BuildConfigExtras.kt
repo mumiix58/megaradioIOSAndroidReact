@@ -6,5 +6,6 @@ package com.megaradio.tv
  * both hit the same CDN-cached TV bundle.
  */
 object BuildConfigExtras {
-    const val TV_WEB_URL = "https://themegaradio.com/tv"
+    const val TV_WEB_URL = "https://cdn.themegaradio.com/"
+    const val TV_ORIGIN = "https://cdn.themegaradio.com"
 }

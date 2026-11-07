@@ -4,6 +4,24 @@
 
 import Foundation
 
+/// The live endpoint returns a flat payload; older deployments wrap it in `metadata`.
+struct NowPlayingMetadata: Decodable {
+    let title: String?
+    let artist: String?
+    private enum CodingKeys: String, CodingKey { case title, artist, metadata }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let values = try container.decodeIfPresent(NowPlayingMetadata.self, forKey: .metadata)
+        func clean(_ text: String?) -> String? {
+            guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+            return text
+        }
+        title = clean(try values?.title ?? container.decodeIfPresent(String.self, forKey: .title))
+        artist = clean(try values?.artist ?? container.decodeIfPresent(String.self, forKey: .artist))
+    }
+}
+
 struct Station: Codable, Identifiable, Hashable {
     let id: String
     let name: String
@@ -11,7 +29,9 @@ struct Station: Codable, Identifiable, Hashable {
     let urlResolved: String?
     let favicon: String?
     let country: String?
-    let countryCode: String?
+    private let apiCountryCode: String?
+    private let legacyCountryCode: String?
+    var countryCode: String? { apiCountryCode ?? legacyCountryCode }
     let tags: String?
     let bitrate: Int?
     let codec: String?
@@ -21,7 +41,8 @@ struct Station: Codable, Identifiable, Hashable {
     enum CodingKeys: String, CodingKey {
         case id = "_id"
         case name, url, urlResolved, favicon, country, tags
-        case countryCode = "countrycode"
+        case apiCountryCode = "countryCode"
+        case legacyCountryCode = "countrycode"
         case bitrate, codec, votes, homepage
     }
 
@@ -83,16 +104,48 @@ struct GenresResponse: Codable {
 struct TVCodeResponse: Codable {
     let code: String
     let expiresAt: String?
+    let expiresIn: Double?
+    let success: Bool?
 }
 
 struct TVCodeStatusResponse: Codable {
-    let status: String // "pending" | "activated" | "expired"
+    let status: String?
+    let activated: Bool?
+    let expired: Bool?
     let token: String?
     let user: TVUser?
+
+    enum State { case pending, activated, expired, invalid }
+    var state: State {
+        let value = status?.lowercased()
+        if expired == true || value == "expired" { return .expired }
+        if activated == true || value == "activated" || value == "verified" { return .activated }
+        if value == "pending" || (value == nil && activated == false) { return .pending }
+        return .invalid
+    }
 }
 
 struct TVUser: Codable {
     let id: String?
     let displayName: String?
     let email: String?
+
+    private enum CodingKeys: String, CodingKey { case id, _id, displayName, name, fullName, email }
+
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(String.self, forKey: .id)
+            ?? values.decodeIfPresent(String.self, forKey: ._id)
+        displayName = try values.decodeIfPresent(String.self, forKey: .displayName)
+            ?? values.decodeIfPresent(String.self, forKey: .name)
+            ?? values.decodeIfPresent(String.self, forKey: .fullName)
+        email = try values.decodeIfPresent(String.self, forKey: .email)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encodeIfPresent(id, forKey: .id)
+        try values.encodeIfPresent(displayName, forKey: .displayName)
+        try values.encodeIfPresent(email, forKey: .email)
+    }
 }

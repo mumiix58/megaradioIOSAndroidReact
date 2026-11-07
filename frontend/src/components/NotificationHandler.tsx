@@ -10,7 +10,7 @@ import { useAuthStore } from '../store/authStore';
 const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
 
 export const NotificationHandler: React.FC = () => {
-  const hasRegistered = useRef(false);
+  const hasRegistered = useRef<string | null>(null);
   const { isAuthenticated, user, token: authToken } = useAuthStore();
   
   // Register for push notifications when user logs in
@@ -27,9 +27,10 @@ export const NotificationHandler: React.FC = () => {
       return;
     }
     
+    let cancelled = false;
     const registerForNotifications = async () => {
       // Only register once per login session
-      if (hasRegistered.current) return;
+      if (hasRegistered.current === authToken) return;
       
       try {
         // Dynamically import the service only on native
@@ -40,15 +41,15 @@ export const NotificationHandler: React.FC = () => {
         // Wait for app to fully initialize
         await new Promise(resolve => setTimeout(resolve, 1500));
         
+        if (cancelled || useAuthStore.getState().token !== authToken) return;
         // Register and get token
         const pushToken = await pushNotificationService.registerForPushNotifications();
         
-        if (pushToken) {
-          console.log('[NotificationHandler] Got push token:', pushToken.substring(0, 30) + '...');
-          hasRegistered.current = true;
-          
+        if (pushToken && !cancelled && useAuthStore.getState().token === authToken) {
+
           // Send token to backend (Authorization header is automatically added by api interceptor)
           await pushNotificationService.sendPushTokenToBackend(pushToken);
+          if (!cancelled && useAuthStore.getState().token === authToken) hasRegistered.current = authToken;
         }
       } catch (error) {
         console.error('[NotificationHandler] Failed to register:', error);
@@ -56,12 +57,13 @@ export const NotificationHandler: React.FC = () => {
     };
     
     registerForNotifications();
+    return () => { cancelled = true; };
   }, [isAuthenticated, authToken]);
   
   // Reset registration flag when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
-      hasRegistered.current = false;
+      hasRegistered.current = null;
     }
   }, [isAuthenticated]);
   
@@ -83,12 +85,8 @@ export const NotificationHandler: React.FC = () => {
         
         // Listener for when notification is received while app is in foreground
         foregroundSubscription = pushNotificationService.addNotificationListener(
-          (notification: any) => {
+          () => {
             console.log('[NotificationHandler] Received notification in foreground');
-            const title = notification.request.content.title;
-            const body = notification.request.content.body;
-            const data = notification.request.content.data;
-            console.log('[NotificationHandler] Notification:', { title, body, data });
           }
         );
         

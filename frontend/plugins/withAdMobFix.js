@@ -83,7 +83,7 @@ function withAdMobManifestPlaceholders(config) {
         // MEGARADIO_ADMOB_PLACEHOLDERS: Resolve library manifest placeholders
         manifestPlaceholders += [
             appJSONGoogleMobileAdsAppID: "${ADMOB_ANDROID_APP_ID}",
-            appJSONGoogleMobileAdsDelayAppMeasurementInit: "false",
+            appJSONGoogleMobileAdsDelayAppMeasurementInit: "true",
             appJSONGoogleMobileAdsOptimizeInitialization: "true",
             appJSONGoogleMobileAdsOptimizeAdLoading: "true"
         ]`;

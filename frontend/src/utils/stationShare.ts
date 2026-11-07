@@ -1,3 +1,5 @@
+import i18n from 'i18next';
+import { localizedSharePath } from './localizedRoutes';
 import type { Station } from '../types';
 import Constants from 'expo-constants';
 import { stationService } from '../services/stationService';
@@ -31,7 +33,7 @@ export function stationShareUrl(station: Pick<Station, 'slug'>): string | null {
   if (!slug) return null;
   const website = Constants.expoConfig?.extra?.websiteUrl;
   if (typeof website !== 'string' || !website.startsWith('https://')) return null;
-  return `${website.replace(/\/$/, '')}/station/${encodeURIComponent(slug)}`;
+  return `${website.replace(/\/$/, '')}${localizedSharePath('stations', slug, i18n.language || 'en')}`;
 }
 
 /** Older favorites/history may lack slug. Retrieve it, never invent a name slug. */

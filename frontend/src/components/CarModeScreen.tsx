@@ -16,6 +16,7 @@ import { ImageWithFallback } from './ImageWithFallback';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { usePlayerStore } from '../store/playerStore';
 import { GlowEffect } from './GlowEffect';
 import { useAudioPlayer } from '../hooks/useAudioPlayer';
@@ -372,6 +373,7 @@ const eqStyles = StyleSheet.create({
 
 // ─── Main CarModeScreen ─────────────────────────────────
 export const CarModeScreen: React.FC<CarModeScreenProps> = ({ visible, onClose, stations: propStations }) => {
+  const { t } = useTranslation();
   const { currentStation, playbackState, nowPlaying } = usePlayerStore();
   const { playStation, togglePlayPause, setVolume } = useAudioPlayer();
   const [volume, setVolumeState] = useState(1);
@@ -488,13 +490,13 @@ export const CarModeScreen: React.FC<CarModeScreenProps> = ({ visible, onClose, 
       <View style={[styles.contentContainer, { paddingTop: statusBarHeight, paddingBottom: bottomPadding }]}>
         {/* ── Header ─────────────────── */}
         <View style={styles.header}>
-          <Text style={[styles.headerTitle, ub]}>Araç Modu</Text>
+          <Text style={[styles.headerTitle, ub]}>{t('car_mode', 'Car Mode')}</Text>
           <TouchableOpacity
             style={styles.closeBtn}
             onPress={onClose}
             testID="car-mode-close-btn"
           >
-            <Text style={[styles.closeBtnText, ub]}>Kapat</Text>
+            <Text style={[styles.closeBtnText, ub]}>{t('close', 'Close')}</Text>
           </TouchableOpacity>
         </View>
 

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import api from '../src/services/api';
+import { API_ENDPOINTS } from '../src/constants/api';
 import { useAuthStore } from '../src/store/authStore';
 
 interface Following {
@@ -50,7 +51,7 @@ export default function FollowsScreen() {
     try {
       setLoading(true);
       // API docs: GET /api/user/following/:userId
-      const response = await api.get(`https://themegaradio.com/api/user/following/${user._id}`);
+      const response = await api.get(API_ENDPOINTS.user.following(user._id));
       
       // API returns { following: [{ user: {...}, followedAt: "..." }] }
       const rawData = response.data.following || response.data || [];
@@ -93,7 +94,7 @@ export default function FollowsScreen() {
             try {
               setUnfollowing(userId);
               // API docs: DELETE /api/user/unfollow/:userId
-              await api.post(`https://themegaradio.com/api/user/unfollow/${userId}`);
+              await api.delete(API_ENDPOINTS.user.unfollow(userId));
               setFollowing(prev => prev.filter(f => f._id !== userId));
             } catch (error: any) {
               console.error('Error unfollowing:', error);

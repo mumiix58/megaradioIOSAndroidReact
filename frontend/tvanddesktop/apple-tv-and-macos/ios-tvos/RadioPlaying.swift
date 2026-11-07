@@ -32,6 +32,7 @@ struct RadioPlayingPage: View {
 
     @State private var similar: [Station] = []
     @State private var popular: [Station] = []
+    @State private var contentFocusRequest = 0
 
     var body: some View {
         Stage1920x1080 {
@@ -52,14 +53,15 @@ struct RadioPlayingPage: View {
             MegaRadioLogo(scale: 164.421 / 323.069).offset(x: 30, y: 64)
 
             // ── Mini equalizer indicator (1383, 67) — 51 × 51 pink chip when playing.
-            MiniEqIndicator(isPlaying: player.isPlaying)
-                .offset(x: 1383, y: 67)
-
-            // ── Country pill (1453, 67).
-            CountryTriggerHeader().offset(x: 1453, y: 67)
+            HStack(spacing: 19) {
+                MiniEqIndicator(isPlaying: player.isPlaying)
+                CountryTriggerHeader()
+            }
+            .frame(width: 469, alignment: .trailing)
+            .offset(x: 1372, y: 67)
 
             // ── Sidebar.
-            AppSidebar(active: .discover)
+            AppSidebar(active: .discover, onMoveRight: { contentFocusRequest += 1 })
 
             // ── Station artwork (236, 242) 296×296 white card.
             stationArtwork
@@ -78,7 +80,8 @@ struct RadioPlayingPage: View {
                 .offset(x: 596, y: 293)
 
             // ── Now playing meta (596, 357).
-            Text(player.nowPlayingTitle ?? "Now Playing")
+            Text([player.nowPlayingArtist, player.nowPlayingTitle].compactMap { $0 }.joined(separator: " – ").isEmpty
+                 ? "Live radio" : [player.nowPlayingArtist, player.nowPlayingTitle].compactMap { $0 }.joined(separator: " – "))
                 .font(.ubuntu(32, .medium))
                 .foregroundColor(.white)
                 .lineLimit(1)
@@ -97,7 +100,7 @@ struct RadioPlayingPage: View {
 
             // ── Player controls (1372, 356).
             controlsRow
-                .focusSection()
+                    .focusSection()
                 .offset(x: 1372, y: 356)
 
             // ── Similar + popular scroll area (236, 559) 1610 × 521.
@@ -112,20 +115,7 @@ struct RadioPlayingPage: View {
     // MARK: - Station artwork
     @ViewBuilder
     private var stationArtwork: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 16.692).fill(Color.white)
-            if let url = player.currentStation?.artworkURL {
-                AsyncImage(url: url) { phase in
-                    if let img = phase.image {
-                        img.resizable().scaledToFill()
-                    } else {
-                        Color.white
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 16.692))
-            }
-        }
-        .frame(width: 296, height: 296)
+        StationArtwork(url: player.currentStation?.artworkURL, size: 296, cornerRadius: 16.692)
     }
 
     // MARK: - Tag row
@@ -229,7 +219,7 @@ struct RadioPlayingPage: View {
         @ViewBuilder label: @escaping () -> L,
         action: @escaping () -> Void
     ) -> some View {
-        FocusableCircle(size: 90.192, action: action) { isFocused in
+        FocusableCircle(size: 90.192, focusRequest: id == "play" ? contentFocusRequest : 0, action: action) { isFocused in
             ZStack {
                 Circle().fill(Color.black)
                 label()
@@ -372,6 +362,7 @@ private struct RadioPlayingMiniCard: View {
 /// default halo).
 struct FocusableCircle<Label: View>: View {
     let size: CGFloat
+    var focusRequest: Int = 0
     let action: () -> Void
     @ViewBuilder let label: (Bool) -> Label
     @FocusState private var isFocused: Bool
@@ -383,6 +374,7 @@ struct FocusableCircle<Label: View>: View {
         }
         .buttonStyle(.tvTransparent)
         .focused($isFocused)
+        .onChange(of: focusRequest) { _, _ in isFocused = true }
     }
 }
 

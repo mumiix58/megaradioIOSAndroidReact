@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const SONG_HISTORY_KEY = 'megaradio_song_history';
+import { captureAccount, isAccountCurrent, accountKey } from './accountScope';
 const MAX_HISTORY = 100;
 
 export interface SongHistoryEntry {
@@ -29,6 +29,7 @@ export const useSongHistoryStore = create<SongHistoryState>((set, get) => ({
   loaded: false,
 
   addEntry: (entry) => {
+    const scope = captureAccount();
     const current = get().entries;
     
     // Skip if same song+station as the most recent entry
@@ -54,13 +55,15 @@ export const useSongHistoryStore = create<SongHistoryState>((set, get) => ({
     set({ entries: updated });
 
     // Persist
-    AsyncStorage.setItem(SONG_HISTORY_KEY, JSON.stringify(updated)).catch(() => {});
+    AsyncStorage.setItem(accountKey('song_history', scope), JSON.stringify(updated)).catch(() => {});
   },
 
   loadHistory: async () => {
     if (get().loaded) return;
+    const scope = captureAccount();
     try {
-      const data = await AsyncStorage.getItem(SONG_HISTORY_KEY);
+      const data = await AsyncStorage.getItem(accountKey('song_history', scope));
+      if (!isAccountCurrent(scope)) return;
       if (data) {
         const parsed = JSON.parse(data) as SongHistoryEntry[];
         set({ entries: parsed, loaded: true });
@@ -69,14 +72,15 @@ export const useSongHistoryStore = create<SongHistoryState>((set, get) => ({
       }
     } catch (error) {
       console.error('[SongHistoryStore] Error loading:', error);
-      set({ loaded: true });
+      if (isAccountCurrent(scope)) set({ loaded: true });
     }
   },
 
   clearHistory: async () => {
+    const scope = captureAccount();
     try {
-      await AsyncStorage.removeItem(SONG_HISTORY_KEY);
-      set({ entries: [] });
+      await AsyncStorage.removeItem(accountKey('song_history', scope));
+      if (isAccountCurrent(scope)) set({ entries: [] });
     } catch (error) {
       console.error('[SongHistoryStore] Error clearing:', error);
     }

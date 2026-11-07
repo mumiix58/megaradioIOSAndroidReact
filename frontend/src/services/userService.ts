@@ -57,8 +57,7 @@ export const userService = {
   ): Promise<void> {
     await api.post(API_ENDPOINTS.listening.record, {
       stationId,
-      duration,
-      startedAt,
+      listenDuration: duration,
     });
   },
 

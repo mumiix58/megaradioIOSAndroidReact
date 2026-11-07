@@ -20,6 +20,8 @@ final class AudioPlayer: ObservableObject {
     private var statusObserver: NSKeyValueObservation?
     private var rateObserver: NSKeyValueObservation?
     private var metadataOutput: AVPlayerItemMetadataOutput?
+    private var metadataTask: Task<Void, Never>?
+    private var playbackGeneration = UUID()
 
     private init() {
         configureRemoteCommands()
@@ -62,6 +64,8 @@ final class AudioPlayer: ObservableObject {
                     self.isBuffering = false
                     self.isPlaying = false
                     self.lastError = item.error?.localizedDescription ?? "Playback error"
+                    self.metadataTask?.cancel()
+                    self.metadataTask = nil
                 default: break
                 }
             }
@@ -74,6 +78,7 @@ final class AudioPlayer: ObservableObject {
         }
         p.play()
         isPlaying = true
+        startMetadataPolling()
         updateNowPlayingInfo()
     }
 
@@ -82,9 +87,8 @@ final class AudioPlayer: ObservableObject {
             if let s = currentStation { play(s) }
             return
         }
-        if p.rate > 0 { p.pause(); isPlaying = false }
-        else { p.play(); isPlaying = true }
-        updateNowPlayingInfo()
+        if p.rate > 0 { pause() }
+        else { resume() }
     }
 
     func resume() {
@@ -94,10 +98,12 @@ final class AudioPlayer: ObservableObject {
         }
         player.play()
         isPlaying = true
+        startMetadataPolling()
         updateNowPlayingInfo()
     }
 
     func pause() {
+        cancelMetadataPolling()
         player?.pause()
         isPlaying = false
         isBuffering = false
@@ -105,6 +111,7 @@ final class AudioPlayer: ObservableObject {
     }
 
     func stop() {
+        cancelMetadataPolling()
         player?.pause()
         player?.replaceCurrentItem(with: nil)
         player = nil
@@ -115,10 +122,44 @@ final class AudioPlayer: ObservableObject {
         isBuffering = false
     }
 
+    private func cancelMetadataPolling() {
+        playbackGeneration = UUID()
+        metadataTask?.cancel()
+        metadataTask = nil
+    }
+
+    private func startMetadataPolling() {
+        cancelMetadataPolling()
+        guard let station = currentStation else { return }
+        let generation = playbackGeneration
+        metadataTask = Task { [weak self] in
+            while !Task.isCancelled {
+                do {
+                    let metadata: NowPlayingMetadata = try await APIClient.shared.get("/api/now-playing/\(station.id)")
+                    guard !Task.isCancelled, let self,
+                          self.playbackGeneration == generation,
+                          self.currentStation?.id == station.id else { return }
+                    // An empty response must not erase valid ICY metadata.
+                    if let title = metadata.title {
+                        self.nowPlayingTitle = title
+                        self.nowPlayingArtist = metadata.artist
+                        self.updateNowPlayingInfo()
+                    }
+                } catch {
+                    if Task.isCancelled { return }
+                    // Metadata failure does not interrupt the station's audio.
+                }
+                do { try await Task.sleep(nanoseconds: 30_000_000_000) }
+                catch { return }
+            }
+        }
+    }
+
     // MARK: - ICY metadata callback
 
     fileprivate func handleMetadata(from output: AVPlayerItemMetadataOutput, title: String?, artist: String?) {
         guard metadataOutput === output else { return }
+        guard let title, !title.isEmpty else { return }
         nowPlayingTitle = title
         nowPlayingArtist = artist
         updateNowPlayingInfo()
@@ -166,6 +207,8 @@ final class MetadataObserver: NSObject, AVPlayerItemMetadataOutputPushDelegate {
                         from track: AVPlayerItemTrack?) {
         for group in groups {
             for item in group.items {
+                guard item.commonKey == .commonKeyTitle ||
+                        item.identifier?.rawValue.lowercased().contains("streamtitle") == true else { continue }
                 // tvOS 16+ async load API. Capture the item locally because
                 // `AVMetadataItem.load(.value)` is async-throwing.
                 let mdItem = item

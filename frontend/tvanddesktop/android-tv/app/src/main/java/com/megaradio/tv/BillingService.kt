@@ -22,7 +22,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Google Play Billing v7 wrapper.
+ * Google Play Billing v8 wrapper.
  *
  * Mirrors `/app/frontend/src/services/iapService.ts` (mobile RN app) so the
  * same backend endpoint validates both flows:
@@ -53,7 +53,8 @@ class BillingService(private val context: Context) : PurchasesUpdatedListener {
     @Volatile var authToken: String? = null
 
     private val billingClient: BillingClient = BillingClient.newBuilder(context)
-        .enablePendingPurchases()
+        .enablePendingPurchases(PendingPurchasesParams.newBuilder().enableOneTimeProducts().build())
+        .enableAutoServiceReconnection()
         .setListener(this)
         .build()
 
@@ -127,9 +128,9 @@ class BillingService(private val context: Context) : PurchasesUpdatedListener {
 
     private suspend fun queryProductDetails(params: QueryProductDetailsParams): List<ProductDetails> =
         withTimeout(15000) { suspendCancellableCoroutine { cont ->
-            billingClient.queryProductDetailsAsync(params) { result, list ->
+            billingClient.queryProductDetailsAsync(params) { result, detailsResult ->
                 if (cont.isActive) {
-                    if (result.responseCode == BillingClient.BillingResponseCode.OK) cont.resume(list)
+                    if (result.responseCode == BillingClient.BillingResponseCode.OK) cont.resume(detailsResult.productDetailsList)
                     else cont.resumeWith(Result.failure(IllegalStateException(result.debugMessage)))
                 }
             }
