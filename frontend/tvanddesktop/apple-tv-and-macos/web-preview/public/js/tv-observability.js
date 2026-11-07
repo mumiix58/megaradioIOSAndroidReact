@@ -82,6 +82,15 @@
         var app = window.__MR_STORE_APP_VERSION__ || build.appVersion || '0.0.0';
         var bundle = build.bundleVersion || 'unknown';
         if (!/^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(app) || app.length > 20) app = '0.0.0';
+        // Older installed OTA bootstraps do not inject the binary version.
+        // Read only this app's public version; never enumerate apps or identifiers.
+        if (app === '0.0.0' && platform() === 'tizen') {
+            try {
+                var manager = window.tizen && window.tizen.application;
+                var nativeVersion = manager && typeof manager.getAppInfo === 'function' ? manager.getAppInfo(null).version : null;
+                if (typeof nativeVersion === 'string' && nativeVersion.length <= 20 && /^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(nativeVersion)) app = nativeVersion;
+            } catch (_) { /* Unsupported native API keeps the explicit unknown version. */ }
+        }
         if (!(bundle.length <= 64 && (/^\d{1,6}\.\d{1,6}\.\d{1,6}$/.test(bundle) || /^gha-\d{1,16}-\d{1,4}-[a-f0-9]{7,40}$/.test(bundle) || /^local-[a-f0-9]{7,40}$/.test(bundle) || /^\d{8,20}$/.test(bundle)))) bundle = 'unknown';
         return { appVersion: app, bundleVersion: bundle };
     }

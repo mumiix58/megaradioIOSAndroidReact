@@ -172,6 +172,13 @@ const getCountryNameFromCode = (code: string): string => {
   return CODE_TO_COUNTRY_NAME[code] || code;
 };
 
+// Hash routes may already contain a percent-encoded canonical slug. Encode one
+// path segment once; display names must never substitute for backend slugs.
+function genrePathSegment(slug: string): string {
+  try { return encodeURIComponent(decodeURIComponent(slug)); }
+  catch (_) { return encodeURIComponent(slug); }
+}
+
 // Helper to add TV parameter for Samsung TV (signals backend to skip compression)
 export function buildApiUrl(path: string, existingParams?: URLSearchParams): string {
   const url = `${BASE_URL}${API_PREFIX}${path}`;
@@ -472,7 +479,7 @@ export const megaRadioApi = {
 
   getGenreBySlug: async (slug: string): Promise<{ genre: Genre | null }> => {
     try {
-      const url = buildApiUrl(`/genres/slug/${slug}`);
+      const url = buildApiUrl(`/genres/slug/${genrePathSegment(slug)}`);
       const response = await fetchWithTimeout(url);
       
       if (!response.ok) {
@@ -514,7 +521,7 @@ export const megaRadioApi = {
     if (params?.sort) queryParams.append('sort', params.sort);
 
     try {
-      const url = buildApiUrl(`/genres/${slug}/stations`, queryParams);
+      const url = buildApiUrl(`/genres/${genrePathSegment(slug)}/stations`, queryParams);
       const response = await fetchWithTimeout(url);
       
       if (!response.ok) {
