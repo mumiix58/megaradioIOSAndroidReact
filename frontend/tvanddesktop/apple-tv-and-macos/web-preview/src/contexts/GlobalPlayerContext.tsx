@@ -88,6 +88,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
   
   // Error recovery state
   const retryCountRef = useRef(0);
+  const retryExhaustedRef = useRef(false);
   const maxRetries = 3;
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const currentStationRef = useRef<Station | null>(null);
@@ -114,6 +115,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
         setIsBuffering(false);
         setStreamError(null);
         retryCountRef.current = 0;
+        retryExhaustedRef.current = false;
       };
       
       playerInstance.onPause = () => {
@@ -140,7 +142,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       };
       
       playerInstance.onError = (error: any) => {
-        if (!currentStationRef.current || manuallyPausedRef.current) return;
+        if (!currentStationRef.current || manuallyPausedRef.current || retryExhaustedRef.current) return;
         telemetryPlaying = false;
         if (isBrowserAutoplayBlock(error)) {
           // Browser policy needs a user gesture; it is not a failed radio stream.
@@ -172,8 +174,11 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
           const delay = Math.min(1000 * Math.pow(2, retryCountRef.current), 10000);
           console.log(`[🔄 RETRY] Will retry in ${delay}ms (attempt ${retryCountRef.current + 1}/${maxRetries})`);
           
-          retryTimeoutRef.current = setTimeout(async () => {
-            if (currentStationRef.current !== currentStationToRetry || manuallyPausedRef.current) return;
+          const retryTimer = setTimeout(async () => {
+            // A cleared/rescheduled callback may already be queued by the engine.
+            if (retryTimeoutRef.current !== retryTimer) return;
+            retryTimeoutRef.current = null;
+            if (currentStationRef.current !== currentStationToRetry || manuallyPausedRef.current || retryExhaustedRef.current) return;
             retryCountRef.current++;
             
             if (audioPlayerRef.current && currentStationToRetry) {
@@ -197,11 +202,12 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
               console.log(`[🔄 RETRY] Retrying: ${currentStationToRetry.name}`);
             }
           }, delay);
+          retryTimeoutRef.current = retryTimer;
         } else if (retryCountRef.current >= maxRetries) {
           console.error('[🔴 FAILED] Max retries reached');
+          retryExhaustedRef.current = true;
           setStreamError('This station is currently unavailable');
           setIsPlaying(false);
-          retryCountRef.current = 0;
         }
       };
 
@@ -349,6 +355,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       retryTimeoutRef.current = null;
     }
     retryCountRef.current = 0;
+    retryExhaustedRef.current = false;
 
     const startPlayback = (finalUrl: string) => {
       const playUrl = getProxiedUrl(finalUrl);

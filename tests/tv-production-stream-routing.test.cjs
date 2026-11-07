@@ -9,7 +9,7 @@ test('actual provider autoplay callback clears retry, keeps station selected and
  const ast=ts.createSourceFile('GlobalPlayer.tsx',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);let arrow;
  function visit(n){if(ts.isBinaryExpression(n)&&n.left.getText(ast)==='playerInstance.onError'&&ts.isArrowFunction(n.right))arrow=n.right;ts.forEachChild(n,visit);}visit(ast);assert.ok(arrow);
  const state={playing:true,buffering:true,error:'old',cleared:0}; const station={_id:'radio',url:'http://radio.example/live'};
- const ctx={currentStationRef:{current:station},manuallyPausedRef:{current:false},retryTimeoutRef:{current:42},isBrowserAutoplayBlock:load('cdn.themegaradio.com').isBrowserAutoplayBlock,clearTimeout:id=>{assert.equal(id,42);state.cleared++},setIsPlaying:v=>state.playing=v,setIsBuffering:v=>state.buffering=v,setStreamError:v=>state.error=v};
+ const ctx={retryExhaustedRef:{current:false},currentStationRef:{current:station},manuallyPausedRef:{current:false},retryTimeoutRef:{current:42},isBrowserAutoplayBlock:load('cdn.themegaradio.com').isBrowserAutoplayBlock,clearTimeout:id=>{assert.equal(id,42);state.cleared++},setIsPlaying:v=>state.playing=v,setIsBuffering:v=>state.buffering=v,setStreamError:v=>state.error=v};
  const js=ts.transpileModule(`var callback=${arrow.getText(ast)}`,{compilerOptions:{target:ts.ScriptTarget.ES2020}}).outputText;vm.runInNewContext(js,ctx);ctx.callback({name:'NotAllowedError'});
  assert.equal(ctx.currentStationRef.current,station);assert.equal(ctx.manuallyPausedRef.current,true);assert.equal(ctx.retryTimeoutRef.current,null);assert.deepEqual(state,{playing:false,buffering:false,error:null,cleared:1});
 });
