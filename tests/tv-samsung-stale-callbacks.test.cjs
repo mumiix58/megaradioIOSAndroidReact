@@ -45,3 +45,33 @@ test('explicit resume restarts paused preparation and rejects its old callback b
     f.pending[1].ok();assert.equal(f.state(),'PLAYING');assert.equal(f.counts().plays,1);
   }
 });
+test('READY watchdog starts native playback once and ignores late prepare success',()=>{
+  const f=fixture();f.player.play('ready');f.api.getState=()=> 'READY';[...f.timers.values()][0]();f.pending[0].ok();
+  assert.deepEqual(f.counts(),{plays:1,errors:0,started:1});assert.equal(f.player.isPlaying,true);
+});
+test('PLAYING watchdog does not restart already running media',()=>{
+  const f=fixture();f.player.play('running');f.api.getState=()=> 'PLAYING';[...f.timers.values()][0]();f.pending[0].ok();
+  assert.deepEqual(f.counts(),{plays:0,errors:0,started:1});assert.equal(f.player.isPlaying,true);
+});
+test('native play exceptions in READY watchdog and prepare success fail once and allow a fresh retry',()=>{
+  for(const watchdog of [true,false]) {
+    const f=fixture(),originalPlay=f.api.play;f.player.play('broken');f.api.play=()=>{throw Error('nativeplay')};
+    if(watchdog){f.api.getState=()=> 'READY';assert.doesNotThrow(()=>[...f.timers.values()][0]());}else assert.doesNotThrow(()=>f.pending[0].ok());
+    f.pending[0].ok();f.listeners[0].onerror('duplicate');assert.deepEqual(f.counts(),{plays:0,errors:1,started:0});
+    f.api.play=originalPlay;f.player.play('retry');f.pending[1].ok();assert.deepEqual(f.counts(),{plays:1,errors:1,started:1});
+  }
+});
+test('synchronous native failure or station replacement during play cannot publish an obsolete success',()=>{
+  for(const watchdog of [true,false])for(const replace of [true,false]) {
+    const f=fixture();f.player.play('a');f.api.play=()=>{if(replace)f.player.play('b');else f.listeners[0].onerror('nativeerror')};
+    if(watchdog){f.api.getState=()=> 'READY';[...f.timers.values()][0]();}else f.pending[0].ok();
+    assert.equal(f.counts().started,0);assert.equal(f.player.isPlaying,false);assert.equal(f.counts().errors,replace?0:1);
+  }
+});
+test('consumer onPlay exceptions are not classified as native playback failures',()=>{
+  for(const watchdog of [true,false]) {
+    const f=fixture();f.player.onPlay=()=>{throw Error('consumer')};f.player.play('ok');
+    if(watchdog){f.api.getState=()=> 'READY';assert.throws(()=>[...f.timers.values()][0](),/consumer/);}else assert.throws(()=>f.pending[0].ok(),/consumer/);
+    assert.equal(f.counts().errors,0);
+  }
+});

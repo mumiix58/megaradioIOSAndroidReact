@@ -46,6 +46,13 @@
                     self.isPlaying = false;
                     self.onError && self.onError(error);
                 }
+                function startNativePlayback() {
+                    // Catch only the vendor call, not errors from consumer callbacks.
+                    try { webapis.avplay.play(); }
+                    catch (error) { fail(error); return false; }
+                    // play() may synchronously report an error or replace this attempt.
+                    return active() && !paused && !failed;
+                }
                 self.currentUrl = url;
                 
                 // Cancel any watchdog left over from a PREVIOUS play() call.
@@ -128,11 +135,13 @@
                         var liveState = 'UNKNOWN';
                         try { liveState = webapis.avplay.getState(); } catch (e) {}
                         if (liveState === 'PLAYING' || liveState === 'READY') {
-                            console.log('[Samsung Player] Watchdog: state is ' + liveState + ' — stream is fine, NOT erroring');
+                            console.log('[Samsung Player] Watchdog state:', liveState);
                             settled = true;
                             self._watchdog = null;
                             preparing = false;
-                            self.isPlaying = (liveState === 'PLAYING');
+                            if (liveState === 'READY' && !startNativePlayback()) return;
+                            if (!active() || paused || failed) return;
+                            self.isPlaying = true;
                             self.onPlay && self.onPlay();
                             return;
                         }
@@ -148,7 +157,7 @@
                         settled = true;
                         if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
                         preparing = false;
-                        webapis.avplay.play();
+                        if (!startNativePlayback()) return;
                         self.isPlaying = true;
                         self.onPlay && self.onPlay();
                     }, function(error) {
