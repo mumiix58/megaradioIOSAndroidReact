@@ -169,7 +169,7 @@ function pollForCommands() {
   })
   .then(function(data) {
     if (!data) return;
-    console.log('[Cast] Poll #' + currentPoll + ' response:', JSON.stringify(data).substring(0, 500));
+    console.log('[Cast] Poll response received');
 
     if (!_isConnected) {
       _isConnected = true;
@@ -180,14 +180,14 @@ function pollForCommands() {
     var station = extractStationFromResponse(data);
     var action = extractAction(data);
 
-    console.log('[Cast] Poll #' + currentPoll + ' extracted: station=' + (station ? (station.name || station._id || 'YES') : 'null') + ' action=' + (action || 'none'));
+    console.log('[Cast] Poll has station:', Boolean(station));
 
     if (station) {
       var cmdHash = makeCommandHash(data.pendingCommand || data.command || data.lastCommand || data);
-      console.log('[Cast] cmdHash=' + cmdHash + ' lastHash=' + _lastCommandHash);
+      console.log('[Cast] Command received');
       if (cmdHash !== _lastCommandHash) {
         _lastCommandHash = cmdHash;
-        console.log('[Cast] >>> NEW STATION from poll:', station.name || station._id, 'action:', action);
+        console.log('[Cast] New station command received');
         if (_onMessage) {
           _onMessage({ type: 'cast:play', station: station });
         } else {
@@ -213,7 +213,7 @@ function pollForCommands() {
     }
   })
   .catch(function(err) {
-    console.warn('[Cast] Poll #' + currentPoll + ' error:', err.message || err);
+    console.warn('[Cast] Poll request failed');
     if (_isConnected) {
       _isConnected = false;
       if (_onStatusChange) _onStatusChange('disconnected');
@@ -223,7 +223,7 @@ function pollForCommands() {
 
 export var castService = {
   startPolling: function(token: string, onMessage: (msg: any) => void, onStatusChange: (status: string) => void) {
-    console.log('[Cast] startPolling() token=' + (token ? 'yes' : 'no') + ' deviceId=' + getDeviceId());
+    console.log('[Cast] Starting polling; authenticated:', Boolean(token));
 
     castService.stopPolling();
 
@@ -277,7 +277,7 @@ export var castService = {
         isPlaying: data.isPlaying
       })
     }).catch(function(err) {
-      console.warn('[Cast] sendNowPlaying error:', err);
+      console.warn('[Cast] Now-playing request failed');
     });
   },
 

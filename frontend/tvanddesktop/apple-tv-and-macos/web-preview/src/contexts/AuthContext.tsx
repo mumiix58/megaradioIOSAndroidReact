@@ -155,7 +155,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (desktop?.setAuthToken) void desktop.setAuthToken(token || null).catch(() => {});
     if (typeof window === 'undefined' || !(window as any).MegaRadioNative?.invoke) return;
     import('@/lib/nativeIap').then(({ nativeIap }) => nativeIap.setAuthToken(token))
-      .catch(error => console.warn('[Auth] Native billing session sync failed:', error?.message));
+      .catch(error => console.warn('[Auth] Native billing session sync failed'));
   }, [token]);
 
   useEffect(function() {
@@ -261,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       startPolling(code);
     })
     .catch(function(err) {
-      console.error('[Auth] Failed to get device code:', err);
+      console.error('[Auth] Device-code request failed');
       setLoginError(true);
     });
   }
@@ -300,7 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .then(function(data) {
         if (!data) return;
-        console.log('[Auth] Poll status:', data.status || (data.expired ? 'expired' : 'pending'));
+        console.log('[Auth] Poll status:', data.status === 'activated' ? 'activated' : data.expired ? 'expired' : 'pending');
         if (data.expired || data.status === 'expired') {
           console.log('[Auth] Server reported code expired, requesting new code');
           stopPolling();
@@ -327,7 +327,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .catch(function(err) {
-        console.warn('[Auth] Polling error:', err);
+        console.warn('[Auth] Polling request failed');
       });
     }, 3000);
   }

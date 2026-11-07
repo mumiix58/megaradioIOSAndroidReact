@@ -1,3 +1,4 @@
+import { reportTvEvent, tvErrorCode } from '@/lib/tvObservability';
 import { Link, useLocation } from "wouter";
 import { detectPlatform } from "@/lib/platform";
 import { handleEntryBack } from "@/lib/platformBack";
@@ -128,7 +129,7 @@ export const DiscoverNoUser = (): JSX.Element => {
   // Fetch initial 100 stations for TRUE infinite scroll (or global if GLOBAL selected)
   // Loads enough stations to fill the viewport, then lazy loads more as user scrolls
   // CACHE: 7 days - Uses localStorage cache for instant display
-  const { data: initialStationsData, isLoading: isInitialLoading, isError: isInitialError, isFetching: isInitialFetching, refetch: refetchInitial } = useQuery({
+  const { data: initialStationsData, isLoading: isInitialLoading, isError: isInitialError, error: initialCatalogError, isFetching: isInitialFetching, refetch: refetchInitial } = useQuery({
     queryKey: ['/api/stations/country/initial', selectedCountryCode, STATIONS_PER_LOAD],
     queryFn: () => {
       if (selectedCountryCode === 'GLOBAL') {
@@ -145,6 +146,9 @@ export const DiscoverNoUser = (): JSX.Element => {
   const catalogUnavailable = !isInitialLoading && !isPopularLoading &&
     displayedStations.length === 0 && !(popularStationsData?.stations?.length) &&
     !(initialStationsData?.stations?.length);
+  useEffect(() => {
+    if (isInitialError) reportTvEvent('catalog_error', tvErrorCode(initialCatalogError), {module:'api'});
+  }, [isInitialError, initialCatalogError]);
   const retryCatalog = () => {
     if (isInitialFetching || isPopularFetching) return;
     void refetchInitial();

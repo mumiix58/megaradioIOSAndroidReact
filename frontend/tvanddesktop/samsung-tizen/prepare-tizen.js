@@ -57,7 +57,7 @@ try {
     cwd: TV_SRC_DIR,
     stdio: 'inherit',
     shell,
-    env: { ...process.env, VITE_APP_VERSION: tizenVersion },
+    env: { ...process.env, VITE_APP_VERSION: tizenVersion, VITE_TV_PACKAGE_PLATFORM: 'tizen' },
   });
 } catch (e) {
   console.error('TV build failed. Refusing to package an old or partial bundle.');
@@ -82,7 +82,7 @@ console.log('▸ Writing remote-update bootstrap (index.html)');
 const cdnCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'cdn-config.json'), 'utf8'));
 let boot = fs.readFileSync(path.join(__dirname, '..', 'remote-bootstrap.html'), 'utf8');
 boot = boot.replace(/__CDN_BASE__/g, cdnCfg.cdnBase);
-boot = boot.replace(/__APP_VERSION__/g, tizenVersion);
+boot = boot.replace(/__APP_VERSION__/g, tizenVersion).replace(/__TV_PLATFORM__/g,'tizen');
 fs.writeFileSync(path.join(OUT_DIR, 'index.html'), boot);
 console.log('  CDN base =', cdnCfg.cdnBase);
 

@@ -1,3 +1,4 @@
+import { reportTvEvent } from '@/lib/tvObservability';
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { useNowPlayingMetadata } from '@/hooks/useNowPlayingMetadata';
 import { Station, megaRadioApi } from "@/services/megaRadioApi";
@@ -42,7 +43,7 @@ async function resolveStreamUrl(url: string): Promise<{ resolvedUrl: string; isP
     return { ...result, resolvedUrl: result.isPlaylist ? await resolvePlaylistOnTV(result.resolvedUrl, true) : result.resolvedUrl };
 
   } catch (err: any) {
-    console.warn('[RESOLVE] Failed to resolve URL, using original:', err.message);
+    console.warn('[RESOLVE] Request failed; using original stream');
     return { resolvedUrl: url, isPlaylist: false, isHLS: false, error: err.message };
   } finally {
     clearTimeout(timer);
@@ -67,7 +68,7 @@ async function resolvePlaylistOnTV(url: string, preview = false): Promise<string
     const text = await res.text();
     return parseStationPlaylist(text, preview ? url : res.url || url);
   } catch (err: any) {
-    console.warn('[RESOLVE-TV] playlist fetch failed, using original:', err?.message || err);
+    console.warn('[RESOLVE-TV] Playlist request failed; using original stream');
   } finally {
     clearTimeout(timer);
   }
@@ -97,6 +98,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
   // Initialize TV audio player once
   useEffect(() => {
     let playerInstance: any = null;
+    let telemetryPlaying = false;
     
     if (typeof (window as any).TVAudioPlayer !== 'undefined' && !audioPlayerRef.current) {
       playerInstance = new (window as any).TVAudioPlayer('global-audio-container');
@@ -105,6 +107,8 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       playerInstance.onPlay = () => {
         if (!currentStationRef.current || manuallyPausedRef.current) return;
         if (retryTimeoutRef.current) { clearTimeout(retryTimeoutRef.current); retryTimeoutRef.current = null; }
+        if (!telemetryPlaying) reportTvEvent('playback_start','none',{module:'audio'});
+        telemetryPlaying = true;
         console.log('[✅ EVENT] onPlay - Stream playing successfully');
         setIsPlaying(true);
         setIsBuffering(false);
@@ -113,11 +117,14 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       };
       
       playerInstance.onPause = () => {
+        if (telemetryPlaying) reportTvEvent('playback_pause','none',{module:'audio'});
+        telemetryPlaying = false;
         console.log('[⏸️ EVENT] onPause');
         setIsPlaying(false);
       };
       
       playerInstance.onStop = () => {
+        telemetryPlaying = false;
         console.log('[⏹️ EVENT] onStop');
         setIsPlaying(false);
       };
@@ -134,6 +141,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       
       playerInstance.onError = (error: any) => {
         if (!currentStationRef.current || manuallyPausedRef.current) return;
+        telemetryPlaying = false;
         if (isBrowserAutoplayBlock(error)) {
           // Browser policy needs a user gesture; it is not a failed radio stream.
           manuallyPausedRef.current = true;
@@ -145,21 +153,14 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
           return;
         }
         lastStartedStationIdRef.current = null;
-        const stationName = currentStationRef.current?.name || 'Unknown';
-        const stationUrl = currentStationRef.current?.url_resolved || currentStationRef.current?.url || 'no-url';
-        const errorMsg = error?.message || error?.type || (typeof error === 'string' ? error : JSON.stringify(error));
         const errorCode = error?.code || error?.target?.error?.code || 'N/A';
+        reportTvEvent('playback_error', ({1:'media_aborted',2:'media_network',3:'media_decode',4:'media_unsupported'} as Record<string,string>)[String(errorCode)] || 'playback_failed', {module:'audio'});
         
         console.error('[🔴 ERROR] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-        console.error('[🔴 ERROR] Station:', stationName);
-        console.error('[🔴 ERROR] URL:', stationUrl.substring(0, 120));
-        console.error('[🔴 ERROR] Error:', errorMsg);
-        console.error('[🔴 ERROR] Error code:', errorCode);
+        console.error('[🔴 ERROR] Media code:', [1,2,3,4].includes(Number(errorCode)) ? Number(errorCode) : 0);
         console.error('[🔴 ERROR] Retry count:', retryCountRef.current, '/', maxRetries);
-        console.error('[🔴 ERROR] Full error object:', error);
         
         setIsBuffering(false);
-        trackError(`Audio playback error: ${errorMsg}`, 'GlobalPlayer');
         
         if (retryTimeoutRef.current) {
           clearTimeout(retryTimeoutRef.current);
@@ -197,7 +198,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
             }
           }, delay);
         } else if (retryCountRef.current >= maxRetries) {
-          console.error('[🔴 FAILED] Max retries reached. Giving up on:', stationName);
+          console.error('[🔴 FAILED] Max retries reached');
           setStreamError('This station is currently unavailable');
           setIsPlaying(false);
           retryCountRef.current = 0;
@@ -325,7 +326,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
     console.log('[🎵 PLAY] ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     console.log('[🎵 PLAY] Station:', station.name);
     console.log('[🎵 PLAY] ID:', station._id);
-    console.log('[🎵 PLAY] Raw URL:', rawUrl);
+    console.log('[🎵 PLAY] Stream selected');
     console.log('[🎵 PLAY] URL type:', rawUrl?.startsWith('https') ? 'HTTPS' : rawUrl?.startsWith('http') ? 'HTTP' : 'OTHER');
     console.log('[🎵 PLAY] Codec:', station.codec || 'unknown');
     console.log('[🎵 PLAY] Bitrate:', station.bitrate || 'unknown');
@@ -351,7 +352,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
 
     const startPlayback = (finalUrl: string) => {
       const playUrl = getProxiedUrl(finalUrl);
-      console.log('[🎵 PLAY] Final play URL:', playUrl.substring(0, 120));
+      console.log('[🎵 PLAY] Playback source ready');
       
       setTimeout(() => {
         if (audioPlayerRef.current && !manuallyPausedRef.current && generation === playGenerationRef.current && currentStationRef.current?._id === station._id) {
@@ -370,7 +371,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       console.log('[🎵 PLAY] TV playlist detected — resolving client-side...');
       resolvePlaylistOnTV(rawUrl).then(direct => {
         if (generation !== playGenerationRef.current) return;
-        console.log('[🎵 PLAY] TV playlist resolved:', rawUrl.substring(0, 60), '→', direct.substring(0, 60));
+        console.log('[🎵 PLAY] TV playlist resolved');
         startPlayback(direct);
       }).catch(() => {
         if (generation === playGenerationRef.current) {
@@ -382,9 +383,9 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       resolveStreamUrl(rawUrl).then(result => {
         if (generation !== playGenerationRef.current) return;
         if (result.error) {
-          console.warn('[🎵 PLAY] Resolve had error:', result.error, '- using resolved anyway');
+          console.warn('[🎵 PLAY] Resolver warning; using resolved stream');
         }
-        console.log('[🎵 PLAY] Resolved:', rawUrl.substring(0, 60), '→', result.resolvedUrl.substring(0, 60));
+        console.log('[🎵 PLAY] Stream resolved');
         startPlayback(result.resolvedUrl);
       }).catch(() => {
         if (generation === playGenerationRef.current) {

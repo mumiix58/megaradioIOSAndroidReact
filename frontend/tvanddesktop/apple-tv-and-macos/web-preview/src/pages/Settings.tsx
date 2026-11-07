@@ -1,3 +1,4 @@
+import { getTvConsent, setTvConsent, tvObservabilitySupported } from '@/lib/tvObservability';
 import { useLocation } from "wouter";
 import { useState, useEffect, useRef } from "react";
 import { useLocalization } from "@/contexts/LocalizationContext";
@@ -97,7 +98,7 @@ const LANGUAGE_OPTIONS: LanguageOption[] = [
 const getFlagUrl = (countryCode: string) =>
   `https://flagcdn.com/w40/${countryCode.toLowerCase()}.png`;
 
-type SettingsCategory = 'language' | 'keyboard' | 'playback' | 'timer' | 'accessibility' | 'account' | 'cast' | 'legal';
+type SettingsCategory = 'language' | 'keyboard' | 'playback' | 'timer' | 'accessibility' | 'account' | 'cast' | 'legal' | 'privacy';
 
 function CategoryIcon({ type }: { type: SettingsCategory }) {
   const size = 24;
@@ -147,6 +148,7 @@ function CategoryIcon({ type }: { type: SettingsCategory }) {
           <line x1="12" y1="16" x2="16" y2="22" stroke={fill} strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       );
+    case 'privacy':
     case 'legal':
       return <span aria-hidden="true" style={{ fontSize: 26 }}>§</span>;
     case 'account':
@@ -191,8 +193,13 @@ export const Settings = (): JSX.Element => {
   const [optionIndex, setOptionIndex] = useState(0);
 
   const optionListRef = useRef<HTMLDivElement>(null);
+  const [tvConsent, updateTvConsent] = useState(getTvConsent);
+  const changeTvConsent = (kind:'diagnostics'|'analytics') => {
+    const current = getTvConsent();
+    updateTvConsent(setTvConsent({...current,[kind]:!current[kind]}));
+  };
 
-  const categories: SettingsCategory[] = ['language', 'keyboard', 'playback', 'timer', 'accessibility', 'account', 'cast', ...(macStore ? ['legal' as const] : [])];
+  const categories: SettingsCategory[] = ['language', 'keyboard', 'playback', 'timer', 'accessibility', ...(tvObservabilitySupported() ? ['privacy' as const] : []), 'account', 'cast', ...(macStore ? ['legal' as const] : [])];
 
   const sleepTimerOptions: (number | null)[] = [15, 30, 60, 120, null];
   const sleepTimerLabels: Record<string, string> = {
@@ -222,6 +229,7 @@ export const Settings = (): JSX.Element => {
       case 'playback': return t('settings_play_at_start') || 'Playback';
       case 'timer': return t('sleep_timer') || 'Sleep Timer';
       case 'accessibility': return t('accessibility') || 'Accessibility';
+      case 'privacy': return t('tv_privacy_title');
       case 'account': return t('account') || 'Account';
       case 'cast': return t('cast') || 'Cast';
       case 'legal': return 'Privacy & Terms';
@@ -235,6 +243,7 @@ export const Settings = (): JSX.Element => {
       case 'playback': return settingsOptions.length;
       case 'timer': return sleepTimerOptions.length;
       case 'accessibility': return 2;
+      case 'privacy': return 2;
       case 'account': return macStore ? 2 : 1;
       case 'cast': return 1;
       case 'legal': return 2;
@@ -311,6 +320,9 @@ export const Settings = (): JSX.Element => {
         else setSleepTimer(opt);
         break;
       }
+      case 'privacy':
+        changeTvConsent(optionIndex === 0 ? 'diagnostics' : 'analytics');
+        break;
       case 'accessibility':
         if (optionIndex === 0) setHighContrast(!highContrast);
         else setLargeText(!largeText);
@@ -688,6 +700,14 @@ export const Settings = (): JSX.Element => {
           );
         });
 
+      case 'privacy':
+        return <div style={{display:'flex',flexDirection:'column',gap:18}}>
+          <p style={{fontSize:20,color:'#bbb'}}>{t('tv_privacy_description')}</p>
+          {(['diagnostics','analytics'] as const).map((kind,index)=><button key={kind} type="button" role="switch" aria-checked={tvConsent[kind]} data-testid={`tv-consent-${kind}`} onClick={()=>changeTvConsent(kind)} style={{textAlign:'left',padding:24,borderRadius:14,color:'#fff',background:'#252525',border:isFocusedOnOptions && optionIndex===index?'3px solid #ff4199':'3px solid #555'}}>
+            <span style={{fontSize:25,fontWeight:600}}>{t(kind==='diagnostics'?'tv_diagnostics_label':'tv_usage_label')} · {tvConsent[kind]?'On':'Off'}</span>
+            <span style={{display:'block',fontSize:19,lineHeight:1.5,color:'#ccc',marginTop:8}}>{t(kind==='diagnostics'?'tv_diagnostics_desc':'tv_usage_desc')}</span>
+          </button>)}
+        </div>;
       case 'legal':
         return <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <p style={{ color: '#aaa', fontSize: 22 }}>Read these documents here, including when offline. No sign-in is required.</p>

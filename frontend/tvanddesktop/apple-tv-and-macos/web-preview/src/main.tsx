@@ -2,17 +2,13 @@ import { createRoot } from "react-dom/client";
 import { useEffect } from 'react';
 import App from "./App";
 import "./index.css";
-import { initGA } from "./lib/analytics";
+import { TvErrorBoundary } from "./components/TvErrorBoundary";
 import { scheduleBundleUpdate } from "./lib/bundleUpdater";
 import { normalizeHashQuery } from './lib/normalizeHashQuery';
 
 normalizeHashQuery();
 window.addEventListener('hashchange', normalizeHashQuery);
 
-// Initialize Google Analytics
-if (import.meta.env.VITE_GA_MEASUREMENT_ID) {
-  initGA();
-}
 
 // Auto-fit 1920x1080 canvas to any window size while preserving 16:9 aspect ratio.
 // Fixes blank space on >1920 desktops (e.g. Windows fullscreen on 4K/ultrawide monitors).
@@ -37,7 +33,7 @@ function ReadyApp() {
   }, []);
   return <App />;
 }
-createRoot(document.getElementById("root")!).render(<ReadyApp />);
+createRoot(document.getElementById("root")!).render(<TvErrorBoundary><ReadyApp /></TvErrorBoundary>);
 
 // Background OTA for the packaged TV apps (cache-first; no-op on web/Electron).
 scheduleBundleUpdate();
