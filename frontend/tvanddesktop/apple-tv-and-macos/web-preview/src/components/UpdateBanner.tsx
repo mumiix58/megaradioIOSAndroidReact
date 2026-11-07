@@ -137,7 +137,7 @@ export function UpdateBanner() {
         color: '#fff',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }} data-tv-gap-axis="row" data-tv-gap="10">
         <span style={{
           width: 8, height: 8, borderRadius: '50%', background: '#EB4F9F',
           boxShadow: '0 0 12px rgba(235, 79, 159, 0.8)',
@@ -157,7 +157,7 @@ export function UpdateBanner() {
           TV’nizin uygulama mağazasını açıp MegaRadio’yu güncelleyebilirsiniz.
         </p>
       )}
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', gap: 10 }} data-tv-gap-axis="row" data-tv-gap="10">
         {state.storeUrl && <button
           data-testid="update-banner-soft-store-btn"
           onClick={() => state.storeUrl && window.open(state.storeUrl, '_blank')}

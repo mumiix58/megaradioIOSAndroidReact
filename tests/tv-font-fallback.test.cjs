@@ -12,8 +12,9 @@ const originals={
 };
 test('every Ubuntu subset keeps WOFF2 preferred and supplies the correct original TrueType weight',()=>{
  const css=fs.readFileSync(path.join(root,'css/tv-styles.css'),'utf8');
- const faces=css.match(/@font-face\{[^}]+\}/g);assert.equal(faces.length,8);
- for(const face of faces){
+ const faces=css.match(/@font-face\{[^}]+\}/g);assert.equal(faces.length,12);
+ const subsets=faces.filter(face=>face.includes('format("woff2")'));assert.equal(subsets.length,8);
+ for(const face of subsets){
   const weight=face.match(/font-weight:(\d+)/)[1];
   const urls=[...face.matchAll(/url\("([^"]+)"\) format\("([^"]+)"\)/g)];
   assert.equal(urls.length,2);assert.equal(urls[0][2],'woff2');assert.equal(urls[1][2],'truetype');
@@ -31,4 +32,9 @@ test('fallback font bytes are unmodified Canonical originals and retain bundled 
  }
  assert.match(fs.readFileSync(path.join(root,'fonts/Ubuntu-LICENCE.txt'),'utf8'),/UBUNTU FONT LICENCE Version 1.0/);
  assert.match(fs.readFileSync(path.join(root,'fonts/Ubuntu-COPYRIGHT.txt'),'utf8'),/Canonical/);
+});
+
+test('Greek and Cyrillic use already licensed unmodified TrueType faces without overriding Latin WOFF2 priority',()=>{
+ const faces=fs.readFileSync(path.join(root,'css/tv-styles.css'),'utf8').match(/@font-face\{[^}]+\}/g).filter(face=>!face.includes('format("woff2")'));
+ assert.equal(faces.length,4);for(const face of faces){const weight=face.match(/font-weight:(\d+)/)[1];assert.ok(originals[weight]);assert.match(face,/unicode-range:U\+0370-03FF, ?U\+0400-052F/);assert.ok(face.includes('../fonts/'+originals[weight][0]));assert.match(face,/format\("truetype"\)/)}
 });

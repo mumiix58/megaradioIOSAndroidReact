@@ -27,7 +27,7 @@ export const CountryTrigger = ({
       onClick={onClick}
       data-testid="button-country-selector"
     >
-      <div className="flex items-center w-full" style={{ gap: COUNTRY_TRIGGER_METRICS.gap }}>
+      <div className="flex items-center w-full" style={{ gap: COUNTRY_TRIGGER_METRICS.gap }} data-tv-gap-axis="row" data-tv-gap={COUNTRY_TRIGGER_METRICS.gap}>
         <div className="w-[28.421px] h-[28.421px] rounded-full overflow-hidden flex-shrink-0">
           <img 
             src={isGlobal ? globeIcon : `https://flagcdn.com/w40/${selectedCountryCode.toLowerCase()}.png`}

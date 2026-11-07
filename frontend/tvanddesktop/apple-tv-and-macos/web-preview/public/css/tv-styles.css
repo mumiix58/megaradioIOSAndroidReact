@@ -978,3 +978,10 @@
 .samsung *, .lg * {
     cursor: none !important;
 }
+
+/* The bundled full Ubuntu faces also contain Greek/Cyrillic glyphs. Keep these
+   ranges separate so existing Latin WOFF2 preference is unchanged. */
+@font-face{font-family:"Ubuntu";font-style:normal;font-weight:300;font-display:swap;src:url("../fonts/Ubuntu-L.ttf") format("truetype");unicode-range:U+0370-03FF,U+0400-052F;}
+@font-face{font-family:"Ubuntu";font-style:normal;font-weight:400;font-display:swap;src:url("../fonts/Ubuntu-R.ttf") format("truetype");unicode-range:U+0370-03FF,U+0400-052F;}
+@font-face{font-family:"Ubuntu";font-style:normal;font-weight:500;font-display:swap;src:url("../fonts/Ubuntu-M.ttf") format("truetype");unicode-range:U+0370-03FF,U+0400-052F;}
+@font-face{font-family:"Ubuntu";font-style:normal;font-weight:700;font-display:swap;src:url("../fonts/Ubuntu-B.ttf") format("truetype");unicode-range:U+0370-03FF,U+0400-052F;}

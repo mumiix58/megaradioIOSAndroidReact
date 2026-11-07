@@ -68,7 +68,7 @@ export function LegalModal({ open, page, onClose }: Props) {
         <div style={{
           padding: '24px 32px', borderBottom: '1px solid rgba(255,255,255,0.08)',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-        }}>
+        }} data-tv-gap-axis="row" data-tv-gap="16">
           <div style={{
             fontFamily: FONT, fontSize: 26, fontWeight: 700, color: '#fff',
           }}>{data?.title || (page === 'terms' ? 'Terms and Conditions' : page === 'privacy' ? 'Privacy Policy' : page === 'about' ? 'About' : 'Contact')}</div>

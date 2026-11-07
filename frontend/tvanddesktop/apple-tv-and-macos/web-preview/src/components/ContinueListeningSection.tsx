@@ -84,7 +84,7 @@ export function ContinueListeningSection() {
         marginBottom: 20,
       }}>Continue Listening</div>
 
-      <div style={{ display: 'flex', gap: 18, overflowX: 'auto', paddingBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 18, overflowX: 'auto', paddingBottom: 12 }} data-tv-gap-axis="row" data-tv-gap="18">
         {items.map(st => (
           <Link
             key={st._id}

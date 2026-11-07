@@ -72,7 +72,7 @@ export const GlobalPlayer = (): JSX.Element | null => {
       </p>
 
       {/* Bottom Row: Country name - Metadata - separated */}
-      <div className="absolute left-[357px] top-[1007.2px] z-50 flex items-center gap-[12px] max-w-[750px]">
+      <div className="absolute left-[357px] top-[1007.2px] z-50 flex items-center gap-[12px] max-w-[750px]" data-tv-gap-axis="row" data-tv-gap="12">
         {/* Country Name */}
         <p className="font-['Ubuntu',Helvetica] font-light leading-normal not-italic text-[20px] text-white whitespace-nowrap">
           {currentStation.country || t('radio') || 'Radio'}
@@ -139,7 +139,7 @@ export const GlobalPlayer = (): JSX.Element | null => {
         data-tv-focusable="true"
         data-testid="button-global-equalizer"
       >
-        <div className="relative h-[35.526px] w-[33.75px] flex items-end justify-between gap-[2px]">
+        <div className="relative h-[35.526px] w-[33.75px] flex items-end justify-between gap-[2px]" data-tv-gap-axis="row" data-tv-gap="2">
           <div className={`bg-white rounded-[10px] w-[8.882px] ${isPlaying ? 'animate-equalizer-global-1' : 'h-[35.526px]'}`} style={{ height: isPlaying ? undefined : '35.526px' }} />
           <div className={`bg-white rounded-[10px] w-[8.882px] ${isPlaying ? 'animate-equalizer-global-2' : 'h-[24.868px]'}`} style={{ height: isPlaying ? undefined : '24.868px' }} />
           <div className={`bg-white rounded-[10px] w-[8.882px] ${isPlaying ? 'animate-equalizer-global-3' : 'h-[30.197px]'}`} style={{ height: isPlaying ? undefined : '30.197px' }} />

@@ -545,7 +545,7 @@ export const Settings = (): JSX.Element => {
               style={{ ...optionRowBase, backgroundColor: getOptionRowBg(isItemFocused, isSelected), boxShadow: getOptionRowShadow(isItemFocused) }}
               onClick={() => { handleLanguageChange(index); }}
               data-testid={`language-${lang.code}`}
-            >
+             data-tv-gap-axis="row" data-tv-gap="20">
               <img src={getFlagUrl(lang.country)} alt={lang.label} style={flagStyle} />
               <p className="font-['Ubuntu',Helvetica]" style={optionTextStyle}>
                 {lang.label}
@@ -569,7 +569,7 @@ export const Settings = (): JSX.Element => {
               style={{ ...optionRowBase, backgroundColor: getOptionRowBg(isItemFocused, isSelected), boxShadow: getOptionRowShadow(isItemFocused) }}
               onClick={() => { handleKeyboardChange(index); }}
               data-testid={`keyboard-${kb.id}`}
-            >
+             data-tv-gap-axis="row" data-tv-gap="20">
               <img src={getFlagUrl(kb.country)} alt={kb.label} style={flagStyle} />
               <p className="font-['Ubuntu',Helvetica]" style={optionTextStyle}>
                 {kb.label}
@@ -593,7 +593,7 @@ export const Settings = (): JSX.Element => {
               style={{ ...optionRowBase, backgroundColor: getOptionRowBg(isItemFocused, isSelected), boxShadow: getOptionRowShadow(isItemFocused) }}
               onClick={() => handlePlayAtStartChange(option)}
               data-testid={`option-${option}`}
-            >
+             data-tv-gap-axis="row" data-tv-gap="20">
               <div style={radioStyle(isSelected)}>
                 {isSelected && <div style={radioDotStyle} />}
               </div>
@@ -611,7 +611,7 @@ export const Settings = (): JSX.Element => {
               <div
                 style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '12px', height: '56px', paddingLeft: '24px', paddingRight: '24px', marginBottom: '8px', borderRadius: '14px', backgroundColor: 'rgba(255,65,153,0.1)', border: '1px solid rgba(255,65,153,0.25)', flexShrink: 0 }}
                 data-testid="sleep-timer-remaining"
-              >
+               data-tv-gap-axis="row" data-tv-gap="12">
                 <span style={{ fontSize: '20px' }}>💤</span>
                 <p className="font-['Ubuntu',Helvetica]" style={{ fontWeight: 700, fontSize: '20px', color: '#ff4199', margin: 0 }}>
                   {formatRemainingTime(remainingSeconds)}
@@ -628,7 +628,7 @@ export const Settings = (): JSX.Element => {
                   style={{ ...optionRowBase, backgroundColor: getOptionRowBg(isItemFocused, isSelected), boxShadow: getOptionRowShadow(isItemFocused) }}
                   onClick={() => { option === null ? cancelSleepTimer() : setSleepTimer(option); }}
                   data-testid={`sleep-timer-${optionKey}`}
-                >
+                 data-tv-gap-axis="row" data-tv-gap="20">
                   <div style={radioStyle(isSelected)}>
                     {isSelected && <div style={radioDotStyle} />}
                   </div>
@@ -666,7 +666,7 @@ export const Settings = (): JSX.Element => {
               }}
               onClick={item.toggle}
               data-testid={item.testId}
-            >
+             data-tv-gap-axis="row" data-tv-gap="20">
               <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                 <p className="font-['Ubuntu',Helvetica]" style={{ fontWeight: 500, fontSize: '22px', color: '#ffffff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
                   {item.label}
@@ -701,7 +701,7 @@ export const Settings = (): JSX.Element => {
         });
 
       case 'privacy':
-        return <div style={{display:'flex',flexDirection:'column',gap:18}}>
+        return <div className="font-['Ubuntu',Helvetica]" style={{display:'flex',flexDirection:'column',gap:18}} data-tv-gap-axis="column" data-tv-gap="18">
           <p style={{fontSize:20,color:'#bbb'}}>{t('tv_privacy_description')}</p>
           {(['diagnostics','analytics'] as const).map((kind,index)=><button key={kind} type="button" role="switch" aria-checked={tvConsent[kind]} data-testid={`tv-consent-${kind}`} onClick={()=>changeTvConsent(kind)} style={{textAlign:'left',padding:24,borderRadius:14,color:'#fff',background:'#252525',border:isFocusedOnOptions && optionIndex===index?'3px solid #ff4199':'3px solid #555'}}>
             <span style={{fontSize:25,fontWeight:600}}>{t(kind==='diagnostics'?'tv_diagnostics_label':'tv_usage_label')} · {tvConsent[kind]?'On':'Off'}</span>
@@ -709,7 +709,7 @@ export const Settings = (): JSX.Element => {
           </button>)}
         </div>;
       case 'legal':
-        return <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        return <div className="font-['Ubuntu',Helvetica]" style={{ display: 'flex', flexDirection: 'column', gap: 18 }} data-tv-gap-axis="column" data-tv-gap="18">
           <p style={{ color: '#aaa', fontSize: 22 }}>Read these documents here, including when offline. No sign-in is required.</p>
           {(['Privacy Policy', 'Terms of Use (EULA)'] as const).map((label, index) => <button key={label} data-testid={index === 0 ? 'settings-privacy' : 'settings-terms'} onClick={() => setLocation(index === 0 ? '/privacy' : '/terms')} style={{ padding: 24, borderRadius: 16, background: '#252525', color: '#fff', fontSize: 26, textAlign: 'left', border: focusSection === 'options' && optionIndex === index ? '3px solid #ff4199' : '3px solid transparent', cursor: 'pointer' }}>{label}</button>)}
         </div>;
@@ -734,7 +734,7 @@ export const Settings = (): JSX.Element => {
               setLocation(isPremium ? '/manage-subscription' : '/premium-upgrade');
             }}
             data-testid="button-upgrade-premium"
-          >
+           data-tv-gap-axis="row" data-tv-gap="20">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
               <path d="M12 2l2.5 7H22l-6 4.5 2.3 7L12 16.5 5.7 20.5 8 13.5 2 9h7.5z"
                 stroke="#ff4199" strokeWidth="1.5" strokeLinejoin="round" fill="rgba(255,65,153,0.25)" />
@@ -763,7 +763,7 @@ export const Settings = (): JSX.Element => {
           return (
             <div>
               {user && (
-                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px', height: '80px', paddingLeft: '24px', paddingRight: '24px', marginBottom: '16px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px', height: '80px', paddingLeft: '24px', paddingRight: '24px', marginBottom: '16px', borderRadius: '14px', backgroundColor: 'rgba(255,255,255,0.05)' }} data-tv-gap-axis="row" data-tv-gap="16">
                   {user.avatar ? (
                     <img src={user.avatar} alt="" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
                   ) : (
@@ -787,7 +787,7 @@ export const Settings = (): JSX.Element => {
                 style={{ ...optionRowBase, backgroundColor: accountFocused ? 'rgba(239,68,68,0.2)' : 'transparent', boxShadow: accountFocused ? '0 0 24px rgba(239,68,68,0.2)' : 'none', border: '1px solid rgba(239,68,68,0.3)' }}
                 onClick={function() { logout(); }}
                 data-testid="button-logout"
-              >
+               data-tv-gap-axis="row" data-tv-gap="20">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                   <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   <polyline points="16,17 21,12 16,7" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -807,7 +807,7 @@ export const Settings = (): JSX.Element => {
                 style={{ ...optionRowBase, backgroundColor: accountFocused ? '#ff4199' : 'transparent', boxShadow: accountFocused ? '0 0 24px rgba(255,65,153,0.3)' : 'none', border: '1px solid rgba(255,65,153,0.3)' }}
                 onClick={function() { setLocation('/login'); }}
                 data-testid="button-login"
-              >
+               data-tv-gap-axis="row" data-tv-gap="20">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                   <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
                   <polyline points="10,17 15,12 10,7" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -825,7 +825,7 @@ export const Settings = (): JSX.Element => {
       case 'cast': {
         return (
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', paddingLeft: '24px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', paddingLeft: '24px' }} data-tv-gap-axis="row" data-tv-gap="12">
               <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: isConnected ? '#22c55e' : isAuthenticated ? '#eab308' : '#ef4444' }} />
               <p className="font-['Ubuntu',Helvetica]" style={{ fontSize: '22px', color: 'rgba(255,255,255,0.8)', margin: 0 }}>
                 {isConnected 
@@ -845,7 +845,7 @@ export const Settings = (): JSX.Element => {
                 style={{ ...optionRowBase, backgroundColor: isFocusedOnOptions && optionIndex === 0 ? '#ff4199' : 'transparent', boxShadow: isFocusedOnOptions && optionIndex === 0 ? '0 0 24px rgba(255,65,153,0.3)' : 'none', border: '1px solid rgba(255,65,153,0.3)', marginTop: '16px' }}
                 onClick={function() { setLocation('/login'); }}
                 data-testid="button-cast-login"
-              >
+               data-tv-gap-axis="row" data-tv-gap="20">
                 <p className="font-['Ubuntu',Helvetica]" style={{ ...optionTextStyle, color: isFocusedOnOptions && optionIndex === 0 ? '#fff' : '#ff4199' }}>
                   {t('login') || 'Login'}
                 </p>
@@ -882,7 +882,7 @@ export const Settings = (): JSX.Element => {
       <div data-testid="settings-content" style={{ position: 'absolute', left: TV_LAYOUT.contentLeft, right: TV_LAYOUT.contentRight, top: '140px', height: '900px', zIndex: 10, display: 'flex', gap: 0 }}>
 
         <div style={{ flexShrink: 0, width: '420px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingRight: '24px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', paddingRight: '24px' }} data-tv-gap-axis="column" data-tv-gap="4">
             {categories.map((cat, index) => {
               const isCatFocused = focusSection === 'categories' && categoryIndex === index;
               const isActive = categoryIndex === index;
@@ -904,7 +904,7 @@ export const Settings = (): JSX.Element => {
                   }}
                   onClick={() => { setCategoryIndex(index); setFocusSection('options'); setOptionIndex(0); }}
                   data-testid={`category-${cat}`}
-                >
+                 data-tv-gap-axis="row" data-tv-gap="20">
                   <span style={{ flexShrink: 0, width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><CategoryIcon type={cat} /></span>
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                     <p
@@ -983,12 +983,12 @@ export const Settings = (): JSX.Element => {
                   transform: focusSection === 'premium' ? 'scale(1.04)' : 'scale(1)',
                   transition: 'transform 0.18s ease, box-shadow 0.18s ease, border 0.15s',
                 }}
-              >
+               data-tv-gap-axis="row" data-tv-gap="10">
                 <span style={{ fontSize: '22px' }}>⭐</span>
-                Go Premium
+                <span>Go Premium</span>
               </button>
             )}
-            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px' }} data-tv-gap-axis="row" data-tv-gap="16">
               <img alt="" style={{ width: '36px', height: '36px' }} src={assetPath("images/path-8.svg")} />
               <div>
                 <p className="font-['Ubuntu',Helvetica]" style={{ fontWeight: 700, fontSize: '18px', color: '#ffffff', margin: 0 }}>
@@ -1009,7 +1009,7 @@ export const Settings = (): JSX.Element => {
         <div style={{ width: '1px', backgroundColor: 'rgba(255,255,255,0.06)', flexShrink: 0, marginLeft: '8px', marginRight: '8px' }} />
 
         <div style={{ flex: 1, minWidth: 0, minHeight: 0, paddingLeft: '32px', display: 'flex', flexDirection: 'column' }}>
-          <div data-testid="settings-options-heading" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px', marginBottom: '24px', minHeight: '48px', flexShrink: 0 }}>
+          <div data-testid="settings-options-heading" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: '16px', marginBottom: '24px', minHeight: '48px', flexShrink: 0 }} data-tv-gap-axis="row" data-tv-gap="16">
             <p className="font-['Ubuntu',Helvetica]" style={{ fontWeight: 700, fontSize: '28px', color: '#ffffff', margin: 0, maxWidth: '50%' }}>
               {getCategoryLabel(categories[categoryIndex])}
             </p>
@@ -1023,7 +1023,7 @@ export const Settings = (): JSX.Element => {
             ref={optionListRef}
             data-testid="settings-options-list"
             style={{ display: 'flex', flexDirection: 'column', gap: '4px', overflowY: 'auto', paddingRight: '16px', flex: 1, minHeight: 0, scrollbarWidth: 'none' }}
-          >
+           data-tv-gap-axis="column" data-tv-gap="4">
             {renderOptions()}
           </div>
         </div>

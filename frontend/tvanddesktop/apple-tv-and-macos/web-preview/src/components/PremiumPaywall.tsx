@@ -150,7 +150,7 @@ function PremiumBody({
       {/* Content layer */}
       <div style={{ position: 'relative', zIndex: 3, padding: '32px 32px 24px' }}>
         {/* Logo + brand */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }} data-tv-gap-axis="row" data-tv-gap="16">
           <BrandLogoTile />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: '#fff', lineHeight: 1.1 }}>MegaRadio</div>
@@ -159,7 +159,7 @@ function PremiumBody({
         </div>
 
         {/* Benefits list */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 13, marginBottom: 22 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 13, marginBottom: 22 }} data-tv-gap-axis="column" data-tv-gap="13">
           {[
             'Remove Ads',
             'Spotify And Youtube Music Support',
@@ -168,7 +168,7 @@ function PremiumBody({
             'Unlimited Stream Record',
             'And more',
           ].map(item => (
-            <div key={item} style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+            <div key={item} style={{ display: 'flex', gap: 14, alignItems: 'center' }} data-tv-gap-axis="row" data-tv-gap="14">
               <span style={{
                 color: '#fff', fontSize: 20, width: 24, textAlign: 'center', fontWeight: 300,
                 textShadow: '0 1px 4px rgba(0,0,0,0.9)',
@@ -182,7 +182,7 @@ function PremiumBody({
         </div>
 
         {/* Tier rows */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 18 }} data-tv-gap-axis="column" data-tv-gap="10">
           <TierRow selected={selected === 'yearly'} focused={focusIdx === 0} label="€ 29.99/yearly" sub="cancel anytime" onClick={() => { setSelected('yearly'); setFocusIdx(0); }} />
           <TierRow selected={selected === 'lifetime'} focused={focusIdx === 1} label="€ 59.99/lifetime" sub="cancel anytime" onClick={() => { setSelected('lifetime'); setFocusIdx(1); }} />
           <TierRow selected={selected === 'monthly'} focused={focusIdx === 2} label="€ 3.99/montly" sub="cancel anytime" onClick={() => { setSelected('monthly'); setFocusIdx(2); }} />
@@ -253,7 +253,7 @@ function RemoveAdsBody({
       {/* Body */}
       <div style={{ padding: '4px 32px 0' }}>
         {/* Logo + brand */}
-        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 22 }}>
+        <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 22 }} data-tv-gap-axis="row" data-tv-gap="16">
           <BrandLogoTile />
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontFamily: FONT, fontSize: 24, fontWeight: 700, color: '#fff', lineHeight: 1.1 }}>MegaRadio</div>
@@ -317,7 +317,7 @@ function TierRow({ selected, focused, label, sub, onClick }: {
         boxShadow: focused ? '0 0 16px rgba(255,65,153,0.5)' : 'none',
         transition: 'border 0.15s, box-shadow 0.15s',
       }}
-    >
+     data-tv-gap-axis="row" data-tv-gap="16">
       <span style={{
         width: 24, height: 24, borderRadius: '50%',
         border: '2.5px solid #FF4199',

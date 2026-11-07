@@ -80,7 +80,7 @@ export const AppLayout = ({ children, currentPage, hideHeaderControls = false, s
             data-testid="button-country-selector"
             data-tv-focusable="true"
           >
-            <div className="flex items-center gap-[10.66px]">
+            <div className="flex items-center gap-[10.66px]" data-tv-gap-axis="row" data-tv-gap="10.66">
               <div className="w-[28.421px] h-[28.421px] rounded-full overflow-hidden flex-shrink-0">
                 <img
                   alt={selectedCountry}
@@ -122,9 +122,9 @@ export const AppLayout = ({ children, currentPage, hideHeaderControls = false, s
             onClick={function() { setLocation(isAuthenticated ? '/settings' : '/login'); }}
             data-testid="button-header-login"
             data-tv-focusable="true"
-          >
+           data-tv-gap-axis="row" data-tv-gap="10">
             {isAuthenticated && user ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }} data-tv-gap-axis="row" data-tv-gap="10">
                 {user.avatar ? (
                   <img src={user.avatar} alt="" style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }} />
                 ) : (
@@ -135,7 +135,7 @@ export const AppLayout = ({ children, currentPage, hideHeaderControls = false, s
                 <p className="font-['Ubuntu',Helvetica] font-bold text-[20px] text-white whitespace-nowrap">{user.name}</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} data-tv-gap-axis="row" data-tv-gap="8">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
                   <circle cx="12" cy="8" r="4" stroke="#ffffff" strokeWidth="1.5" fill="none" />
                   <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" fill="none" />
