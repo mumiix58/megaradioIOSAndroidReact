@@ -1,8 +1,9 @@
 {
-  "id": "radiomega",
-  "version": "1.0.3",
+  "id": "com.radiomega.tv",
+  "version": "1.0.4",
   "vendor": "Vision Go GmbH",
   "type": "web",
+  "resolution": "1920x1080",
   "main": "index.html",
   "title": "Radio Mega",
   "appDescription": "Listen to internet radio on LG webOS TV. Discover stations worldwide, search by name and save favorites. An internet connection is required; stream availability and audio quality vary by station.",

@@ -8,6 +8,7 @@
  *   3. Copy appinfo.json + icon.png + largeIcon.png
  *
  * After this script, package with ares-package CLI (installed with webOS TV CLI):
+ *   $ node prepare-webos.js --resolution 1280x720  # or 1920x1080
  *   $ ares-package tvanddesktop/lg-webos/dist
  *   → produces com.themegaradio.app_<appinfo version>_all.ipk in the current directory.
  *
@@ -22,6 +23,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 const { rewritePackagedAssets } = require('../_shared/packaged-assets');
 const { activateLegacyEntry } = require('../_shared/legacy-entry');
+const { createWebosManifest } = require('../_shared/webos-manifest.cjs');
 
 const REPO_ROOT  = path.resolve(__dirname, '..', '..', '..');
 const TV_SRC_DIR = path.join(REPO_ROOT, 'frontend', 'tvanddesktop', 'apple-tv-and-macos', 'web-preview');
@@ -41,7 +43,11 @@ function copyDir(src, dst) {
 }
 
 console.log('▸ Building TV web bundle...');
-const webosVersion = JSON.parse(fs.readFileSync(path.join(__dirname, 'appinfo.json'), 'utf8')).version;
+const sourceAppInfo = JSON.parse(fs.readFileSync(path.join(__dirname, 'appinfo.json'), 'utf8'));
+const resolutionArg = process.argv.indexOf('--resolution');
+const appInfo = createWebosManifest(sourceAppInfo, resolutionArg < 0 ? undefined : process.argv[resolutionArg + 1]);
+if (resolutionArg >= 0 && !process.argv[resolutionArg + 1]) throw new Error('Missing --resolution value');
+const webosVersion = appInfo.version;
 if (!webosVersion) throw new Error('Missing webOS app version');
 try {
   const shell = process.platform === 'win32' ? true : (fs.existsSync('/bin/bash') ? '/bin/bash' : true);
@@ -71,7 +77,7 @@ fs.writeFileSync(path.join(OUT_DIR, 'index.html'), boot);
 console.log('  CDN base =', cdnCfg.cdnBase);
 
 console.log('▸ Copying WebOS manifest + icons');
-fs.copyFileSync(path.join(__dirname, 'appinfo.json'), path.join(OUT_DIR, 'appinfo.json'));
+fs.writeFileSync(path.join(OUT_DIR, 'appinfo.json'), JSON.stringify(appInfo, null, 2) + '\n');
 fs.copyFileSync(path.join(__dirname, 'icon.png'),      path.join(OUT_DIR, 'icon.png'));
 fs.copyFileSync(path.join(__dirname, 'largeIcon.png'), path.join(OUT_DIR, 'largeIcon.png'));
 fs.copyFileSync(path.join(__dirname, 'splash.png'),    path.join(OUT_DIR, 'splash.png'));
@@ -104,4 +110,4 @@ console.log('\n✅ WebOS project ready at:', OUT_DIR);
 console.log('   Package with:');
 console.log('     ares-package', OUT_DIR);
 console.log('   Install on dev TV:');
-console.log(`     ares-install --device LG_TV com.themegaradio.app_${webosVersion}_all.ipk`);
+console.log(`     ares-install --device LG_TV ${appInfo.id}_${webosVersion}_all.ipk`);
