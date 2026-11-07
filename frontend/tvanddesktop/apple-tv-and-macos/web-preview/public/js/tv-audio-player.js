@@ -26,16 +26,21 @@
             var self = this;
             var generation = 0;
             var paused = false;
+            var preparing = false;
+            var restartOnResume = false;
             
             this.play = function(url) {
                 var attempt = ++generation;
                 var settled = false;
                 var failed = false;
                 paused = false;
+                preparing = true;
+                restartOnResume = false;
                 function active() { return attempt === generation; }
                 function fail(error) {
                     if (!active() || paused || failed) return;
                     failed = true;
+                    preparing = false;
                     settled = true;
                     if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
                     self.isPlaying = false;
@@ -126,6 +131,7 @@
                             console.log('[Samsung Player] Watchdog: state is ' + liveState + ' — stream is fine, NOT erroring');
                             settled = true;
                             self._watchdog = null;
+                            preparing = false;
                             self.isPlaying = (liveState === 'PLAYING');
                             self.onPlay && self.onPlay();
                             return;
@@ -141,6 +147,7 @@
                         if (!active() || paused || settled || failed) return;
                         settled = true;
                         if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
+                        preparing = false;
                         webapis.avplay.play();
                         self.isPlaying = true;
                         self.onPlay && self.onPlay();
@@ -160,6 +167,14 @@
             
             this.pause = function() {
                 paused = true;
+                // AVPlay cannot resume an unfinished prepare from IDLE/READY.
+                // Cancel it; only an explicit resume may start a fresh attempt.
+                if (preparing) {
+                    generation++;
+                    preparing = false;
+                    restartOnResume = true;
+                    try { webapis.avplay.stop(); webapis.avplay.close(); } catch (e) {}
+                }
                 if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
                 try {
                     var state = webapis.avplay.getState();
@@ -186,6 +201,10 @@
             };
             
             this.resume = function() {
+                if (restartOnResume && self.currentUrl) {
+                    self.play(self.currentUrl);
+                    return;
+                }
                 paused = false;
                 try {
                     var state = webapis.avplay.getState();
@@ -210,6 +229,8 @@
             
             this.stop = function() {
                 generation++;
+                preparing = false;
+                restartOnResume = false;
                 paused = true;
                 if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
                 try {

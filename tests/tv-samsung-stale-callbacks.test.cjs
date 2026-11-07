@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const source = fs.readFileSync(path.join(__dirname, '../frontend/tvanddesktop/apple-tv-and-macos/web-preview/public/js/tv-audio-player.js'), 'utf8');
 function fixture() {
   const pending=[], listeners=[], timers=new Map(); let sequence=0,state='NONE',plays=0,errors=0,started=0;
-  const api={getState:()=>state,stop(){state='IDLE'},close(){state='NONE'},open(){state='IDLE'},setListener(l){listeners.push(l)},prepareAsync(ok,fail){pending.push({ok,fail})},play(){plays++;state='PLAYING'},pause(){state='PAUSED'}};
+  const api={getState:()=>state,stop(){state='IDLE'},close(){state='NONE'},open(){state='IDLE'},setListener(l){listeners.push(l)},prepareAsync(ok,fail){pending.push({ok(){state='READY';ok()},fail})},play(){plays++;state='PLAYING'},pause(){state='PAUSED'}};
   const c={platform:'samsung',console:{log(){},error(){}},webapis:{avplay:api},setTimeout(fn){timers.set(++sequence,fn);return sequence},clearTimeout(id){timers.delete(id)}}; c.window=c;
   vm.runInNewContext(source,c); const player=new c.TVAudioPlayer('qa'); player.onPlay=()=>started++;player.onError=()=>errors++;
   return {player,pending,listeners,timers,api, counts:()=>({plays,errors,started}),state:()=>state};
@@ -35,4 +35,13 @@ test('current watchdog reports one timeout; late native callbacks cannot resurre
   assert.deepEqual(f.counts(),{plays:0,errors:1,started:0});
   f.player.play('working');f.pending[1].ok();f.listeners[1].onerror('network');f.pending[1].fail('duplicate');
   assert.deepEqual(f.counts(),{plays:1,errors:2,started:1});
+});
+test('explicit resume restarts paused preparation and rejects its old callback before or after native READY',()=>{
+  for(const readyBeforeResume of [true,false]) {
+    const f=fixture();f.player.play('pending');f.player.pause();
+    if(readyBeforeResume) f.pending[0].ok();
+    f.player.resume();assert.equal(f.pending.length,2,'resume starts a fresh prepare attempt');
+    f.pending[0].ok();assert.equal(f.counts().plays,0,'old prepare cannot play');
+    f.pending[1].ok();assert.equal(f.state(),'PLAYING');assert.equal(f.counts().plays,1);
+  }
 });
