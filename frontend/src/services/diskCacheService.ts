@@ -20,8 +20,20 @@ const cacheReadyPromise = new Promise<void>((resolve) => {
 function initCacheStorage() {
   // Try MMKV first (native only)
   try {
-    const { MMKV } = require('react-native-mmkv');
-    cacheStorage = new MMKV({ id: 'megaradio-cache' });
+    const mmkv = require('react-native-mmkv');
+    // v4 uses the Nitro createMMKV factory and remove(), while older releases
+    // expose a constructor and delete(). Normalize both behind the cache API.
+    const nativeStorage = typeof mmkv.createMMKV === 'function'
+      ? mmkv.createMMKV({ id: 'megaradio-cache' })
+      : new mmkv.MMKV({ id: 'megaradio-cache' });
+    cacheStorage = {
+      set: (key: string, value: string) => nativeStorage.set(key, value),
+      getString: (key: string) => nativeStorage.getString(key),
+      delete: (key: string) => typeof nativeStorage.remove === 'function'
+        ? nativeStorage.remove(key) : nativeStorage.delete(key),
+      getAllKeys: () => nativeStorage.getAllKeys(),
+      clearAll: () => nativeStorage.clearAll(),
+    };
     cacheBackend = 'mmkv';
     markCacheReady();
     console.log('[DiskCache] Using MMKV (native, fastest)');
@@ -44,9 +56,15 @@ function initCacheStorage() {
           const keys = await AsyncStorage.getAllKeys();
           const cacheKeys = keys.filter((k: string) => k.startsWith('dc:'));
           if (cacheKeys.length > 0) {
-            const pairs = await AsyncStorage.multiGet(cacheKeys);
-            for (const [key, value] of pairs) {
-              if (value) memoryLayer.set(key.replace('dc:', ''), value);
+            // One oversized legacy row must not make every cached row unreadable.
+            for (const key of cacheKeys) {
+              try {
+                const value = await AsyncStorage.getItem(key);
+                if (value) memoryLayer.set(key.replace('dc:', ''), value);
+              } catch {
+                // Only disposable directory cache is removed, never auth/user data.
+                await AsyncStorage.removeItem(key).catch(() => {});
+              }
             }
           }
           loaded = true;
@@ -63,7 +81,13 @@ function initCacheStorage() {
       cacheStorage = {
         set: (key: string, value: string) => {
           memoryLayer.set(key, value);
-          AsyncStorage.setItem('dc:' + key, value).catch(() => {});
+          // Android CursorWindow cannot read very large SQLite rows. Keep a
+          // large response in memory but avoid persisting it in this fallback.
+          if (value.length <= 256 * 1024) {
+            AsyncStorage.setItem('dc:' + key, value).catch(() => {});
+          } else {
+            AsyncStorage.removeItem('dc:' + key).catch(() => {});
+          }
         },
         getString: (key: string) => memoryLayer.get(key) ?? null,
         delete: (key: string) => {

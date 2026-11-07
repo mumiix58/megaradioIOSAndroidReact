@@ -13,7 +13,7 @@ import TrackPlayer, {
   AppKilledPlaybackBehavior,
   useTrackPlayerEvents,
 } from 'react-native-track-player';
-import { Platform, InteractionManager } from 'react-native';
+import { Platform, InteractionManager, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePlayerStore } from '../store/playerStore';
 import { useFavoritesStore } from '../store/favoritesStore';
@@ -114,6 +114,9 @@ async function setupTrackPlayer(): Promise<boolean> {
 }
 
 async function doSetupTrackPlayer(): Promise<boolean> {
+  // Android forbids setup while a permission sheet/background launch owns the
+  // foreground. Defer instead of logging an expected startup failure.
+  if (Platform.OS === 'android' && AppState.currentState !== 'active') return false;
   try {
     console.log('[AudioProvider] Initializing Track Player...');
     
@@ -510,7 +513,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           .catch((e) => console.error('[AudioProvider] Track Player setup error:', e));
       });
     }, 1500);
-    return () => clearTimeout(timer);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && !trackPlayerInitialized) void setupTrackPlayer();
+    });
+    return () => { clearTimeout(timer); subscription.remove(); };
   }, []);
 
   // Resolve stream URL helper - returns { url, candidates } for fallback support

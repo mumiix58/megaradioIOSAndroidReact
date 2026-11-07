@@ -681,7 +681,7 @@
           ]
         }
       ],
-      "versionCode": 105,
+      "versionCode": 106,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "INTERNET",
