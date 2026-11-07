@@ -2,7 +2,8 @@ const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const ts = require('/app/frontend/node_modules/typescript/lib/typescript.js');
+const ROOT = path.resolve(__dirname, '..');
+const ts = require(path.join(ROOT, 'frontend/tvanddesktop/apple-tv-and-macos/web-preview/node_modules/typescript'));
 
 let assertionCount = 0;
 const check = (condition, message) => {
@@ -22,7 +23,7 @@ function createStorage(seed = {}) {
 
 function resolveTsFile(specifier, parentFile) {
   if (specifier.startsWith('@/')) {
-    const base = path.join('/app/frontend/tvanddesktop/apple-tv-and-macos/web-preview/src', specifier.slice(2));
+    const base = path.join(path.join(ROOT, 'frontend/tvanddesktop/apple-tv-and-macos/web-preview/src'), specifier.slice(2));
     return resolveWithExtensions(base);
   }
   if (specifier.startsWith('.')) {
@@ -150,7 +151,7 @@ function createReactStubs(capture) {
 
 async function testNormalizeCompanionCountries() {
   const runner = makeRunner();
-  const mod = runner.load('/app/frontend/src/utils/companionCountries.ts');
+  const mod = runner.load(path.join(ROOT, 'frontend/src/utils/companionCountries.ts'));
   const normalize = mod.normalizeCompanionCountries;
 
   const mixed = normalize([
@@ -189,11 +190,13 @@ async function testStreamRouting() {
     },
     globals,
   });
-  const mod = runner.load('/app/frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/lib/streamRouting.ts');
+  const mod = runner.load(path.join(ROOT, 'frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/lib/streamRouting.ts'));
 
   platform = 'web';
   globals.window.location.protocol = 'https:';
-  check(mod.usesPreviewStreamRoutes() === true, 'web + https should use preview routes');
+  check(mod.usesPreviewStreamRoutes() === false, 'production web must not use preview routes');
+  globals.window.location.hostname = 'qa.preview.emergentagent.com';
+  check(mod.usesPreviewStreamRoutes() === true, 'actual Emergent preview uses preview routes');
 
   globals.window.location.protocol = 'http:';
   check(mod.usesPreviewStreamRoutes() === true, 'web + http should use preview routes');
@@ -267,7 +270,7 @@ async function testPaywallProviderBehavior() {
     },
   });
 
-  const mod = runner.load('/app/frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/contexts/PaywallContext.tsx');
+  const mod = runner.load(path.join(ROOT, 'frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/contexts/PaywallContext.tsx'));
   mod.PaywallProvider({ children: null });
   check(capture.paywallProps && typeof capture.paywallProps.onPurchase === 'function', 'onPurchase callback not captured');
 
@@ -349,8 +352,8 @@ async function testPaywallProviderBehavior() {
 }
 
 async function testGlobalPlayerRoutingFunctions() {
-  const file = '/app/frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/contexts/GlobalPlayerContext.tsx';
-  const nowPlayingFile = '/app/frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/hooks/useNowPlayingMetadata.ts';
+  const file = path.join(ROOT, 'frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/contexts/GlobalPlayerContext.tsx');
+  const nowPlayingFile = path.join(ROOT, 'frontend/tvanddesktop/apple-tv-and-macos/web-preview/src/hooks/useNowPlayingMetadata.ts');
   const sourceMutators = {
     [file]: (src) => `${src
       .replace(/\(import\.meta as any\)\.env\?\.VITE_METADATA_WS/g, 'undefined')
@@ -375,7 +378,10 @@ async function testGlobalPlayerRoutingFunctions() {
       '@/lib/analytics': { trackStationPlay: () => {}, trackError: () => {} },
       '@/contexts/AuthContext': { useAuth: () => ({ isAuthenticated: false, token: '' }) },
       '@/lib/streamRouting': {
-        usesPreviewStreamRoutes: () => previewRoutes,
+        browserStreamUrl: (url, force = false) => previewRoutes && (force || url.startsWith('http://')) ? '/api/stream-proxy?url=' + encodeURIComponent(url) : url,
+        streamResolveEndpoint: url => '/api/stream-resolve?url=' + encodeURIComponent(url),
+        resolvedStreamResponse: (data, original) => ({ resolvedUrl: data.final_url || original, isPlaylist: data.isPlaylist, isHLS: data.isHLS }),
+        isBrowserAutoplayBlock: () => false,
         parseStationPlaylist: (text, sourceUrl) => {
           const line = text.split(/\r?\n/).find((l) => l.includes('http'));
           return line ? line.trim() : sourceUrl;
