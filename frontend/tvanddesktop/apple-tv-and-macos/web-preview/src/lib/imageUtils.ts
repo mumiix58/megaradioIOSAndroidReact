@@ -79,5 +79,8 @@ export function handleStationImageError(
 
   // Step 2 — local fallback image (final).
   img.dataset.fbStep = 'fallback';
-  if (img.src !== fallbackImage) img.src = fallbackImage;
+  // src resolves relative file paths to absolute URLs, while the attribute keeps
+  // the assigned path. Compare both so a failed local fallback is not reloaded
+  // by every subsequent error; a reused element with a new source can still fall back.
+  if (img.src !== fallbackImage && img.getAttribute('src') !== fallbackImage) img.src = fallbackImage;
 }
