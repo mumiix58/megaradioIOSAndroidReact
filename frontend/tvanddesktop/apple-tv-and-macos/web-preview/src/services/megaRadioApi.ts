@@ -610,7 +610,7 @@ export const megaRadioApi = {
         throw new Error(`HTTP ${response.status}`);
       }
       const data = await response.json();
-      return { results: data.stations || [], total: data.totalCount || 0 };
+      return { results: (data.stations || []).map(slimStation), total: data.totalCount || 0 };
     } catch (error) {
       return { results: [], total: 0 };
     }
