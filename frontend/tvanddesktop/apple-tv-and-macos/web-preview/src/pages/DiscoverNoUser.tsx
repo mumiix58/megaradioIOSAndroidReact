@@ -724,7 +724,8 @@ export const DiscoverNoUser = (): JSX.Element => {
       
       for (const genre of topGenres) {
         try {
-          const result = await megaRadioApi.getStationsByGenre(genre, { limit: 10 });
+          // Listening history stores raw station tags, not canonical genre slugs.
+          const result = await megaRadioApi.getAllStations({ tags: genre, limit: 10, sort: 'votes' });
           if (result?.stations) {
             allStations.push(...result.stations);
           }
