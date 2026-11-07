@@ -45,6 +45,9 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
+      // Query v5 tracks accessed properties with Proxy by default. Old LG engines
+      // lack Proxy; the documented all-properties mode avoids that optional path.
+      notifyOnChangeProps: typeof Proxy === "undefined" ? "all" : undefined,
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
