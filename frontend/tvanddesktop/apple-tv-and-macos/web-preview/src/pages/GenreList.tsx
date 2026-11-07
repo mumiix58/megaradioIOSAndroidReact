@@ -5,7 +5,7 @@ import { megaRadioApi, type Station } from "@/services/megaRadioApi";
 import { cacheService } from "@/services/cacheService";
 import { AppLayout } from "@/components/AppLayout";
 import { useCountry } from "@/contexts/CountryContext";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useLayoutEffect, useState } from "react";
 import { useLocalization } from "@/contexts/LocalizationContext";
 import { usePageKeyHandler } from "@/contexts/FocusRouterContext";
 import { useFocusManager, getFocusClasses } from "@/hooks/useFocusManager";
@@ -168,7 +168,7 @@ export const GenreList = (): JSX.Element => {
 
   const loadMoreTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 

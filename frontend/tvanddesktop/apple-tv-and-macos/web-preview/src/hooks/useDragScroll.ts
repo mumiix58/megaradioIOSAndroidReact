@@ -1,4 +1,4 @@
-import { useEffect, RefObject } from "react";
+import { useLayoutEffect, RefObject } from "react";
 
 /**
  * Mouse drag-to-scroll for horizontal lists on Windows / Linux where there are
@@ -17,7 +17,7 @@ import { useEffect, RefObject } from "react";
 export function useDragScroll<T extends HTMLElement>(ref: RefObject<T>, opts?: { threshold?: number }) {
   const threshold = opts?.threshold ?? 6;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
 

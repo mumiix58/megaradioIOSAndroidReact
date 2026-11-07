@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { detectPlatform } from "@/lib/platform";
 import { handleEntryBack } from "@/lib/platformBack";
 import { resolveStationImageUrl, handleStationImageError } from "@/lib/imageUtils";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { megaRadioApi, type Station, type Genre } from "@/services/megaRadioApi";
 import { cacheService } from "@/services/cacheService";
@@ -927,7 +927,7 @@ export const DiscoverNoUser = (): JSX.Element => {
 
   // Auto-hide header on scroll down + TRUE INFINITE SCROLL trigger (scroll-based)
   // THROTTLED: Only process scroll events every 100ms for performance
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 

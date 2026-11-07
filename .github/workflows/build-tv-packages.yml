@@ -27,6 +27,7 @@ on:
       - 'frontend/tvanddesktop/samsung-tizen/**'
       - 'frontend/tvanddesktop/lg-webos/**'
       - '.github/workflows/build-tv-packages.yml'
+      - 'tests/tv-*.cjs'
 
 jobs:
   # ────────────────────────────────────────────────────────────────────
@@ -53,6 +54,9 @@ jobs:
       - name: Install web-preview deps
         working-directory: frontend/tvanddesktop/apple-tv-and-macos/web-preview
         run: yarn install --frozen-lockfile
+
+      - name: Test TV behavior and DOM lifecycle
+        run: node --test tests/tv-*.test.cjs
 
       - name: Build TV preview (vite build)
         working-directory: frontend/tvanddesktop/apple-tv-and-macos/web-preview

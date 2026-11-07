@@ -1,4 +1,4 @@
-import { CSSProperties, RefObject, useEffect, useState } from 'react';
+import { CSSProperties, RefObject, useLayoutEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Props {
@@ -13,7 +13,7 @@ interface Props {
 /** Pointer buttons and TV edge cues; D-pad continues to navigate the cards. */
 export function HorizontalScrollCues({ id, scrollRef, count, onNavigate, itemSelector = '[data-station-id]', style }: Props) {
   const [edges, setEdges] = useState({ left: false, right: false });
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     let retired = false;
