@@ -931,7 +931,9 @@ export const DiscoverNoUser = (): JSX.Element => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
+    let retired = false;
     const handleScroll = () => {
+      if (retired) return;
       const now = Date.now();
       // Throttle: Skip if less than 100ms since last scroll
       if (now - lastScrollTime.current < 100) {
@@ -959,8 +961,10 @@ export const DiscoverNoUser = (): JSX.Element => {
       }
     };
 
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    // Explicit capture is compatible with Chromium38: an options object would
+    // become capture=true there, so a default-false cleanup cannot remove it.
+    scrollContainer.addEventListener('scroll', handleScroll, false);
+    return () => { retired = true; scrollContainer.removeEventListener('scroll', handleScroll, false); };
   }, []);
 
   useEffect(() => {

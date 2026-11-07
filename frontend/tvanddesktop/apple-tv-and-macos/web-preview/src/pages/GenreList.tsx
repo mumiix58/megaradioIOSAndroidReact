@@ -172,11 +172,12 @@ export const GenreList = (): JSX.Element => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
+    let retired = false;
     const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
+      if (retired || !scrollContainerRef.current) return;
       clearTimeout(loadMoreTimer.current);
       loadMoreTimer.current = setTimeout(() => {
-        if (!scrollContainerRef.current) return;
+        if (retired || !scrollContainerRef.current) return;
         try {
           const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
           const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
@@ -187,9 +188,10 @@ export const GenreList = (): JSX.Element => {
       }, 200);
     };
 
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+    scrollContainer.addEventListener('scroll', handleScroll, false);
     return () => {
-      scrollContainer.removeEventListener('scroll', handleScroll);
+      retired = true;
+      scrollContainer.removeEventListener('scroll', handleScroll, false);
       clearTimeout(loadMoreTimer.current);
     };
   }, [hasMore, isLoadingMore, currentOffset]);
