@@ -759,6 +759,11 @@ export const Search = (): JSX.Element => {
             }}
             tabIndex={-1}
             data-testid="lang-selector-button"
+            onClick={() => {
+              setDropdownOpen(true);
+              setDropdownIndex(activeLayoutIndex);
+              setFocusZone('langDropdown');
+            }}
           >
             <div className="flex items-center gap-[12px]" data-tv-gap-axis="row" data-tv-gap="12">
               <img src={getKbFlagUrl(activeLayout.id)} alt={activeLayout.label} className="w-[32px] h-[22px] rounded-[2px] object-cover" />
