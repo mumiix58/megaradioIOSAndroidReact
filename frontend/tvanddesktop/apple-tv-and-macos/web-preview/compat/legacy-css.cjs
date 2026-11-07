@@ -76,6 +76,18 @@ function legacyCss(css) {
     }
     result.append(wrapped);
   });
+  // These shared backdrop overlays compose their stops across Tailwind utility
+  // rules. Chromium38 cannot combine CSS variables from those separate rules.
+  // Match only the existing exact color/stop combinations; modern CSS and
+  // unrelated gradients retain their current behavior.
+  for (const [from, to] of [['0.88%', '48.611%'], ['18.704%', '25.787%']]) {
+    result.append(postcss.rule({
+      selector: 'html.mr-legacy-css [class~="bg-gradient-to-b"]' +
+        '[class~="from-[rgba(14,14,14,0)]"][class~="to-[#0e0e0e]"]' +
+        '[class~="from-[' + from + ']"][class~="to-[' + to + ']"]',
+    }).append({ prop: 'background-image', value:
+      'linear-gradient(to bottom, rgba(14,14,14,0) ' + from + ', rgb(14,14,14) ' + to + ')' }));
+  }
   return result.toString();
 }
 module.exports = { legacyCss, resolvedValue, legacyAlphaColors };
