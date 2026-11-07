@@ -258,6 +258,7 @@ export const megaRadioApi = {
     country?: string;
     language?: string;
     genre?: string;
+    tags?: string;
     sort?: 'votes' | 'recent' | 'random' | 'clickcount';
   }): Promise<{ stations: Station[]; pagination: any }> => {
     const queryParams = new URLSearchParams();
@@ -273,6 +274,7 @@ export const megaRadioApi = {
     if (params?.genre) {
       queryParams.append('genre', params.genre);
     }
+    if (params?.tags) queryParams.append('tags', params.tags);
     if (params?.sort) queryParams.append('sort', params.sort);
 
     try {
