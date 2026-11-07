@@ -78,14 +78,21 @@ function getAuthDeviceName(): string {
 }
 
 function fixAvatarUrl(user: any): any {
-  if (!user) return user;
-  if (user.avatar && user.avatar.indexOf('http') !== 0) {
-    user.avatar = 'https://themegaradio.com/' + user.avatar;
+  if (!user || typeof user !== 'object' || Array.isArray(user)) return null;
+  // The TV API returns displayName; old caches and other account APIs use name/fullName.
+  // Normalize once at the boundary so every authenticated screen receives a safe name.
+  var names = [user.name, user.displayName, user.fullName, user.username];
+  var name = names.find(function(value) { return typeof value === 'string' && value.trim().length > 0; });
+  var normalized = { ...user, name: name ? name.trim() : 'Listener' };
+  var identity = [user.id, user._id].find(function(value) { return typeof value === 'string' && value.trim().length > 0; });
+  if (identity) normalized.id = identity;
+  if (typeof normalized.avatar === 'string' && normalized.avatar && normalized.avatar.indexOf('http') !== 0) {
+    normalized.avatar = 'https://themegaradio.com/' + normalized.avatar;
   }
-  if (user.profileImage && user.profileImage.indexOf('http') !== 0) {
-    user.profileImage = 'https://themegaradio.com/' + user.profileImage;
+  if (typeof normalized.profileImage === 'string' && normalized.profileImage && normalized.profileImage.indexOf('http') !== 0) {
+    normalized.profileImage = 'https://themegaradio.com/' + normalized.profileImage;
   }
-  return user;
+  return normalized;
 }
 
 interface UserSubscription {
@@ -239,7 +246,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return response.json();
     })
     .then(function(data) {
-      console.log('[Auth] Code response:', JSON.stringify(data));
+      console.log('[Auth] Code request ready:', typeof data.code === 'string' && data.code.length > 0);
       var code = data.code;
       // CLOCK-SAFE: always derive the deadline from THIS device's clock + the
       // relative TTL. Smart TVs (Tizen/WebOS) frequently have a wrong system
@@ -293,7 +300,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .then(function(data) {
         if (!data) return;
-        console.log('[Auth] Polling response:', JSON.stringify(data));
+        console.log('[Auth] Poll status:', data.status || (data.expired ? 'expired' : 'pending'));
         if (data.expired || data.status === 'expired') {
           console.log('[Auth] Server reported code expired, requesting new code');
           stopPolling();
