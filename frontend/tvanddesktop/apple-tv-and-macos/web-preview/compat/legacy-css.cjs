@@ -1,6 +1,21 @@
 const postcss = require('postcss');
 const valueParser = require('postcss-value-parser');
 
+// Hex alpha colors arrived after Chromium38. One unsupported color invalidates
+// an entire shadow list, including Tailwind focus rings.
+function legacyAlphaColors(value) {
+  const parsed = valueParser(value);
+  parsed.walk(node => {
+    if (node.type !== 'word' || !/^#(?:[0-9a-f]{4}|[0-9a-f]{8})$/i.test(node.value)) return;
+    let hex = node.value.slice(1);
+    if (hex.length === 4) hex = hex.split('').map(c => c + c).join('');
+    const channels = [0, 2, 4].map(i => parseInt(hex.slice(i, i + 2), 16));
+    const alpha = parseInt(hex.slice(6), 16) / 255;
+    node.value = `rgba(${channels.join(', ')}, ${alpha})`;
+  });
+  return parsed.toString();
+}
+
 function resolvedValue(value, variables, visited = []) {
   let valid = true;
   const parsed = valueParser(value);
@@ -47,7 +62,10 @@ function legacyCss(css) {
         ['top', 'right', 'bottom', 'left'].forEach((prop, i) => fallback.append(declaration.clone({ prop, value: sides[i] })));
       } else if (declaration.value.includes('var(')) {
         const value = resolvedValue(declaration.value, variables);
-        if (value !== null) fallback.append(declaration.clone({ value }));
+        if (value !== null) fallback.append(declaration.clone({ value: legacyAlphaColors(value) }));
+      } else {
+        const value = legacyAlphaColors(declaration.value);
+        if (value !== declaration.value) fallback.append(declaration.clone({ value }));
       }
     });
     if (!fallback.nodes.length) return;
@@ -60,4 +78,4 @@ function legacyCss(css) {
   });
   return result.toString();
 }
-module.exports = { legacyCss, resolvedValue };
+module.exports = { legacyCss, resolvedValue, legacyAlphaColors };
