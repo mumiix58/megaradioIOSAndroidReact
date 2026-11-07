@@ -48,10 +48,12 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
 
   const hidePaywall = useCallback(() => setOpen(false), []);
 
-  // Auto-show paywall after 45s on app launch (once per session, non-premium only).
+  // Only native-IAP shells retain their existing timed offer. Passive TV/web listening
+  // never navigates to external checkout without an explicit Upgrade action.
   // Skipped on splash, login, paywall, and onboarding screens to avoid awkward overlap.
   useEffect(() => {
     if (isMacAppStore() || !premium.ready || premium.isPremium) return;
+    if ((window as any).megaRadioNative?.supportsNativeIap !== true) return;
     const SHOWN_KEY = 'mr_auto_paywall_shown_session';
     if (sessionStorage.getItem(SHOWN_KEY) === '1') return;
 
