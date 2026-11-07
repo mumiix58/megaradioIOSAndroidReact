@@ -3,9 +3,12 @@ import { useEffect } from 'react';
 export function useTVNavigation() {
   useEffect(() => {
     let initialized = false;
+    let disposed = false;
+    let updateTimer: ReturnType<typeof setTimeout> | null = null;
     
     // Wait for TV platform scripts to load
     const initNavigation = () => {
+      if (disposed) return false;
       // Check if TV scripts are loaded
       if (!window.tvSpatialNav || !window.platformInfo) {
         return false;
@@ -46,9 +49,13 @@ export function useTVNavigation() {
 
     // Update on any changes (route changes, etc.)
     const observer = new MutationObserver(() => {
+      if (disposed) return;
       if (window.tvSpatialNav) {
         // Debounce updates to avoid excessive re-scans
-        setTimeout(() => {
+        if (updateTimer !== null) clearTimeout(updateTimer);
+        updateTimer = setTimeout(() => {
+          updateTimer = null;
+          if (disposed) return;
           const previousCount = window.tvSpatialNav.focusableElements.length;
           window.tvSpatialNav.updateFocusableElements();
           const newCount = window.tvSpatialNav.focusableElements.length;
@@ -75,7 +82,9 @@ export function useTVNavigation() {
     document.addEventListener('mouseover', handleMouseOver);
 
     return () => {
+      disposed = true;
       clearInterval(retryInterval);
+      if (updateTimer !== null) clearTimeout(updateTimer);
       observer.disconnect();
       document.removeEventListener('mouseover', handleMouseOver);
     };
