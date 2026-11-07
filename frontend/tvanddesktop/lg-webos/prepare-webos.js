@@ -52,7 +52,7 @@ if (!webosVersion) throw new Error('Missing webOS app version');
 try {
   const shell = process.platform === 'win32' ? true : (fs.existsSync('/bin/bash') ? '/bin/bash' : true);
   execSync('yarn build', { cwd: TV_SRC_DIR, stdio: 'inherit', shell,
-    env: { ...process.env, VITE_APP_VERSION: webosVersion } });
+    env: { ...process.env, VITE_APP_VERSION: webosVersion, VITE_TV_PACKAGE_PLATFORM: 'webos' } });
 } catch (e) {
   console.error('TV build failed. Refusing to package an old or partial bundle.');
   process.exit(1);
@@ -72,7 +72,7 @@ fs.writeFileSync(
 
 console.log('▸ Writing remote-update bootstrap (index.html)');
 const cdnCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'cdn-config.json'), 'utf8'));
-let boot = fs.readFileSync(path.join(__dirname, '..', 'remote-bootstrap.html'), 'utf8').replace(/__CDN_BASE__/g, cdnCfg.cdnBase).replace(/__APP_VERSION__/g, webosVersion);
+let boot = fs.readFileSync(path.join(__dirname, '..', 'remote-bootstrap.html'), 'utf8').replace(/__CDN_BASE__/g, cdnCfg.cdnBase).replace(/__APP_VERSION__/g, webosVersion).replace(/__TV_PLATFORM__/g,'webos');
 fs.writeFileSync(path.join(OUT_DIR, 'index.html'), boot);
 console.log('  CDN base =', cdnCfg.cdnBase);
 

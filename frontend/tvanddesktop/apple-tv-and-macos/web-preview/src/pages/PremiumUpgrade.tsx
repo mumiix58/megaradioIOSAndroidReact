@@ -46,7 +46,7 @@ function PremiumUpgradeQr(): JSX.Element {
     useSubscriptionLink({
       enabled: true,
       onActivated: (payload) => {
-        console.log("[Premium] Activated:", payload);
+        console.log("[Premium] Activation received");
         // Auto-login the TV using the backend-issued bearer token. No
         // credentials are typed on the device — the user authenticated on
         // their phone via Stripe/Paddle Checkout, the backend handed us a

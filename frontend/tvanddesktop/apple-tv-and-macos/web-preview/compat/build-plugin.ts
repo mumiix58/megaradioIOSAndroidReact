@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { build } from 'esbuild';
 import { transformSync } from '@babel/core';
 import { minify } from 'terser';
+import { execFileSync } from 'node:child_process';
 import postcss from 'postcss';
 import colorFunctions from 'postcss-color-functional-notation';
 import type { Plugin, ResolvedConfig } from 'vite';
@@ -29,8 +30,14 @@ export function legacyTvSupport(): Plugin {
     transformIndexHtml: {
       order: 'post',
       handler() {
+        const embedded = JSON.parse(String(config.define?.['import.meta.env.VITE_APP_VERSION'] || '"0.0.0"'));
+        let revision = 'unknown';
+        try { revision = 'local-' + execFileSync('git', ['rev-parse','HEAD'], {cwd:config.root,encoding:'utf8'}).trim(); } catch (_) {}
+        const build = { appVersion:/^\d+\.\d+\.\d+$/.test(embedded) ? embedded : '0.0.0', bundleVersion:/^gha-/.test(embedded) ? embedded : revision, platform:['tizen','webos'].includes(config.env.VITE_TV_PACKAGE_PLATFORM) ? config.env.VITE_TV_PACKAGE_PLATFORM : null };
         return [
-          { tag: 'script', attrs: { src: `${config.base}js/compat-runtime.js`, 'data-mr-compat': 'true' }, injectTo: 'head-prepend' },
+          { tag:'script', children:'window.__MR_TV_BUILD__='+JSON.stringify(build)+';', injectTo:'head-prepend' },
+          { tag:'script', attrs:{src:`${config.base}js/tv-observability.js`}, injectTo:'head-prepend' },
+          { tag: 'script' , attrs: { src: `${config.base}js/compat-runtime.js`, 'data-mr-compat': 'true' }, injectTo: 'head-prepend' },
           { tag: 'link', attrs: { rel: 'stylesheet', href: `${config.base}css/legacy-compat.css` }, injectTo: 'head' },
         ];
       },
