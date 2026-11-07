@@ -154,6 +154,9 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
           setStreamError(null);
           return;
         }
+        // Native engines can report the same failed attempt more than once.
+        // Keep its first backoff deadline and diagnostic instead of postponing it.
+        if (retryTimeoutRef.current !== null) return;
         lastStartedStationIdRef.current = null;
         const errorCode = error?.code || error?.target?.error?.code || 'N/A';
         reportTvEvent('playback_error', ({1:'media_aborted',2:'media_network',3:'media_decode',4:'media_unsupported'} as Record<string,string>)[String(errorCode)] || 'playback_failed', {module:'audio'});

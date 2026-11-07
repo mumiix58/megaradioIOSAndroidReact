@@ -14,8 +14,8 @@ test('actual provider exhausts once and ignores duplicate native listener/prepar
  const h=harness();h.exhaust();assert.equal(h.plays.length,3);assert.equal(h.ctx.retryCountRef.current,3);assert.equal(h.ctx.retryExhaustedRef.current,true);assert.equal(h.state.error,'This station is currently unavailable');assert.equal(h.timers.size,0);const diagnostics=h.events.length;
  for(let i=0;i<20;i++)h.ctx.onError(i%2?'PREPARE_TIMEOUT':'CONNECTION_FAILED');assert.equal(h.timers.size,0);assert.equal(h.plays.length,3);assert.equal(h.events.length,diagnostics);
 });
-test('actual provider clears fired handles and ignores a cleared duplicate-error timer already queued by native engine',()=>{
- const h=harness();h.ctx.onError('CONNECTION_FAILED');const old=[...h.timers.values()][0].fn;h.ctx.onError('CONNECTION_FAILED');old();assert.equal(h.plays.length,0);assert.equal(h.ctx.retryCountRef.current,0);h.run(1000);assert.equal(h.plays.length,1);assert.equal(h.ctx.retryTimeoutRef.current,null);
+test('actual duplicate errors preserve the first pending retry deadline and emit one diagnostic',()=>{
+ const h=harness();h.ctx.onError('CONNECTION_FAILED');const first=h.ctx.retryTimeoutRef.current;const firstTimer=h.timers.get(first);h.ctx.onError('CONNECTION_FAILED');h.ctx.onError('PREPARE_TIMEOUT');assert.equal(h.ctx.retryTimeoutRef.current,first);assert.equal(h.timers.size,1);assert.equal(h.timers.get(first),firstTimer);assert.equal(h.events.filter(x=>x==='playback_error').length,1);h.run(1000);assert.equal(h.plays.length,1);assert.equal(h.ctx.retryTimeoutRef.current,null);
 });
 test('actual transient recovery clears failure state and restores the budget for a later independent interruption',()=>{
  const h=harness();h.ctx.onError('CONNECTION_FAILED');h.run(1000);h.ctx.onPlay();assert.equal(h.ctx.retryCountRef.current,0);assert.equal(h.ctx.retryExhaustedRef.current,false);assert.equal(h.state.error,null);assert.equal(h.state.playing,true);h.ctx.onError('CONNECTION_FAILED');h.run(1000);assert.equal(h.plays.length,2);
@@ -30,4 +30,7 @@ test('actual canceled retry cannot survive explicit replay of the same station o
 });
 test('actual successful playback can clear a terminal budget without turning terminal error callbacks into retries',()=>{
  const h=harness();h.exhaust();h.ctx.onPlay();assert.equal(h.ctx.retryExhaustedRef.current,false);assert.equal(h.ctx.retryCountRef.current,0);assert.equal(h.state.playing,true);assert.equal(h.state.error,null);assert.equal(h.timers.size,0);
+});
+test('actual playback success cancels an owned pending retry and its already queued callback',()=>{
+ const h=harness();h.ctx.onError('CONNECTION_FAILED');const pending=h.ctx.retryTimeoutRef.current;const queued=h.timers.get(pending).fn;h.ctx.onPlay();assert.equal(h.timers.size,0);assert.equal(h.ctx.retryTimeoutRef.current,null);assert.equal(h.state.playing,true);queued();assert.equal(h.plays.length,0);assert.equal(h.ctx.retryCountRef.current,0);
 });
