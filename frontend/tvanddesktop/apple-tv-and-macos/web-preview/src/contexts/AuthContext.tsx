@@ -1,20 +1,17 @@
+import { getProductionApiOrigin } from '../lib/apiOrigin';
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 
-// API_BASE strategy:
-//   - On the Emergent web preview (browser hits api.themegaradio.com → CORS blocked)
-//     we route through the local backend's tv-proxy at /api/tv-proxy/* by using
-//     a base of "" (relative URLs). prepare-tizen.js / prepare-webos.js will
-//     rewrite all /api/* to https://api.themegaradio.com/api/* at build time for
-//     the .wgt / .ipk packages where CORS doesn't apply (file:// origin).
-//   - On the .wgt / .ipk runtime, fetch hits the rewritten absolute URL directly.
-// Net effect: ONE source-of-truth URL, two transport mechanisms, zero CORS pain.
+// Packaged/first-party clients use a fixed production HTTPS API origin. Older
+// LG engines select the existing compatible first-party host through apiOrigin.
+// Preview requests retain the local /api/tv-proxy route; packaging does not
+// rewrite JavaScript URLs.
 function detectApiBase(): string {
   try {
     var host = window.location.hostname;
     // Tizen / WebOS apps run from file:// so hostname is empty/blank.
     // Also catch direct themegaradio.com hosting (if ever served from there).
     if (!host || host === '' || host === 'localhost' || host.indexOf('themegaradio.com') !== -1) {
-      return 'https://api.themegaradio.com';
+      return getProductionApiOrigin();
     }
   } catch (e) { /* ignore */ }
   // Preview / dev / hosted via Emergent ingress → use relative paths so the
@@ -22,8 +19,7 @@ function detectApiBase(): string {
   return '';
 }
 
-// Preview hits go through /api/tv-proxy/<path>. The .wgt/.ipk hits go directly
-// to https://api.themegaradio.com/api/<path>. Same source code, different runtime.
+// Preview uses /api/tv-proxy/<path>; packaged clients use the selected fixed host.
 function buildAuthUrl(path: string): string {
   var base = detectApiBase();
   if (base === '') {

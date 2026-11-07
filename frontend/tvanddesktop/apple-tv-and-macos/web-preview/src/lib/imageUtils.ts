@@ -1,4 +1,5 @@
-const IMAGE_API_BASE = 'https://api.themegaradio.com';
+import { getProductionApiOrigin } from './apiOrigin';
+const IMAGE_API_BASE = getProductionApiOrigin();
 
 // Backend HTTPS icon-proxy — upgrades legacy http://…/favicon.png URLs to
 // https://…/api/tv-icon-proxy?url=… so Chrome/Electron don't fire Mixed-Content
@@ -42,6 +43,10 @@ export function resolveStationImageUrl(favicon: string | undefined | null): stri
     if (isFileContext) return favicon;
     // Web/Electron https: upgrade insecure origins through the backend icon-proxy.
     return ICON_PROXY + encodeURIComponent(favicon);
+  }
+  // Keep first-party absolute logo URLs on the same validated API alias too.
+  if (favicon.startsWith('https://api.themegaradio.com/')) {
+    return IMAGE_API_BASE + favicon.slice('https://api.themegaradio.com'.length);
   }
   if (favicon.startsWith('https://')) return favicon;
 

@@ -1,3 +1,4 @@
+import { getProductionApiOrigin } from '../lib/apiOrigin';
 import { useState, useEffect, useRef, useCallback } from "react";
 
 /**
@@ -33,7 +34,7 @@ function detectApiBase(): string {
   try {
     const host = window.location.hostname;
     if (!host || host === "" || host === "localhost" || host.indexOf("themegaradio.com") !== -1) {
-      return "https://api.themegaradio.com";
+      return getProductionApiOrigin();
     }
   } catch (_) { /* ignore */ }
   return "";

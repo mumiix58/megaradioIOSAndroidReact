@@ -1,8 +1,9 @@
+import { getProductionApiOrigin } from '../lib/apiOrigin';
 import { Station } from "./megaRadioApi";
 
 var STORAGE_KEY = "recentlyPlayed";
 var MAX_RECENT_STATIONS = 6;
-var API_BASE = 'https://api.themegaradio.com';
+var API_BASE = getProductionApiOrigin();
 
 export var recentlyPlayedService = {
   addStation: function(station: Station, token?: string | null): void {
