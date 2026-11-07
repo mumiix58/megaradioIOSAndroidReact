@@ -5,7 +5,8 @@ import { recentlyPlayedService } from "@/services/recentlyPlayedService";
 import { recommendationService } from "@/services/recommendationService";
 import { trackStationPlay, trackError } from "@/lib/analytics";
 import { useAuth } from "@/contexts/AuthContext";
-import { parseStationPlaylist, usesPreviewStreamRoutes } from '@/lib/streamRouting';
+import { detectPlatform } from '@/lib/platform';
+import { parseStationPlaylist, browserStreamUrl, streamResolveEndpoint, resolvedStreamResponse, isBrowserAutoplayBlock } from '@/lib/streamRouting';
 
 interface GlobalPlayerContextType {
   currentStation: Station | null;
@@ -25,33 +26,21 @@ interface GlobalPlayerContextType {
 const GlobalPlayerContext = createContext<GlobalPlayerContextType | undefined>(undefined);
 
 function getProxiedUrl(url: string): string {
-  if (!url) return url;
-  const isHttpStream = url.startsWith('http://');
-  const isPageHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
-
-  if (isHttpStream && isPageHttps && usesPreviewStreamRoutes()) {
-    return `/api/stream-proxy?url=${encodeURIComponent(url)}`;
-  }
-  return url;
+  return browserStreamUrl(url);
 }
 
 async function resolveStreamUrl(url: string): Promise<{ resolvedUrl: string; isPlaylist: boolean; isHLS: boolean; error?: string }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const response = await fetch(`/api/stream-resolve?url=${encodeURIComponent(url)}`, { signal: controller.signal });
+    const response = await fetch(streamResolveEndpoint(url), { signal: controller.signal });
     if (!response.ok) {
       return { resolvedUrl: url, isPlaylist: false, isHLS: false, error: `HTTP ${response.status}` };
     }
     const data = await response.json();
-    const finalUrl = data.resolvedUrl || data.final_url || url;
-    const isPlaylist = data.isPlaylist === true || /\.(pls|m3u)(?:[?#]|$)/i.test(finalUrl);
-    return {
-      resolvedUrl: isPlaylist ? await resolvePlaylistOnTV(finalUrl, true) : finalUrl,
-      isPlaylist,
-      isHLS: data.isHLS || false,
-      error: data.error || undefined,
-    };
+    const result = resolvedStreamResponse(data, url);
+    return { ...result, resolvedUrl: result.isPlaylist ? await resolvePlaylistOnTV(result.resolvedUrl, true) : result.resolvedUrl };
+
   } catch (err: any) {
     console.warn('[RESOLVE] Failed to resolve URL, using original:', err.message);
     return { resolvedUrl: url, isPlaylist: false, isHLS: false, error: err.message };
@@ -62,9 +51,9 @@ async function resolveStreamUrl(url: string): Promise<{ resolvedUrl: string; isP
 
 // Packaged-TV playlist resolver. Samsung `avplay` and webOS HTML5 audio CANNOT
 // parse `.pls` / `.m3u` playlist *files* — they need a direct stream URL. On the
-// web build the backend `/api/stream-resolve` handled this, but on a real TV
-// (file://) that endpoint is unreachable AND `api.themegaradio.com` doesn't
-// expose it, so playlist stations (e.g. Süper FM `...SUPER_FMAAC.pls`, Best FM
+// browser build the public stream resolver handles this (the historical
+// Emergent preview has a separate FastAPI helper). Native file:// TV shells
+// retain their direct network path, so playlist stations (e.g. Süper FM `...SUPER_FMAAC.pls`, Best FM
 // `.../listen.pls`) silently failed. Here we fetch the playlist text directly
 // (Tizen WRT allows cross-origin reads via `<access origin="*">` + network
 // privilege; CSP `connect-src http: https:`) and extract the first stream URL.
@@ -72,7 +61,7 @@ async function resolvePlaylistOnTV(url: string, preview = false): Promise<string
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10000);
   try {
-    const requestUrl = preview ? `/api/stream-proxy?url=${encodeURIComponent(url)}` : url;
+    const requestUrl = preview ? browserStreamUrl(url, true) : url;
     const res = await fetch(requestUrl, { method: 'GET', signal: controller.signal });
     if (!res.ok) return url;
     const text = await res.text();
@@ -145,6 +134,16 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
       
       playerInstance.onError = (error: any) => {
         if (!currentStationRef.current || manuallyPausedRef.current) return;
+        if (isBrowserAutoplayBlock(error)) {
+          // Browser policy needs a user gesture; it is not a failed radio stream.
+          manuallyPausedRef.current = true;
+          if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+          retryTimeoutRef.current = null;
+          setIsPlaying(false);
+          setIsBuffering(false);
+          setStreamError(null);
+          return;
+        }
         lastStartedStationIdRef.current = null;
         const stationName = currentStationRef.current?.name || 'Unknown';
         const stationUrl = currentStationRef.current?.url_resolved || currentStationRef.current?.url || 'no-url';
@@ -186,8 +185,8 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
                 rawUrl = currentStationToRetry.url_resolved || currentStationToRetry.url;
               }
 
-              if (retryCountRef.current >= 2 && usesPreviewStreamRoutes()) {
-                const proxyUrl = `/api/stream-proxy?url=${encodeURIComponent(rawUrl)}`;
+              if (retryCountRef.current >= 2 && detectPlatform() === 'web') {
+                const proxyUrl = browserStreamUrl(rawUrl, true);
                 console.log(`[🔄 RETRY] Force-proxying on retry ${retryCountRef.current}`);
                 audioPlayerRef.current.play(proxyUrl);
               } else {
@@ -366,7 +365,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
     const needsResolve = urlLower.endsWith('.m3u') || urlLower.endsWith('.pls') || 
       urlLower.includes('.m3u?') || urlLower.includes('.pls?');
 
-    if (needsResolve && !usesPreviewStreamRoutes()) {
+    if (needsResolve && detectPlatform() !== 'web') {
       // All packaged shells lack the preview backend (including Electron/Android TV).
       console.log('[🎵 PLAY] TV playlist detected — resolving client-side...');
       resolvePlaylistOnTV(rawUrl).then(direct => {
@@ -378,7 +377,7 @@ export function GlobalPlayerProvider({ children }: { children: ReactNode }) {
           startPlayback(rawUrl);
         }
       });
-    } else if (needsResolve && usesPreviewStreamRoutes()) {
+    } else if (needsResolve) {
       console.log('[🎵 PLAY] URL looks like a playlist, resolving first...');
       resolveStreamUrl(rawUrl).then(result => {
         if (generation !== playGenerationRef.current) return;
