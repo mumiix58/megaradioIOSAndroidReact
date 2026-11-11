@@ -17,13 +17,13 @@ if (process.platform === 'linux') {
 let mainWindow = null;
 let splashWindow = null;
 
-const APP_URL_PROD = 'https://desktop.themegaradio.com/api/tv-app/';
+const APP_URL_PROD = 'https://cdn.themegaradio.com/';
 const LOCAL_FILE = path.join(__dirname, '..', 'renderer', 'index.html');
 const APP_URL_LOCAL = pathToFileURL(LOCAL_FILE).href;
 
 /**
  * Splash window — small frameless brand window shown for the first ~2-3
- * seconds while Chromium establishes the connection to desktop.themegaradio.com.
+ * seconds while Chromium establishes the connection to cdn.themegaradio.com.
  * Closed automatically once the main window finishes its first paint.
  */
 function createSplash() {
@@ -50,6 +50,30 @@ function closeSplash() {
     try { splashWindow.close(); } catch (_) {}
   }
   splashWindow = null;
+}
+
+// Keep one way to recover the main window from the menu and Dock. Counting
+// all BrowserWindows also counts the splash/DevTools and misses hidden windows.
+function showMainWindow() {
+  if (process.platform === 'darwin') app.show();
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow();
+    return; // did-finish-load reveals a newly created window after its first paint
+  }
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function openLegalPage(route) {
+  showMainWindow();
+  const target = mainWindow;
+  const navigate = () => {
+    if (!target || target.isDestroyed()) return;
+    target.webContents.executeJavaScript(`window.location.hash = ${JSON.stringify(route)};`).catch(() => {});
+  };
+  if (target.webContents.isLoadingMainFrame()) target.webContents.once('did-finish-load', navigate);
+  else navigate();
 }
 
 function createWindow() {
@@ -110,10 +134,12 @@ function createWindow() {
     mainWindow.maximize();
   }
 
-  // Load the deployed TV preview by default; fall back to local bundle if offline.
-  const url = process.env.MR_LOCAL === '1' ? APP_URL_LOCAL : APP_URL_PROD;
+  // Store builds run the renderer that was signed and tested with their native IAP bridge.
+  // Other desktop distributions retain their existing CDN update path.
+  const useLocalRenderer = process.mas === true || process.env.MR_LOCAL === '1';
+  const url = useLocalRenderer ? APP_URL_LOCAL : APP_URL_PROD;
   console.log('[MegaRadio] Loading', url, 'with UA:', desktopUA);
-  let triedLocal = process.env.MR_LOCAL === '1';
+  let triedLocal = useLocalRenderer;
   let showingError = false;
 
   // Surface load failures so the user sees something better than a black window.
@@ -258,7 +284,7 @@ function buildMenu() {
         { role: 'zoomIn' }, { role: 'zoomOut' }, { role: 'resetZoom' },
       ],
     },
-    {
+    ...(!(app.isPackaged && process.mas === true) ? [{
       label: 'Dev',
       submenu: [
         {
@@ -293,7 +319,7 @@ function buildMenu() {
           click: () => mainWindow?.webContents.toggleDevTools(),
         },
       ],
-    },
+    }] : []),
     {
       label: 'Audio',
       submenu: [
@@ -312,8 +338,22 @@ function buildMenu() {
       ],
     },
     {
+      label: 'Window',
+      ...(isMac ? { role: 'windowMenu' } : {}),
+      submenu: [
+        { label: 'Show MegaRadio', accelerator: 'CmdOrCtrl+1', click: showMainWindow },
+        { type: 'separator' },
+        { role: 'minimize' },
+        { role: 'zoom' },
+        ...(isMac ? [{ type: 'separator' }, { role: 'front' }] : []),
+      ],
+    },
+    {
       label: 'Help',
       submenu: [
+        { label: 'Privacy Policy', click: () => openLegalPage('/privacy') },
+        { label: 'Terms of Use', click: () => openLegalPage('/terms') },
+        { type: 'separator' },
         { label: 'Visit MegaRadio.live', click: () => shell.openExternal('https://themegaradio.com') },
       ],
     },
@@ -326,7 +366,7 @@ app.whenReady().then(() => {
   createSplash();    // show brand logo splash window first
   createWindow();    // main window starts hidden, splash overlays until first paint
   // Auto-update from GitHub Releases (skips in dev)
-  if (mainWindow && !process.env.MR_DISABLE_UPDATER) {
+  if (mainWindow && !process.mas && !process.env.MR_DISABLE_UPDATER) {
     try { updater.init(mainWindow); } catch (e) { console.warn('Updater init failed:', e); }
   }
 
@@ -338,9 +378,7 @@ app.whenReady().then(() => {
   try { globalShortcut.register('MediaNextTrack', () => mainWindow?.webContents.send('mr-shortcut', 'next')); } catch (_) {}
   try { globalShortcut.register('MediaPreviousTrack', () => mainWindow?.webContents.send('mr-shortcut', 'prev')); } catch (_) {}
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+  app.on('activate', showMainWindow);
 });
 
 app.on('window-all-closed', () => {

@@ -24,7 +24,7 @@ if (typeof window.CustomEvent !== 'function') {
 }
 if (!Element.prototype.scrollTo) {
   Element.prototype.scrollTo = function (left, top) {
-    if (typeof left === 'object') { this.scrollLeft = left.left || 0; this.scrollTop = left.top === undefined ? this.scrollTop : left.top; }
+    if (typeof left === 'object') { this.scrollLeft = left.left === undefined ? this.scrollLeft : left.left; this.scrollTop = left.top === undefined ? this.scrollTop : left.top; }
     else { this.scrollLeft = left; this.scrollTop = top; }
   };
 }
@@ -34,7 +34,7 @@ if (!Element.prototype.scrollBy) {
     else this.scrollTo(this.scrollLeft + left, this.scrollTop + top);
   };
 }
-if (!window.CSS || !window.CSS.supports || !window.CSS.supports('--mr-test', '0')) {
+if (!window.CSS || !window.CSS.supports || !window.CSS.supports('--mr-test', '0') || !window.CSS.supports('color', '#0000')) {
   document.documentElement.className += ' mr-legacy-css';
 }
 window.__MR_COMPAT_READY__ = true;

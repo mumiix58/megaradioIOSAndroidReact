@@ -4,7 +4,8 @@
 import React, { createContext, useCallback, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 
 import TrackPlayer, { 
-  Capability, 
+  Capability,
+  TrackType,
   State, 
   Event, 
   usePlaybackState, 
@@ -12,7 +13,7 @@ import TrackPlayer, {
   AppKilledPlaybackBehavior,
   useTrackPlayerEvents,
 } from 'react-native-track-player';
-import { Platform, InteractionManager } from 'react-native';
+import { Platform, InteractionManager, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePlayerStore } from '../store/playerStore';
 import { useFavoritesStore } from '../store/favoritesStore';
@@ -23,8 +24,10 @@ import statsService from '../services/statsService';
 import { useAuthStore } from '../store/authStore';
 import { syncCompanionCatalog } from '../services/companionCatalogService';
 import { normalizeCompanionCountries } from '../utils/companionCountries';
+import { nextRecommendation } from '../utils/recommendationQueue';
 import watchService from '../services/watchService';
 import wearOSService from '../services/wearOSService';
+import { handleWearStationRequest } from '../services/wearStationRequest';
 import { adMobService } from '../services/adMobService';
 import { genreService } from '../services/genreService';
 import api from '../services/api';
@@ -111,6 +114,9 @@ async function setupTrackPlayer(): Promise<boolean> {
 }
 
 async function doSetupTrackPlayer(): Promise<boolean> {
+  // Android forbids setup while a permission sheet/background launch owns the
+  // foreground. Defer instead of logging an expected startup failure.
+  if (Platform.OS === 'android' && AppState.currentState !== 'active') return false;
   try {
     console.log('[AudioProvider] Initializing Track Player...');
     
@@ -180,7 +186,7 @@ async function doSetupTrackPlayer(): Promise<boolean> {
 // PROVIDER COMPONENT
 // ============================================
 import { currentTrackText, normalizeNowPlaying, resolveNowPlaying, hasFreshIcyMetadata, isMetadataAdvertisement } from '../utils/nowPlaying';
-import { buildStreamCandidates, isPlaylistStream } from '../utils/streamSources';
+import { buildStreamCandidates, isPlaylistStream, isHlsStream } from '../utils/streamSources';
 
 export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   useEffect(() => {
@@ -310,6 +316,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
             await TrackPlayer.add({
               id: currentStation._id || `station_${Date.now()}`,
               url: nextUrl,
+              type: isHlsStream(nextUrl, currentStation) ? TrackType.HLS : TrackType.Default,
               title: currentStation.name || 'MegaRadio',
               artist: 'MegaRadio',
               album: getStationGenre(currentStation) || 'MegaRadio',
@@ -513,7 +520,10 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           .catch((e) => console.error('[AudioProvider] Track Player setup error:', e));
       });
     }, 1500);
-    return () => clearTimeout(timer);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && !trackPlayerInitialized) void setupTrackPlayer();
+    });
+    return () => { clearTimeout(timer); subscription.remove(); };
   }, []);
 
   // Resolve stream URL helper - returns { url, candidates } for fallback support
@@ -899,7 +909,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // ============================================
   // PLAY STATION - THE CORE FUNCTION
   // ============================================
-  const playStation = useCallback(async (station: Station) => {
+  const playStation = useCallback(async (station: Station, options: { preserveRecommendations?: boolean; advertising?: boolean } = {}) => {
     console.log('[AudioProvider] ========================================');
     console.log('[AudioProvider] PLAY STATION:', station.name);
     console.log('[AudioProvider] Station ID:', station._id);
@@ -928,37 +938,16 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       return;
     }
 
-    // FIRST STATION PLAY: Show app-open ad on very first station play per session
-    // showAppOpenAd() internally polls up to 5s for App Open, then falls back to Interstitial
-    const isFirstPlay = !adMobService.firstStationAdShown;
-    if (isFirstPlay) {
-      adMobService.firstStationAdShown = true;
-      // Small delay so the station starts playing first (better UX)
-      setTimeout(() => {
-        adMobService.showAppOpenAd().then((shown) => {
-          if (shown) {
-            console.log('[AudioProvider] First launch ad shown');
-          }
-        }).catch((e) => {
-          console.log('[AudioProvider] First launch ad error (non-blocking):', e);
-        });
-      }, 500);
+    const myPlayId = ++globalPlayId;
+    // A foreground station selection is a natural break. Await dismissal
+    // before starting the next stream; never schedule an ad over live playback.
+    try {
+      if (options.advertising === false) await adMobService.waitForPresentation();
+      else await adMobService.onStationChange();
+    } catch (error) {
+      console.log('[AudioProvider] Ad unavailable; continuing station selection');
     }
-
-    // Track station change for ads (only for different stations)
-    // Shows interstitial ad every 3 station changes (with rewarded fallback)
-    // SKIP counting on first play - app open ad already shown/attempted
-    if (adMobService.isInitialized && !isFirstPlay) {
-      adMobService.onStationChange().then((adShown) => {
-        if (adShown) {
-          console.log('[AudioProvider] Ad shown on station change');
-        }
-      }).catch((error) => {
-        console.log('[AudioProvider] Ad error (non-blocking):', error);
-      });
-    } else if (isFirstPlay) {
-      console.log('[AudioProvider] First play - skipping station change counter (app open ad handles this)');
-    }
+    if (globalPlayId !== myPlayId) return;
 
     // RateUs: track station play (triggers prompt after 3 plays)
     try {
@@ -968,8 +957,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // non-blocking
     }
 
-    // NEW STATION - increment play ID for race condition prevention
-    const myPlayId = ++globalPlayId;
+    // Continue only the latest requested station after the ad boundary.
     console.log('[AudioProvider] New PlayID:', myPlayId);
     preparingQueueRef.current = true;
     clearStreamLoadTimer();
@@ -1068,6 +1056,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       await TrackPlayer.add({
         id: 'placeholder_previous',
         url: url,
+        type: isHlsStream(url, station) ? TrackType.HLS : TrackType.Default,
         title: 'Previous Station',
         artist: 'MegaRadio',
         album: safeAlbum,
@@ -1081,6 +1070,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       await TrackPlayer.add({
         id: safeId,
         url: url,
+        type: isHlsStream(url, station) ? TrackType.HLS : TrackType.Default,
         title: safeTitle,
         artist: 'MegaRadio',
         album: safeAlbum,
@@ -1094,6 +1084,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       await TrackPlayer.add({
         id: 'placeholder_next',
         url: url,
+        type: isHlsStream(url, station) ? TrackType.HLS : TrackType.Default,
         title: 'Next Station',
         artist: 'MegaRadio',
         album: safeAlbum,
@@ -1177,18 +1168,19 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         history = history.slice(0, 50);
         await AsyncStorage.setItem(PLAYBACK_HISTORY_KEY, JSON.stringify(history));
         
-        // Fetch and save similar stations for Next button (non-blocking)
-        // Reset similar index when playing new station
-        await AsyncStorage.setItem(SIMILAR_INDEX_KEY, '-1');
-        
-        stationService.getSimilarStations(station._id, 10).then(async (similarStations) => {
-          if (similarStations && similarStations.length > 0) {
-            await AsyncStorage.setItem(SIMILAR_STATIONS_KEY, JSON.stringify(similarStations));
-            console.log('[AudioProvider] Saved', similarStations.length, 'similar stations for Next button');
-          }
-        }).catch((e) => {
-          console.log('[AudioProvider] Could not fetch similar stations:', e);
-        });
+        // A manual selection starts new recommendations. Advancing the existing
+        // queue must retain its index, otherwise Watch Next repeats its first item.
+        if (!options.preserveRecommendations) {
+          await AsyncStorage.setItem(SIMILAR_INDEX_KEY, '-1');
+          stationService.getSimilarStations(station._id, 10).then(async (similarStations) => {
+            if (globalPlayId === myPlayId && similarStations && similarStations.length > 0) {
+              await AsyncStorage.setItem(SIMILAR_STATIONS_KEY, JSON.stringify(similarStations));
+              console.log('[AudioProvider] Saved', similarStations.length, 'similar stations for Next button');
+            }
+          }).catch((e) => {
+            console.log('[AudioProvider] Could not fetch similar stations:', e);
+          });
+        }
         
         console.log('[AudioProvider] Background controls data saved!');
       } catch (e) {
@@ -1210,6 +1202,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           await TrackPlayer.add({
             id: station._id || `station_${Date.now()}`,
             url: nextUrl,
+            type: isHlsStream(nextUrl, station) ? TrackType.HLS : TrackType.Default,
             title: station.name || 'MegaRadio',
             artist: 'MegaRadio',
             album: getStationGenre(station) || 'MegaRadio',
@@ -1484,6 +1477,9 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     const handleWatchCommand = async (command: any) => {
       console.log('[AudioProvider] Watch command received:', command);
       
+      if (['play', 'resume', 'togglePlayPause', 'next', 'nextStation', 'previous', 'previousStation', 'playStation'].includes(command.command)) {
+        await adMobService.waitForPresentation();
+      }
       switch (command.command) {
         case 'play':
           // Wear OS sends stationId in data field
@@ -1499,7 +1495,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               }
             }
             if (station) {
-              await playStation(station);
+              await playStation(station, { advertising: false });
             }
           } else {
             resume();
@@ -1518,28 +1514,27 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         case 'nextStation': {
           try {
             const similarJson = await AsyncStorage.getItem(SIMILAR_STATIONS_KEY);
-            const similarStations = similarJson ? JSON.parse(similarJson) : [];
+            const savedStations = similarJson ? JSON.parse(similarJson) : [];
+            const similarStations = Array.isArray(savedStations) ? savedStations : [];
+            const activeStation = usePlayerStore.getState().currentStation;
+            const activeId = activeStation?._id || activeStation?.id;
             
             if (similarStations.length > 0) {
               const indexJson = await AsyncStorage.getItem(SIMILAR_INDEX_KEY);
-              let currentIdx = indexJson ? parseInt(indexJson, 10) : -1;
-              currentIdx = (currentIdx + 1) % similarStations.length;
-              await AsyncStorage.setItem(SIMILAR_INDEX_KEY, String(currentIdx));
-              const nextStation = similarStations[currentIdx];
-              if (nextStation) {
-                console.log('[AudioProvider] Watch: Playing next similar station:', nextStation.name);
-                await playStation(nextStation);
+              const next = nextRecommendation<Station>(similarStations,
+                activeId, indexJson ? parseInt(indexJson, 10) : -1);
+              if (next) {
+                await AsyncStorage.setItem(SIMILAR_INDEX_KEY, String(next.index));
+                console.log('[AudioProvider] Watch: Playing next similar station:', next.station.name);
+                await playStation(next.station, { preserveRecommendations: true, advertising: false });
                 break;
               }
             }
             const currentIndex = favorites.findIndex(
-              (s: any) => (s._id || s.id) === (currentStation?._id || currentStation?.id)
+              (s: any) => (s._id || s.id) === activeId
             );
-            if (currentIndex >= 0 && currentIndex < favorites.length - 1) {
-              await playStation(favorites[currentIndex + 1]);
-            } else if (favorites.length > 0) {
-              await playStation(favorites[0]);
-            }
+            const nextFavorite = nextRecommendation<Station>(favorites, activeId, currentIndex);
+            if (nextFavorite) await playStation(nextFavorite.station, { advertising: false });
           } catch (e) {
             console.log('[AudioProvider] Watch nextStation error:', e);
           }
@@ -1556,7 +1551,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               if (previousStation) {
                 console.log('[AudioProvider] Watch: Playing previous station from history:', previousStation.name);
                 await AsyncStorage.setItem(SIMILAR_INDEX_KEY, '-1');
-                await playStation(previousStation);
+                await playStation(previousStation, { advertising: false });
                 break;
               }
             }
@@ -1564,9 +1559,9 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               (s: any) => (s._id || s.id) === (currentStation?._id || currentStation?.id)
             );
             if (prevIndex > 0) {
-              await playStation(favorites[prevIndex - 1]);
+              await playStation(favorites[prevIndex - 1], { advertising: false });
             } else if (favorites.length > 0) {
-              await playStation(favorites[favorites.length - 1]);
+              await playStation(favorites[favorites.length - 1], { advertising: false });
             }
           } catch (e) {
             console.log('[AudioProvider] Watch previousStation error:', e);
@@ -1596,6 +1591,16 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           // Wear OS requests data refresh
           try {
             const data = command.data ? JSON.parse(command.data) : { type: 'all' };
+            if (await handleWearStationRequest(data, async genre => {
+              const { useLocationStore } = await import('../store/locationStore');
+              const location = useLocationStore.getState();
+              const result = await genreService.getGenreStations(genre, 1, 20,
+                location.countryEnglish || location.country, 'votes', 'desc', location.country);
+              return result.stations || [];
+            }, async country => {
+              const result = await stationService.getPopularStations(country, 30);
+              return result.stations || [];
+            }, (requestId, stations, error) => wearOSService.updateStations(stations, { requestId, error }))) break;
             if (data.type === 'genre_stations' && data.genreId) {
               await handleWatchCommand({ command: 'requestGenreStations', genreSlug: data.genreId });
             } else if (data.type === 'country_stations' && data.countryCode) {
@@ -1624,7 +1629,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
               }
             }
             if (station) {
-              await playStation(station);
+              await playStation(station, { advertising: false });
             }
           }
           break;

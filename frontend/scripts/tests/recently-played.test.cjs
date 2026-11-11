@@ -6,13 +6,13 @@ const station=(id,time)=>({_id:id,name:id,...(time?{playedAt:time}:{})});
 const merged=helper.mergeRecentlyPlayed([station('old','2026-01-01'),station('same','2026-01-03')],[station('new','2026-01-04'),station('same','2026-01-02')],{invalid:true},[null,{}]);
 assert.deepEqual(Array.from(merged,s=>s._id),['new','same','old']);
 assert.equal(helper.mergeRecentlyPlayed(Array.from({length:20},(_,i)=>station(String(i)))).length,12);
-const auth=create(()=>({isAuthenticated:false,user:null}));
-const disk=new Map([['megaradio_recently_played',JSON.stringify([station('guest-old','2026-01-01')])]]);
+const auth=create(()=>({isAuthenticated:false,user:null,token:null}));
+const disk=new Map([['@megaradio_v3:recent:guest',JSON.stringify([station('guest-old','2026-01-01')])]]);
 let releaseRead;const writes=[],posts=[];
-const storage={getItem:key=>key==='megaradio_recently_played'&&releaseRead!==false?new Promise(resolve=>{releaseRead=()=>resolve(disk.get(key)||null)}):Promise.resolve(disk.get(key)||null),setItem:async(key,value)=>{disk.set(key,value);writes.push(key)}};
+const storage={getItem:key=>key==='@megaradio_v3:recent:guest'&&releaseRead!==false?new Promise(resolve=>{releaseRead=()=>resolve(disk.get(key)||null)}):Promise.resolve(disk.get(key)||null),setItem:async(key,value)=>{disk.set(key,value);writes.push(key)}};
 let releaseAPI;
 const api={get:()=>new Promise(resolve=>{releaseAPI=resolve}),post:async(path,body)=>{posts.push({owner:auth.getState().user?._id,...body})}};
-const recent=load('src/store/recentlyPlayedStore.ts',{'zustand':{create},'@react-native-async-storage/async-storage':storage,'./authStore':{useAuthStore:auth},'../services/api':api,'../utils/recentlyPlayed':helper}).useRecentlyPlayedStore;
+const recent=load('src/store/recentlyPlayedStore.ts',{'zustand':{create},'@react-native-async-storage/async-storage':storage,'./authStore':{useAuthStore:auth},'./accountScope':{captureAccount:()=>({ownerId:auth.getState().user?._id||'guest',token:auth.getState().isAuthenticated?'token':null,version:auth.getState().user?._id||'guest'}),isAccountCurrent:s=>s.ownerId===(auth.getState().user?._id||'guest'),accountKey:(kind,s)=>'@megaradio_v3:'+kind+':'+s.ownerId},'../services/api':api,'../utils/recentlyPlayed':helper}).useRecentlyPlayedStore;
 const settle=()=>new Promise(resolve=>setImmediate(resolve));
 (async()=>{
  const first=recent.getState().loadFromStorage();const duplicate=recent.getState().loadFromStorage();assert.equal(first,duplicate,'one storage read for concurrent callers');

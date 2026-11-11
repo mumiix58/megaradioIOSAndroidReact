@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 // Optional same-origin development proxy for the mobile web preview.
-export const API_BASE_URL = __DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1'
+export const API_BASE_URL = typeof __DEV__ !== 'undefined' && __DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1'
   ? '/__preview-api'
   : 'https://api.themegaradio.com';
 export const STREAM_PROXY_URL = 'https://stream.themegaradio.com';

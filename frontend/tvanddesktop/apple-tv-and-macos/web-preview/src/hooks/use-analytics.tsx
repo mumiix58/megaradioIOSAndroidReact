@@ -1,10 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { useLocation } from 'wouter';
+import { useHashLocation } from 'wouter/use-hash-location';
 import { trackPageView } from '../lib/analytics';
 
 // Hook to automatically track page views on route changes
 export const useAnalytics = () => {
-  const [location] = useLocation();
+  const [location] = useHashLocation();
   const prevLocationRef = useRef<string | null>(null);
   
   useEffect(() => {

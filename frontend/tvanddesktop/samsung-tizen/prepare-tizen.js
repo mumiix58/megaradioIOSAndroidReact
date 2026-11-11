@@ -40,12 +40,16 @@ function copyDir(src, dst) {
 console.log('▸ Building TV web bundle...');
 // Read version from config.xml so the embedded version + manifest are in sync,
 // and the UpdateBanner can compare against /api/tv/version.
-let tizenVersion = '1.0.2';
+let tizenVersion;
 try {
   const cfg = fs.readFileSync(path.join(__dirname, 'config.xml'), 'utf8');
   const m = cfg.match(/version="(\d+\.\d+\.\d+)"/);
-  if (m) tizenVersion = m[1];
-} catch (_) {}
+  if (!m) throw new Error('Missing Samsung widget version');
+  tizenVersion = m[1];
+} catch (error) {
+  console.error('Cannot determine Samsung package version:', error.message);
+  process.exit(1);
+}
 console.log('  embedded VITE_APP_VERSION =', tizenVersion);
 try {
   const shell = process.platform === 'win32' ? true : (fs.existsSync('/bin/bash') ? '/bin/bash' : true);
@@ -53,7 +57,7 @@ try {
     cwd: TV_SRC_DIR,
     stdio: 'inherit',
     shell,
-    env: { ...process.env, VITE_APP_VERSION: tizenVersion },
+    env: { ...process.env, VITE_APP_VERSION: tizenVersion, VITE_TV_PACKAGE_PLATFORM: 'tizen' },
   });
 } catch (e) {
   console.error('TV build failed. Refusing to package an old or partial bundle.');
@@ -78,7 +82,7 @@ console.log('▸ Writing remote-update bootstrap (index.html)');
 const cdnCfg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'cdn-config.json'), 'utf8'));
 let boot = fs.readFileSync(path.join(__dirname, '..', 'remote-bootstrap.html'), 'utf8');
 boot = boot.replace(/__CDN_BASE__/g, cdnCfg.cdnBase);
-boot = boot.replace(/__APP_VERSION__/g, tizenVersion);
+boot = boot.replace(/__APP_VERSION__/g, tizenVersion).replace(/__TV_PLATFORM__/g,'tizen');
 fs.writeFileSync(path.join(OUT_DIR, 'index.html'), boot);
 console.log('  CDN base =', cdnCfg.cdnBase);
 

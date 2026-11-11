@@ -46,6 +46,7 @@ const getProductIds = () => {
 };
 
 interface PremiumPaywallProps {
+  source?: string;
   visible: boolean;
   onClose: () => void;
   mode?: 'premium' | 'remove_ads';

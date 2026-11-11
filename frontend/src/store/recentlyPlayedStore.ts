@@ -2,16 +2,12 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from './authStore';
 import api from '../services/api';
+import {captureAccount,isAccountCurrent,accountKey} from './accountScope';
 import type { Station } from '../types';
 import { mergeRecentlyPlayed } from '../utils/recentlyPlayed';
 
-const STORAGE_KEY = 'megaradio_recently_played';
-const ownerNow = () => {
-  const state = useAuthStore.getState();
-  return state.isAuthenticated && state.user?._id ? String(state.user._id) : 'guest';
-};
-// Legacy device history has no account identity; keep it guest-only.
-const storageKey = (owner: string) => owner === 'guest' ? STORAGE_KEY : `${STORAGE_KEY}:${owner}`;
+const ownerNow = () => captureAccount().ownerId;
+const storageKey = (owner:string) => accountKey('recent',{...captureAccount(),ownerId:owner});
 let write = Promise.resolve();
 function persist(owner: string, stations: Station[]) {
   const value = JSON.stringify(stations);
@@ -47,44 +43,47 @@ export const useRecentlyPlayedStore = create<RecentlyPlayedState>((set,get) => {
     },
     loadFromStorage() {
       const owner = ensureOwner();
+      const scope=captureAccount();
+      const loadKey=owner+':'+scope.version;
       if (get().loaded) return Promise.resolve();
-      const pending = localLoads.get(owner);
+      const pending = localLoads.get(loadKey);
       if (pending) return pending;
       const load = (async () => {
         try {
           const raw = await AsyncStorage.getItem(storageKey(owner));
           const stored = raw ? JSON.parse(raw) : [];
-          if (get().owner === owner) set({ stations:mergeRecentlyPlayed(get().stations,stored), loaded:true });
+          if (isAccountCurrent(scope) && get().owner === owner) set({ stations:mergeRecentlyPlayed(get().stations,stored), loaded:true });
         } catch {
-          if (get().owner === owner) set({ loaded:true });
+          if (isAccountCurrent(scope) && get().owner === owner) set({ loaded:true });
         }
-      })().finally(() => { localLoads.delete(owner); });
-      localLoads.set(owner,load);
+      })().finally(() => { localLoads.delete(loadKey); });
+      localLoads.set(loadKey,load);
       return load;
     },
     async loadFromAPI() {
       const owner = ensureOwner();
+      const scope=captureAccount();
       await get().loadFromStorage();
-      if (owner === 'guest' || get().owner !== owner) return;
+      if (!isAccountCurrent(scope) || !scope.token || owner === 'guest' || get().owner !== owner) return;
       set({ isLoading:true });
       try {
         const response = await api.get('/api/recently-played');
-        if (ownerNow() !== owner || get().owner !== owner) return;
+        if (!isAccountCurrent(scope) || ownerNow() !== owner || get().owner !== owner) return;
         const stations = mergeRecentlyPlayed(get().stations,Array.isArray(response.data) ? response.data : response.data?.stations);
         set({ stations,loaded:true,isLoading:false });
         persist(owner,stations);
       } catch {
-        if (get().owner === owner) set({ isLoading:false });
+        if (isAccountCurrent(scope) && get().owner === owner) set({ isLoading:false });
       }
     },
     async syncToAPI(stationId) {
-      if (ownerNow() === 'guest') return;
+      if (!captureAccount().token) return;
       try { await api.post('/api/recently-played',{stationId}); } catch { /* Local history remains available offline. */ }
     },
   };
 });
 useAuthStore.subscribe((state,previous) => {
-  if (state.isAuthenticated !== previous.isAuthenticated || state.user?._id !== previous.user?._id) {
+  if (state.token !== previous.token || state.isAuthenticated !== previous.isAuthenticated || state.user?._id !== previous.user?._id) {
     useRecentlyPlayedStore.setState({ owner:ownerNow(), stations:[],loaded:false,isLoading:false });
     void useRecentlyPlayedStore.getState().loadFromStorage();
   }

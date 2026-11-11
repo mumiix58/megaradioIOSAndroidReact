@@ -2,7 +2,7 @@
   "expo": {
     "name": "MegaRadio",
     "slug": "megaradio",
-    "version": "1.0.70",
+    "version": "1.0.71",
     "newArchEnabled": false,
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -12,9 +12,9 @@
     ],
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/onboarding/figma/splash-native.png",
+      "image": "./assets/images/splash.png",
       "resizeMode": "cover",
-      "backgroundColor": "#1B1C1E"
+      "backgroundColor": "#000000"
     },
     "ios": {
       "supportsTablet": true,
@@ -22,12 +22,12 @@
       "associatedDomains": [
         "applinks:themegaradio.com"
       ],
-      "buildNumber": "5",
+      "buildNumber": "10",
       "usesAppleSignIn": true,
       "splash": {
-        "image": "./assets/images/onboarding/figma/splash-native.png",
+        "image": "./assets/images/splash.png",
         "resizeMode": "cover",
-        "backgroundColor": "#1B1C1E"
+        "backgroundColor": "#000000"
       },
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
@@ -144,9 +144,9 @@
         "backgroundColor": "#FF4199"
       },
       "splash": {
-        "image": "./assets/images/onboarding/figma/splash-native.png",
+        "image": "./assets/images/splash.png",
         "resizeMode": "cover",
-        "backgroundColor": "#1B1C1E"
+        "backgroundColor": "#000000"
       },
       "package": "com.megaradio",
       "intentFilters": [
@@ -187,11 +187,501 @@
               "scheme": "https",
               "host": "themegaradio.com",
               "pathPattern": "/.*/genre/.*"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/stations/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/users/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/genres/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/profile/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/en/station/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/en/stations/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/en/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/en/genres/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/en/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/en/users/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/en/profile/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/es/estacion/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/es/estaciones/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/es/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/es/generos/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/es/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/es/usuarios/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/es/perfil/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/fr/station/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/fr/stations/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/fr/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/fr/genres/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/fr/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/fr/utilisateurs/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/fr/profil/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/de/sender/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/de/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/de/genres/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/de/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/de/benutzer/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/de/profil/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/pt/estacao/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/pt/estacoes/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/pt/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/pt/generos/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/pt/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/pt/usuarios/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/pt/perfil/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/it/stazione/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/it/stazioni/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/it/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/it/generi/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/it/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/it/utenti/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/it/profilo/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ru/stantsiya/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ru/stantsii/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ru/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ru/zhanry/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ru/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ru/polzovateli/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ru/profil/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ar/mahta/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ar/mahtat/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ar/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ar/anwaa/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ar/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ar/mustakhdimin/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ar/malaf-shakhsi/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/zh/电台/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/zh/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/zh/类型/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/zh/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/zh/用户/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/zh/个人资料/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/tr/istasyon/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/tr/istasyonlar/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/tr/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/tr/turler/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/tr/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/tr/kullanicilar/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/tr/profil/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ja/ステーション/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ja/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ja/ジャンル/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ja/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ja/ユーザー/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ja/プロフィール/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ko/스테이션/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ko/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ko/장르/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ko/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ko/사용자/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/ko/프로필/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/hi/station/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/hi/stations/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/hi/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/hi/shailiyan/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/hi/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/hi/upyogkarta/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/hi/profile/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/he/tachana/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/he/tachanot/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/he/genre/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/he/zhanrim/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/he/user/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/he/mishtamshim/"
+            },
+            {
+              "scheme": "https",
+              "host": "themegaradio.com",
+              "pathPrefix": "/he/profil/"
             }
           ]
         }
       ],
-      "versionCode": 92,
+      "versionCode": 106,
       "googleServicesFile": "./google-services.json",
       "permissions": [
         "INTERNET",
@@ -242,7 +732,7 @@
             "usesCleartextTraffic": true,
             "useLegacyPackaging": true,
             "newArchEnabled": false,
-            "kotlinVersion": "2.0.0",
+            "kotlinVersion": "2.1.20",
             "extraProguardRules": "-keep class io.invertase.** { *; }\n-keep class com.google.android.gms.ads.** { *; }"
           },
           "ios": {
@@ -277,7 +767,7 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "MegaRadio needs microphone access only when you record a voice message.",
+          "microphonePermission": false,
           "ios": {
             "allowsBackgroundAudioPlayback": true
           },
@@ -293,14 +783,20 @@
       "./plugins/withAndroidAutoFull.js",
       "./plugins/withCleartextTraffic.js",
       "./plugins/withSwift5Mode.js",
-      "react-native-google-cast",
+      [
+        "react-native-google-cast",
+        {
+          "androidPlayServicesCastFrameworkVersion": "22.3.1"
+        }
+      ],
       "./plugins/withAdMobFix.js",
       [
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-8771434485570434~7427742767",
           "iosAppId": "ca-app-pub-8771434485570434~4044224468",
-          "userTrackingPermission": "MegaRadio uses your device information to provide you with a better and more personalized advertising experience."
+          "delayAppMeasurementInit": true,
+          "userTrackingUsageDescription": "Your permission allows advertising partners to use your device identifier to measure ads across apps and websites. You can decline and continue listening."
         }
       ],
       "./plugins/withTrackPlayerServiceFix.js",
@@ -308,6 +804,7 @@
       "./plugins/withCarPlayScenes.js",
       "./plugins/withSwiftAudioExRadioFix.js",
       "./plugins/withCompanionBridges.js",
+      "./plugins/withTrackingTransparency.js",
       "@react-native-firebase/app",
       "@react-native-firebase/crashlytics",
       "./plugins/withGoogleServicesFix.js",
@@ -318,7 +815,10 @@
         }
       ],
       "./plugins/withFmtFix.js",
-      "./plugins/withWatchOSBuildFix.js"
+      "./plugins/withPodDeploymentTarget.js",
+      "./plugins/withWatchOSBuildFix.js",
+      "./plugins/withAndroidReleaseSigning.js",
+      "@react-native-firebase/perf"
     ],
     "experiments": {
       "typedRoutes": true

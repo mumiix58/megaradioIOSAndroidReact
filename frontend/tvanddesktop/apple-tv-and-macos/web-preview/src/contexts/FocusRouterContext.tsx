@@ -36,6 +36,13 @@ export function FocusRouterProvider({ children }: { children: ReactNode }) {
 
   // Dispatch key event to the handler for current route
   const dispatch = (e: KeyboardEvent) => {
+    // Native text editing owns arrows (including Samsung IME caret movement).
+    // Check before invoking a page handler, which may navigate or preventDefault.
+    const target = e.target as HTMLElement | null;
+    const editing = target?.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(target?.tagName || '');
+    if (editing && (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) ||
+        (e.keyCode >= 37 && e.keyCode <= 40))) return;
+
     // Samsung TV: Use window.location.hash directly (hash-based routing)
     const hash = window.location.hash;
     let currentRoute = hash.replace('#', '') || '/';

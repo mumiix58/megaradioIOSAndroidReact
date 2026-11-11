@@ -4,6 +4,7 @@ import { nearbyScope } from '../utils/nearbyScope';
 // All data is fetched fresh from API
 
 import api from './api';
+import {CanceledError} from 'axios';
 import { API_ENDPOINTS, API_BASE_URL } from '../constants/api';
 import type { Station } from '../types';
 
@@ -147,7 +148,7 @@ export const stationService = {
     const taxonomy=warmSearchGenres();
     if(knownGenre && (!scope.genre || stationSearchGenre(scope.genre)===knownGenre || scope.genre===knownGenre)) {
       const {data}=await api.get(API_ENDPOINTS.stations.search,{params:{countryName:scope.country,countryCode:scope.country?undefined:'global',genre:knownGenre,sort:'votes',limit:candidateLimit,slim:1},signal,timeout:5000});
-      if(signal?.aborted)throw new Error('Search cancelled');
+      if(signal?.aborted)throw new CanceledError('Search cancelled');
       return rankGenreStations(Array.isArray(data)?data:data?.stations||data?.data||[],knownGenre,outputLimit,true);
     }
     // This existing public reader preserves literal names (no destructive synonym rewrite).
@@ -160,7 +161,7 @@ export const stationService = {
       params:{state:location,country:scope.country,countryName:scope.country,genre:scope.genre,sort:'votes',limit:candidateLimit,slim:1},signal,timeout:5000,
     }));
     const responses=await Promise.allSettled(requests);
-    if(signal?.aborted)throw new Error('Search cancelled');
+    if(signal?.aborted)throw new CanceledError('Search cancelled');
     const fulfilled=responses.filter((result):result is PromiseFulfilledResult<any>=>result.status==='fulfilled');
     if(!fulfilled.length)throw (responses[0] as PromiseRejectedResult).reason;
     const stations=fulfilled.flatMap(({value:{data}})=>Array.isArray(data)?data:Array.isArray(data?.stations)?data.stations:Array.isArray(data?.data)?data.data:[]);
@@ -169,7 +170,7 @@ export const stationService = {
     const discoveredGenre=stationSearchGenre(query);
     if(discoveredGenre && (!scope.genre || stationSearchGenre(scope.genre)===discoveredGenre || scope.genre===discoveredGenre)) {
       const {data}=await api.get(API_ENDPOINTS.stations.search,{params:{countryName:scope.country,countryCode:scope.country?undefined:'global',genre:discoveredGenre,sort:'votes',limit:candidateLimit,slim:1},signal,timeout:5000});
-      if(signal?.aborted)throw new Error('Search cancelled');
+      if(signal?.aborted)throw new CanceledError('Search cancelled');
       return rankGenreStations(Array.isArray(data)?data:data?.stations||data?.data||[],discoveredGenre,outputLimit,true);
     }
     return rankStationSearch(stations,query,outputLimit);

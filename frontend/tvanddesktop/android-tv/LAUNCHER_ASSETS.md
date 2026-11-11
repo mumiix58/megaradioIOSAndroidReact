@@ -33,6 +33,6 @@ Round-icon variants (`ic_launcher_round.png`) must live in the same folders.
    wordmark + logo on a radial `#FF4199 → #0E0E0E` gradient matching the
    splash screen (`images/hand-crowd-disco-1.png`).
 
-Until these files are committed, the Gradle build will fail with
-`AAPT: error: resource drawable/tv_banner not found`. That is expected and
-intentional — the store will reject an APK without a real banner anyway.
+The banner and density-specific launcher images are included in this project.
+Keep documentation outside `app/src/main/res`: Android's resource compiler
+accepts drawable resources in that directory, not Markdown files.

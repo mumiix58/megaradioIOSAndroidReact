@@ -89,6 +89,7 @@ function installXcodegen() {
 // Generate the .xcodeproj
 // ────────────────────────────────────────────────────────────────────────
 function generate() {
+  require('./prepare-tvos-assets');
   log('Generating MegaRadioTV.xcodeproj from project.yml…');
   const r = spawnSync('xcodegen', ['generate', '--spec', PROJECT_YML, '--project', TVOS_DIR], {
     stdio: 'inherit',

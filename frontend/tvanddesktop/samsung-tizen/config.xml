@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <widget xmlns="http://www.w3.org/ns/widgets" xmlns:tizen="http://tizen.org/ns/widgets"
         id="http://themegaradio.com/MegaRadioTV"
-        version="1.0.3"
+        version="2.2.9"
         viewmodes="maximized">
-    <tizen:application id="lJoKY533ah.MegaRadioTV" package="lJoKY533ah" required_version="2.3"/>
+    <tizen:application id="lJoKY533ah.MegaRadioTVAPP" package="lJoKY533ah" required_version="2.3"/>
     <content src="index.html"/>
     <access origin="*" subdomains="true"/>
 
@@ -42,7 +42,6 @@
     <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
     <tizen:privilege name="http://developer.samsung.com/privilege/widgetdata"/>
     <tizen:privilege name="http://tizen.org/privilege/system"/>
-    <tizen:privilege name="http://tizen.org/feature/network.ethernet"/>
     <tizen:privilege name="http://tizen.org/privilege/filesystem.read"/>
     <tizen:privilege name="http://tizen.org/privilege/filesystem.write"/>
 

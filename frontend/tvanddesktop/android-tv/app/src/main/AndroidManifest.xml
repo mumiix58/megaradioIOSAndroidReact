@@ -12,7 +12,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Google Play Billing v7 — required for in-app purchases / subscriptions -->
+    <!-- Google Play Billing — required for in-app purchases / subscriptions -->
     <uses-permission android:name="com.android.vending.BILLING" />
 
     <application
@@ -24,6 +24,9 @@
         android:supportsRtl="true"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.MegaRadioTV">
+
+        <service android:name=".TvPlaybackService" android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
 
         <activity
             android:name=".MainActivity"

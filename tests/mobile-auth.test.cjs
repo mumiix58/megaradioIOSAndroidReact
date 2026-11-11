@@ -10,7 +10,7 @@ function load(file, modules) {
   const output = ts.transpileModule(fs.readFileSync(path.join(root, file), 'utf8'), {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020, jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true },
   }).outputText;
-  const context = { exports: {}, console: { log() {}, warn() {}, error() {} }, require(name) {
+  const context = { exports: {},__DEV__:false, console: { log() {}, warn() {}, error() {} }, require(name) {
     if (!(name in modules)) throw new Error(`Unexpected import: ${name}`);
     return modules[name];
   } };
@@ -132,12 +132,12 @@ function authStore(failWrites = false) {
     'expo-secure-store': {getItemAsync: async k => storage.get(k) || null,
       setItemAsync: async (k,v) => {if(failWrites)throw Error('fixture keychain failure');storage.set(k,v);},
       deleteItemAsync: async k => {storage.delete(k);}},
-    '../services/socialAuthService': {socialAuthService: {signOutGoogle: async () => {}}},
+    '../services/queryClient':{queryClient:{cancelQueries:async()=>{},clear(){}}},'../services/sessionRuntime': {invalidateSession(){},sessionVersion:()=>0,isCurrentSession:()=>true},'../services/socialAuthService': {socialAuthService: {signOutGoogle: async () => {}}},
     '../services/flowaliveService': {flowaliveService: {setUser: async () => {}, clearUser: async () => {},trackUserLogout() {}}},
-    './favoritesStore': {useFavoritesStore: favorites},
+    './premiumStore':{usePremiumStore:{getState:()=>({reset(){},loadPremiumStatus:async()=>{}})}},'./songHistoryStore':{useSongHistoryStore:{setState(){}}},'./recentlyPlayedStore':{useRecentlyPlayedStore:{setState(){}}},'./favoritesStore': {useFavoritesStore: favorites},
     '../services/iapService': {iapService: {syncSubscriptionFromBackend: async () => {}}},
     '../services/pushNotificationService': {__esModule: true, default: {getStoredPushToken: async () => null}},
-    '@react-native-async-storage/async-storage': {__esModule: true, default: {getItem: async () => null, removeItem: async () => {}}},
+    '@react-native-async-storage/async-storage': {__esModule: true, default: {getItem: async () => null, multiRemove:async()=>{},removeItem: async () => {}}},
   });
   return {store: module.useAuthStore, storage};
 }

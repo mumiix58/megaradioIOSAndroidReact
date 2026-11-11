@@ -8,7 +8,8 @@ import React, { useCallback, useState, useEffect, useRef } from 'react';
 import { Stack, router, useSegments, useRootNavigationState } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import Constants from 'expo-constants';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider, focusManager } from '@tanstack/react-query';
+import { queryClient } from '../src/services/queryClient';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, StyleSheet, Platform, AppState, AppStateStatus, Text, InteractionManager } from 'react-native';
 import { useFonts } from 'expo-font';
@@ -70,32 +71,8 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
   }
 }
 
-// Error boundary to prevent native module crashes from causing white screen
-class AudioErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean }> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props);
-    this.state = { hasError: false };
-  }
-  
-  static getDerivedStateFromError() {
-    return { hasError: true };
-  }
-  
-  componentDidCatch(error: Error, errorInfo: any) {
-    console.error('[AudioErrorBoundary] Caught error:', error.message, errorInfo);
-    // Report to Firebase Crashlytics
-    crashlyticsService.recordError(error, 'AudioErrorBoundary');
-  }
-  
-  render() {
-    if (this.state.hasError) {
-      // Render children without AudioProvider - app works but no audio
-      console.warn('[AudioErrorBoundary] AudioProvider crashed, rendering without audio');
-      return this.props.children;
-    }
-    return <AudioProvider>{this.props.children}</AudioProvider>;
-  }
-}
+// The root boundary owns failures for the whole audio subtree. Rendering its
+// consumers without AudioProvider would throw again and hide the original error.
 import { ChatFloatingMiniPlayer } from '../src/components/ChatFloatingMiniPlayer';
 import { MiniPlayer } from '../src/components/MiniPlayer';
 import { usePlayerStore } from '../src/store/playerStore';
@@ -113,27 +90,6 @@ import crashlyticsService from '../src/services/crashlyticsService';
 // CarPlay - Re-enabled after fixing native delegate issues
 import { CarPlayHandler } from '../src/components/CarPlayHandler';
 
-
-// Create a client with optimized defaults for performance (based on backend recommendations)
-let queryClient: QueryClient;
-try {
-  queryClient = new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 10 * 60 * 1000, // 10 minutes - default for most data
-        gcTime: 30 * 60 * 1000, // 30 minutes - keep unused data in cache
-        retry: 2,
-        refetchOnWindowFocus: false, // Don't refetch when app comes to foreground
-        refetchOnReconnect: true, // Refetch when network reconnects
-        refetchOnMount: false, // Don't refetch if data exists in cache
-        networkMode: 'offlineFirst', // Use cached data first, then fetch
-      },
-    },
-  });
-} catch (e: any) {
-  // Create minimal client as fallback
-  queryClient = new QueryClient();
-}
 
 const ONBOARDING_COMPLETE_KEY = '@megaradio_onboarding_complete';
 // FlowAlive DISABLED - NPM package bug
@@ -187,6 +143,13 @@ export default function RootLayout() {
   const [splashHidden, setSplashHidden] = useState(false);
   const showBrandedOpening = Platform.OS !== 'web' || process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY !== '1';
   const [showRateUs, setShowRateUs] = useState(false);
+  const subscriptionAccount = useAuthStore(state => state.token);
+
+  // Account entitlement does not depend on StoreKit product loading.
+  useEffect(() => {
+    if (!subscriptionAccount) return;
+    void import('../src/services/iapService').then(({ iapService }) => iapService.syncSubscriptionFromBackend()).catch(() => {});
+  }, [subscriptionAccount]);
   
   const segments = useSegments();
   const navigationState = useRootNavigationState();
@@ -204,11 +167,10 @@ export default function RootLayout() {
       }
     }
 
-    // RateUs: track app launch + subscribe to triggers
+    // Request the native review UI only after an eligible listening session.
     rateUsService.trackAppLaunch().catch(() => {});
     const unsubscribe = rateUsService.onShouldShow(() => {
-      // Small delay so it doesn't conflict with onboarding/splash
-      setTimeout(() => setShowRateUs(true), 1500);
+      setShowRateUs(true);
     });
 
     // Siri voice intent deep-link handler.
@@ -254,6 +216,7 @@ export default function RootLayout() {
   useEffect(() => {
     const initAnalytics = async () => {
       try {
+        void require('../src/services/firebaseRuntimeService').initializeFirebaseRuntime();
         await analyticsService.initialize();
         // Firebase collects native app_open automatically; do not count cold starts twice.
         if (Platform.OS === 'web') await analyticsService.logAppOpen();
@@ -330,10 +293,6 @@ export default function RootLayout() {
   // IAP/StoreKit init is DEFERRED — it was competing with launch and blocking
   // the native module queue for 15s+ on cold start
   useEffect(() => {
-    usePremiumStore.getState().loadPremiumStatus()
-      .then(() => console.log('[Layout] Premium status loaded:', usePremiumStore.getState().plan))
-      .catch((error) => console.log('[Layout] Premium load error:', error));
-
     if (Platform.OS === 'web') return;
 
     // Defer IAP init until UI is interactive (4s after mount + interactions done)
@@ -344,12 +303,6 @@ export default function RootLayout() {
           const result = await iapService.initialize();
           console.log('[Layout] IAP initialized (deferred):', result);
 
-          // Sync subscription from backend (if user is logged in)
-          const { isAuthenticated } = useAuthStore.getState();
-          if (isAuthenticated) {
-            await iapService.syncSubscriptionFromBackend();
-            console.log('[Layout] Backend subscription sync complete');
-          }
         } catch (iapError) {
           console.log('[Layout] IAP deferred init error (expected on simulator):', iapError);
         }
@@ -507,7 +460,7 @@ export default function RootLayout() {
         console.log('[Layout] Using country:', country, 'code:', countryCode);
         
         // Initialize app data (translations only - no caching)
-        const data = await initializeTvData(country);
+        const data = await initializeTvData(country || undefined);
         
         if (data) {
           console.log('[Layout] App data initialized:', {
@@ -536,10 +489,13 @@ export default function RootLayout() {
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
+        focusManager.setFocused(true);
+        void useAuthStore.getState().revalidateSession();
+        void import('../src/services/authRevocationService').then(service => service.revokeSession()).catch(() => {});
+        void import('../src/services/iapService').then(service => service.iapService.syncSubscriptionFromBackend()).catch(() => {});
         void useLocationStore.getState().fetchLocation();
-        console.log('[Layout] App came to foreground');
       } else if (nextAppState === 'background') {
-        console.log('[Layout] App went to background');
+        focusManager.setFocused(false);
       }
     };
 
@@ -655,7 +611,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={styles.container} onLayout={onLayoutRootView}>
       <I18nextProvider i18n={i18n}>
           <QueryClientProvider client={queryClient}>
-            <AudioErrorBoundary>
+            <AudioProvider>
               <NativeCastProvider>
               <PlayAtLoginHandler />
               <QuickActionsHandler />
@@ -706,15 +662,11 @@ export default function RootLayout() {
                 {/* Global MiniPlayer - shown on all screens except player */}
                 <GlobalMiniPlayer />
                 <RadioErrorModal />
-                {/* Rate Us Modal — triggers after 3+ station plays or 3+ app launches */}
+                {/* Stores own the review UI; this component renders no pre-prompt. */}
                 <RateUsModal
                   visible={showRateUs}
                   onClose={() => {
                     setShowRateUs(false);
-                    rateUsService.markDismissed().catch(() => {});
-                  }}
-                  onRated={() => {
-                    rateUsService.markRated().catch(() => {});
                   }}
                 />
                 {showBrandedOpening && !splashHidden && (
@@ -724,7 +676,7 @@ export default function RootLayout() {
                 )}
               </View>
               </NativeCastProvider>
-            </AudioErrorBoundary>
+            </AudioProvider>
           </QueryClientProvider>
         </I18nextProvider>
     </GestureHandlerRootView>

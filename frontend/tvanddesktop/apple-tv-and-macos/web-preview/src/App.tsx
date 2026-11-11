@@ -46,6 +46,7 @@ import { CountrySelectPage } from "@/pages/CountrySelectPage";
 import { Equalizer } from "@/pages/Equalizer";
 import { PaywallProvider, usePaywall } from "@/contexts/PaywallContext";
 import { useEffect } from "react";
+import { DesktopLegalPage } from "@/pages/DesktopLegalPage";
 import { recentlyPlayedStore } from "@/components/ContinueListeningSection";
 
 function PremiumRoute() {
@@ -206,6 +207,8 @@ function Router() {
       <Route path="/search" component={Search} />
       <Route path="/favorites" component={Favorites} />
       <Route path="/settings" component={Settings} />
+      <Route path="/privacy"><DesktopLegalPage document="privacy" /></Route>
+      <Route path="/terms"><DesktopLegalPage document="terms" /></Route>
       <Route path="/country-select" component={CountrySelectPage} />
       <Route path="/equalizer" component={Equalizer} />
       <Route path="/premium" component={PremiumRoute} />

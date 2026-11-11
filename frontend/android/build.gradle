@@ -3,7 +3,7 @@
 buildscript {
 // @generated begin react-native-google-cast-version-import - expo prebuild (DO NOT MODIFY) sync-751dea5919495636a44001495c681e3442af2777
   ext {
-        castFrameworkVersion = "+"
+        castFrameworkVersion = "22.3.1"
   }
 // @generated end react-native-google-cast-version-import
   repositories {
@@ -12,6 +12,7 @@ buildscript {
   }
   dependencies {
         classpath 'com.google.firebase:firebase-crashlytics-gradle:3.0.6'
+        classpath 'com.google.firebase:perf-plugin:2.0.2'
         classpath('com.google.gms:google-services:4.4.2')
     classpath('com.android.tools.build:gradle')
     classpath('com.facebook.react:react-native-gradle-plugin')

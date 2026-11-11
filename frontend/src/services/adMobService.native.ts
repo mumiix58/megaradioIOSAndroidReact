@@ -2,13 +2,14 @@
 // Google AdMob Integration Service for MegaRadio
 // Handles Interstitial and Rewarded ads
 
-import { Platform, NativeModules, StatusBar } from 'react-native';
+import { AppState, Platform, NativeModules, StatusBar } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { prepareAdConsent } from '../utils/adConsent';
+import { AD_POLICY, canShowStationAd } from '../utils/adPolicy';
 
 // Storage keys
 const AD_FREE_UNTIL_KEY = '@megaradio_ad_free_until';
-const STATION_CHANGE_COUNT_KEY = '@megaradio_station_change_count';
-const INTERSTITIAL_FREQUENCY = 5; // Show ad every 5 station changes
+const LAST_FULL_SCREEN_KEY = '@megaradio_last_full_screen_ad';
 
 // Ad Unit IDs (Production)
 const AD_UNITS = {
@@ -24,12 +25,6 @@ const AD_UNITS = {
   },
 };
 
-// Test Ad Unit IDs (for development)
-const TEST_AD_UNITS = {
-  interstitial: 'ca-app-pub-3940256099942544/1033173712',
-  rewarded: 'ca-app-pub-3940256099942544/5224354917',
-};
-
 class AdMobService {
   private interstitialAd: any = null;
   private rewardedAd: any = null;
@@ -38,16 +33,36 @@ class AdMobService {
   private isRewardedLoaded = false;
   private isAppOpenLoaded = false;
   isInitialized = false;
-  private umpFormShown = false;
+  private initializationPromise: Promise<boolean> | null = null;
+  private privacyOptionsOpen = false;
   private stationChangeCount = 0;
+  private rewardedAdFreeUntil = 0;
   firstStationAdShown = false; // Per-session flag for first station rewarded ad
-  private isManualRewardedAd = false; // CRITICAL: Only true when user clicks "Watch Ad" button
+  private sessionStartedAt = Date.now();
+  private lastFullScreenAt = 0;
+  private automaticAdsThisSession = 0;
+  private showing = false;
+  private presentation: Promise<{ shown: boolean; reward?: { type: string; amount: number } }> | null = null;
+  private retryTimers: Record<string, ReturnType<typeof setTimeout>> = {};
+  private retryAttempts: Record<string, number> = {};
+
+  private metric(name: string, format: 'interstitial' | 'rewarded', code?: string): void {
+    try {
+      const { analyticsService } = require('./analyticsService');
+      void analyticsService.logDiagnosticEvent(name, {
+        ad_format: format, placement: format === 'rewarded' ? 'profile_opt_in' : 'station_switch',
+        ...(code ? { error_code: String(code).slice(0, 60) } : {}),
+      }).catch(() => {});
+    } catch { /* Advertising remains available if telemetry is unavailable. */ }
+  }
 
   // Get the correct ad unit ID based on platform and environment
   getAdUnitId(type: 'interstitial' | 'rewarded' | 'appOpenInterstitial'): string {
     if (__DEV__) {
-      // Test ads don't have appOpenInterstitial, use regular interstitial
-      return TEST_AD_UNITS[type === 'appOpenInterstitial' ? 'interstitial' : type];
+      const { TestIds } = require('react-native-google-mobile-ads');
+      return type === 'appOpenInterstitial' ? TestIds.APP_OPEN
+        : type === 'rewarded' ? TestIds.REWARDED_INTERSTITIAL
+        : TestIds.INTERSTITIAL;
     }
     
     const platform = Platform.OS === 'ios' ? 'ios' : 'android';
@@ -56,6 +71,47 @@ class AdMobService {
 
   // Initialize AdMob SDK
   async initialize(): Promise<boolean> {
+    if (this.privacyOptionsOpen) return false;
+    if (this.isInitialized) return true;
+    if (this.initializationPromise) return this.initializationPromise;
+    this.initializationPromise = this.initializeOnce();
+    try { return await this.initializationPromise; }
+    finally { this.initializationPromise = null; }
+  }
+
+  async requiresPrivacyOptions(): Promise<boolean> {
+    if (this.initializationPromise) await this.initializationPromise;
+    const { AdsConsent, AdsConsentPrivacyOptionsRequirementStatus } = require('react-native-google-mobile-ads');
+    return (await AdsConsent.getConsentInfo()).privacyOptionsRequirementStatus ===
+      AdsConsentPrivacyOptionsRequirementStatus.REQUIRED;
+  }
+
+  async showPrivacyOptions(): Promise<void> {
+    if (this.privacyOptionsOpen) return;
+    if (this.initializationPromise) await this.initializationPromise;
+    if (this.privacyOptionsOpen) return;
+    if (this.showing) return;
+    this.privacyOptionsOpen = true;
+    Object.values(this.retryTimers).forEach(clearTimeout);
+    this.retryTimers = {};
+    this.isInitialized = false;
+    // Discard requests made under the old choices before presenting the form.
+    for (const ad of [this.interstitialAd, this.rewardedAd, this.appOpenAd]) {
+      try { ad?.removeAllListeners(); } catch { /* Already disposed. */ }
+    }
+    this.interstitialAd = this.rewardedAd = this.appOpenAd = null;
+    this.isInterstitialLoaded = this.isRewardedLoaded = this.isAppOpenLoaded = false;
+    try {
+      const { AdsConsent } = require('react-native-google-mobile-ads');
+      await AdsConsent.showPrivacyOptionsForm();
+    } finally {
+      this.privacyOptionsOpen = false;
+      // Re-read UMP before creating any replacement ad request.
+      await this.initialize();
+    }
+  }
+
+  private async initializeOnce(): Promise<boolean> {
     if (Platform.OS === 'web') {
       console.log('[AdMob] Not available on web');
       return false;
@@ -69,90 +125,45 @@ class AdMobService {
       const mobileAds = require('react-native-google-mobile-ads').default;
       const { MaxAdContentRating } = require('react-native-google-mobile-ads');
       
-      // CRITICAL: Set request configuration BEFORE initializing
-      // requestNonPersonalizedAdsOnly ensures ads serve even when ATT is denied
+      // The non-personalized flag belongs on each ad request, not this SDK configuration.
       try {
         await mobileAds().setRequestConfiguration({
           maxAdContentRating: MaxAdContentRating.T,
           tagForChildDirectedTreatment: false,
           tagForUnderAgeOfConsent: false,
-          requestNonPersonalizedAdsOnly: true,
         });
         console.log('[AdMob] Request configuration set (non-personalized ads enabled)');
       } catch (configError) {
         console.error('[AdMob] Request configuration error (non-fatal):', configError);
       }
       
-      // iOS 14+: Request ATT (App Tracking Transparency) BEFORE initializing ads
-      // Without ATT permission, AdMob cannot access IDFA and ads won't serve (or very low fill rate)
-      if (Platform.OS === 'ios') {
-        try {
-          // STEP 1: Request native iOS ATT permission via our custom native module
-          // ATTModule is defined in ios/MegaRadio/ATTModule.swift - zero dependencies
-          const { ATTModule } = NativeModules;
-          if (ATTModule) {
-            const status = await ATTModule.requestPermission();
-            console.log('[AdMob] ATT permission status:', status);
-          } else {
-            console.log('[AdMob] ATTModule not available (non-fatal)');
-          }
-          // Continue regardless of status - AdMob will serve non-personalized ads if denied
-        } catch (attError) {
-          console.log('[AdMob] ATT request error (non-fatal):', attError);
-        }
-        
-        try {
-          // STEP 2: Request Google UMP consent (for GDPR regions)
-          const { AdsConsent, AdsConsentStatus } = require('react-native-google-mobile-ads');
-          
-          const consentInfo = await AdsConsent.requestInfoUpdate();
-          console.log('[AdMob] UMP Consent info:', consentInfo.status);
-          
-          if (consentInfo.isConsentFormAvailable && 
-              !this.umpFormShown &&
-              (consentInfo.status === AdsConsentStatus.REQUIRED || 
-               consentInfo.status === AdsConsentStatus.UNKNOWN)) {
-            console.log('[AdMob] Showing UMP consent form...');
-            this.umpFormShown = true;
-            await AdsConsent.showForm();
-          } else if (this.umpFormShown) {
-            console.log('[AdMob] UMP form already shown this session, skipping');
-          }
-        } catch (consentError) {
-          console.log('[AdMob] UMP consent request error (non-fatal):', consentError);
-        }
+      const { AdsConsent } = require('react-native-google-mobile-ads');
+      const attModule = NativeModules.ATTModule;
+      const canRequestAds = await prepareAdConsent(
+        Platform.OS,
+        attModule ? () => attModule.requestPermission() : undefined,
+        AdsConsent,
+      );
+      if (!canRequestAds) {
+        console.log('[AdMob] Ads remain disabled until privacy requirements are resolved');
+        return false;
       }
-      
+
       await mobileAds().initialize();
       console.log('[AdMob] SDK initialized successfully');
       
       this.isInitialized = true;
       
-      // Load ads with staggered timing to avoid SDK conflicts
-      // App Open loads FIRST (needed for first-launch ad - timing critical)
-      console.log('[AdMob] Loading App Open first (for first-launch ad)...');
-      this.loadAppOpenAd();
+      try {
+        const storedLastAd = Number(await AsyncStorage.getItem(LAST_FULL_SCREEN_KEY));
+        if (Number.isFinite(storedLastAd) && storedLastAd > 0 && storedLastAd <= Date.now()) {
+          this.lastFullScreenAt = Math.max(this.lastFullScreenAt, storedLastAd);
+        }
+      } catch { /* The session grace and cap still protect users. */ }
+      // No launch ads: the first listening experience stays uninterrupted.
+      void this.loadInterstitialAd();
+      void this.loadRewardedAd();
 
-      // Interstitial loads SECOND (200ms delay) - also feeds first-launch fallback
-      setTimeout(() => {
-        console.log('[AdMob] Loading Interstitial...');
-        this.loadInterstitialAd();
-      }, 200);
-
-      // Rewarded loads LAST (500ms delay)
-      setTimeout(() => {
-        console.log('[AdMob] Loading Rewarded...');
-        this.loadRewardedAd();
-      }, 500);
-
-      console.log('[AdMob] Staggered ad loading initiated (App Open prioritized)');
-      
-      // Reset station change count for each session (don't persist across sessions)
-      // This ensures users always get 3 full station changes before seeing the next ad
-      this.stationChangeCount = 0;
-      await AsyncStorage.setItem(STATION_CHANGE_COUNT_KEY, '0');
-      console.log('[AdMob] Station change counter reset for new session');
-      
       return true;
     } catch (error) {
       console.error('[AdMob] Initialization error:', error);
@@ -189,6 +200,8 @@ class AdMobService {
       this.interstitialAd.addAdEventListener(AdEventType.LOADED, () => {
         console.log('[AdMob] Interstitial ad LOADED successfully');
         this.isInterstitialLoaded = true;
+        this.retryAttempts.interstitial = 0;
+        this.metric('ad_load_succeeded', 'interstitial');
       });
 
       // iOS: Hide status bar when ad opens to prevent display issues
@@ -205,135 +218,40 @@ class AdMobService {
           StatusBar.setHidden(false);
         }
         this.isInterstitialLoaded = false;
-        this.loadInterstitialAd();
+        // The next station boundary preloads a replacement.
       });
 
       this.interstitialAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
         console.error('[AdMob] Interstitial ad ERROR:', error?.message || error);
         this.isInterstitialLoaded = false;
-        setTimeout(() => {
-          console.log('[AdMob] Retrying interstitial ad load...');
-          this.loadInterstitialAd();
-        }, 15000);
+        this.metric('ad_load_failed', 'interstitial', error?.code || 'unknown');
+        this.retryLoad('interstitial');
       });
 
+      this.metric('ad_load_requested', 'interstitial');
       this.interstitialAd.load();
     } catch (error) {
       console.error('[AdMob] Error creating interstitial:', error);
     }
   }
 
-  // Load App Open Ad (separate ad unit - App Open type in AdMob)
-  async loadAppOpenAd(): Promise<void> {
-    if (Platform.OS === 'web' || !this.isInitialized) return;
+  // Kept for compatibility with older callers. Never show a full-screen ad
+  // after launch or after playback has already started.
+  async loadAppOpenAd(): Promise<void> {}
+  async showAppOpenAd(): Promise<boolean> { return false; }
 
-    const adUnitId = this.getAdUnitId('appOpenInterstitial');
-    if (!adUnitId) {
-      console.log('[AdMob] No App Open ad unit configured for this platform, skipping');
-      return;
-    }
-
-    try {
-      const { AppOpenAd, AdEventType } = require('react-native-google-mobile-ads');
-      
-      if (this.appOpenAd) {
-        try { this.appOpenAd.removeAllListeners(); } catch (e) {}
-        this.appOpenAd = null;
-      }
-      this.isAppOpenLoaded = false;
-      
-      console.log('[AdMob] Loading App Open ad with adUnitId:', adUnitId);
-      
-      // Use AppOpenAd (NOT InterstitialAd) for App Open ad units
-      this.appOpenAd = AppOpenAd.createForAdRequest(adUnitId, {
-        requestNonPersonalizedAdsOnly: true,
-      });
-
-      this.appOpenAd.addAdEventListener(AdEventType.LOADED, () => {
-        console.log('[AdMob] App Open ad LOADED');
-        this.isAppOpenLoaded = true;
-      });
-
-      this.appOpenAd.addAdEventListener(AdEventType.CLOSED, () => {
-        console.log('[AdMob] App Open ad closed - cleaning up');
-        this.isAppOpenLoaded = false;
-        // CRITICAL: Clean up the ad reference to ensure no overlay lingers
-        try {
-          if (this.appOpenAd) {
-            this.appOpenAd.removeAllListeners();
-          }
-        } catch (e) {
-          console.log('[AdMob] App Open cleanup error (non-fatal):', e);
-        }
-        this.appOpenAd = null;
-      });
-
-      this.appOpenAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
-        console.error('[AdMob] App Open ad ERROR:', error?.message || error);
-        this.isAppOpenLoaded = false;
-        // Retry App Open after 30s (new ad units may take time to activate)
-        setTimeout(() => {
-          console.log('[AdMob] Retrying App Open ad load...');
-          this.loadAppOpenAd();
-        }, 30000);
-      });
-
-      this.appOpenAd.load();
-    } catch (error) {
-      console.error('[AdMob] Error creating App Open ad:', error);
-    }
+  private retryLoad(kind: 'interstitial' | 'rewarded'): void {
+    if (!this.isInitialized || this.privacyOptionsOpen || this.retryTimers[kind]) return;
+    const attempt = (this.retryAttempts[kind] || 0) + 1;
+    this.retryAttempts[kind] = attempt;
+    // Bounded retries prevent an offline/no-fill loop from churning the SDK.
+    if (attempt > 3) return;
+    this.retryTimers[kind] = setTimeout(() => {
+      delete this.retryTimers[kind];
+      if (kind === 'interstitial') void this.loadInterstitialAd();
+      else void this.loadRewardedAd();
+    }, Math.min(60000, 15000 * 2 ** (attempt - 1)));
   }
-
-  // Show App Open Ad with retry + Interstitial fallback
-  // Waits up to 5s for App Open ad to load. Falls back to Interstitial if still unavailable.
-  async showAppOpenAd(): Promise<boolean> {
-    if (Platform.OS === 'web') return false;
-
-    // Check ad-free time
-    if (await this.isAdFree()) {
-      console.log('[AdMob] User has ad-free time, skipping app-open ad');
-      return false;
-    }
-
-    // Retry loop: wait up to 5s (10 x 500ms) for App Open ad to load
-    const maxWaitMs = 5000;
-    const pollIntervalMs = 500;
-    const maxAttempts = Math.ceil(maxWaitMs / pollIntervalMs);
-
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      if (this.isAppOpenLoaded && this.appOpenAd) {
-        try {
-          await this.appOpenAd.show();
-          console.log(`[AdMob] App Open ad shown (attempt ${attempt + 1})`);
-          this.isAppOpenLoaded = false;
-          return true;
-        } catch (error) {
-          console.error('[AdMob] Error showing App Open ad:', error);
-          break;
-        }
-      }
-      if (attempt === 0) {
-        console.log('[AdMob] App Open ad not yet loaded, polling...');
-      }
-      await new Promise((r) => setTimeout(r, pollIntervalMs));
-    }
-
-    // Fallback: show Interstitial if available (covers first-launch ad gap)
-    console.log('[AdMob] App Open ad unavailable after polling — trying Interstitial fallback...');
-    if (this.isInterstitialLoaded && this.interstitialAd) {
-      try {
-        await this.interstitialAd.show();
-        console.log('[AdMob] Interstitial ad shown as first-launch fallback');
-        return true;
-      } catch (error) {
-        console.error('[AdMob] Interstitial fallback error:', error);
-      }
-    }
-
-    console.log('[AdMob] No ads available for first launch — will retry later');
-    return false;
-  }
-
 
   // Load Rewarded Interstitial Ad
   async loadRewardedAd(): Promise<void> {
@@ -365,29 +283,18 @@ class AdMobService {
       this.rewardedAd.addAdEventListener(RewardedAdEventType.LOADED, () => {
         console.log('[AdMob] Rewarded interstitial ad LOADED successfully');
         this.isRewardedLoaded = true;
+        this.retryAttempts.rewarded = 0;
+        this.metric('ad_load_succeeded', 'rewarded');
       });
 
-      // Use addAdEventsListener for ERROR, CLOSED, and EARNED_REWARD safety check
-      this.rewardedAd.addAdEventsListener(({ type, payload }: { type: string; payload?: any }) => {
-        if (type === AdEventType.CLOSED || type === 'closed') {
-          console.log('[AdMob] Rewarded interstitial ad closed');
-          this.isRewardedLoaded = false;
-          this.loadRewardedAd();
-        } else if (type === AdEventType.ERROR || type === 'error') {
-          console.error('[AdMob] Rewarded interstitial ad ERROR:', payload?.message || payload);
-          this.isRewardedLoaded = false;
-          setTimeout(() => {
-            console.log('[AdMob] Retrying rewarded interstitial ad load...');
-            this.loadRewardedAd();
-          }, 15000);
-        } else if (type === 'rewarded_earned_reward' || type === 'earned_reward') {
-          // Safety: If reward earned during auto-fallback, do NOT grant ad-free time
-          if (!this.isManualRewardedAd) {
-            console.log('[AdMob] SAFETY: Reward earned from automatic ad - NOT granting ad-free time');
-          }
-        }
+      this.rewardedAd.addAdEventListener(AdEventType.ERROR, (error: any) => {
+        console.error('[AdMob] Rewarded load error:', error?.message || error);
+        this.isRewardedLoaded = false;
+        this.metric('ad_load_failed', 'rewarded', error?.code || 'unknown');
+        this.retryLoad('rewarded');
       });
 
+      this.metric('ad_load_requested', 'rewarded');
       this.rewardedAd.load();
     } catch (error) {
       console.error('[AdMob] Error creating rewarded interstitial ad:', error);
@@ -400,19 +307,18 @@ class AdMobService {
       // Check premium status first (permanent ad removal)
       const { usePremiumStore } = require('../store/premiumStore');
       const premiumState = usePremiumStore.getState();
-      if (premiumState.isPremium || premiumState.isRemoveAds) {
+      if (premiumState.hasFeature('remove_ads')) {
         return true;
       }
     } catch (e) {
       // PremiumStore not available - continue with regular check
     }
     
+    if (Date.now() < this.rewardedAdFreeUntil) return true;
     try {
       const adFreeUntil = await AsyncStorage.getItem(AD_FREE_UNTIL_KEY);
-      if (!adFreeUntil) return false;
-      
-      const expiryTime = parseInt(adFreeUntil, 10);
-      return Date.now() < expiryTime;
+      const expiryTime = Number(adFreeUntil);
+      return Number.isFinite(expiryTime) && Date.now() < expiryTime;
     } catch (error) {
       return false;
     }
@@ -420,199 +326,156 @@ class AdMobService {
 
   // Get remaining ad-free time in minutes
   async getAdFreeMinutesRemaining(): Promise<number> {
+    let expiry = this.rewardedAdFreeUntil;
     try {
-      const adFreeUntil = await AsyncStorage.getItem(AD_FREE_UNTIL_KEY);
-      if (!adFreeUntil) return 0;
-      
-      const expiryTime = parseInt(adFreeUntil, 10);
-      const remaining = expiryTime - Date.now();
-      
-      if (remaining <= 0) return 0;
-      return Math.ceil(remaining / 60000); // Convert to minutes
-    } catch (error) {
-      return 0;
-    }
+      const stored = Number(await AsyncStorage.getItem(AD_FREE_UNTIL_KEY));
+      if (Number.isFinite(stored)) expiry = Math.max(expiry, stored);
+    } catch { /* An earned in-session reward survives a storage error. */ }
+    return Math.max(0, Math.ceil((expiry - Date.now()) / 60000));
   }
 
-  // Grant ad-free time (called after watching rewarded ad)
-  async grantAdFreeTime(minutes: number = 30): Promise<void> {
+  async grantAdFreeTime(minutes: number = AD_POLICY.rewardedMinutes): Promise<void> {
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+    let expiry = this.rewardedAdFreeUntil;
     try {
-      const currentAdFree = await AsyncStorage.getItem(AD_FREE_UNTIL_KEY);
-      const currentExpiry = currentAdFree ? parseInt(currentAdFree, 10) : Date.now();
-      
-      // Add time to current expiry (or from now if expired)
-      const baseTime = currentExpiry > Date.now() ? currentExpiry : Date.now();
-      const newExpiry = baseTime + (minutes * 60 * 1000);
-      
-      await AsyncStorage.setItem(AD_FREE_UNTIL_KEY, String(newExpiry));
-      console.log('[AdMob] Granted', minutes, 'minutes ad-free time');
-    } catch (error) {
-      console.error('[AdMob] Error granting ad-free time:', error);
-    }
+      const stored = Number(await AsyncStorage.getItem(AD_FREE_UNTIL_KEY));
+      if (Number.isFinite(stored)) expiry = Math.max(expiry, stored);
+    } catch { /* Reward still works in this session. */ }
+    this.rewardedAdFreeUntil = Math.max(expiry, Date.now()) + minutes * 60000;
+    try { await AsyncStorage.setItem(AD_FREE_UNTIL_KEY, String(this.rewardedAdFreeUntil)); }
+    catch { /* Do not take away a completed reward because storage is unavailable. */ }
   }
 
-  // Track station change and show interstitial if needed
+  // Called and awaited only at a foreground, user-initiated station switch.
+  // Headless lock-screen navigation never accumulates advertising debt.
+  async waitForPresentation(): Promise<void> {
+    if (this.presentation) await this.presentation;
+  }
+
   async onStationChange(): Promise<boolean> {
-    // Don't track if not initialized yet
-    if (Platform.OS === 'web' || !this.isInitialized) {
-      console.log('[AdMob] onStationChange skipped - not initialized');
-      return false;
+    if (this.showing) { await this.presentation; return false; }
+    if (!this.isInitialized || AppState.currentState !== 'active') return false;
+    if (!this.firstStationAdShown) {
+      this.firstStationAdShown = true;
+      return false; // The first station is not a station change.
     }
-    
-    // Check if user is ad-free
-    if (await this.isAdFree()) {
-      const mins = await this.getAdFreeMinutesRemaining();
-      console.log('[AdMob] User is ad-free (' + mins + ' min remaining), skipping interstitial');
-      return false;
-    }
-
-    // Sync counter from AsyncStorage (picks up lock-screen next/prev increments from service.js)
-    try {
-      const storedCount = await AsyncStorage.getItem(STATION_CHANGE_COUNT_KEY);
-      if (storedCount) {
-        const parsed = parseInt(storedCount, 10);
-        if (parsed > this.stationChangeCount) {
-          console.log('[AdMob] Synced counter from background:', parsed, '(was', this.stationChangeCount, ')');
-          this.stationChangeCount = parsed;
-        }
-      }
-    } catch (e) {
-      // Non-blocking
-    }
-
     this.stationChangeCount++;
-    await AsyncStorage.setItem(STATION_CHANGE_COUNT_KEY, String(this.stationChangeCount));
-    console.log('[AdMob] Station change count:', this.stationChangeCount, '/ frequency:', INTERSTITIAL_FREQUENCY);
-
-    // Show interstitial every INTERSTITIAL_FREQUENCY station changes (3, 6, 9, 12...)
-    if (this.stationChangeCount % INTERSTITIAL_FREQUENCY === 0) {
-      console.log('[AdMob] Frequency hit! Attempting to show interstitial...');
-      console.log('[AdMob] isInterstitialLoaded:', this.isInterstitialLoaded);
-      
-      // Try interstitial first
-      let adShown = await this.showInterstitialAd();
-      
-      if (adShown) {
-        console.log('[AdMob] Interstitial shown successfully');
-        return true;
-      }
-      
-      // Fallback: Try rewarded ad if interstitial not available
-      console.log('[AdMob] Interstitial not ready, trying rewarded fallback...');
-      if (this.isRewardedLoaded && this.rewardedAd) {
-        try {
-          // CRITICAL: Mark as automatic (NOT manual) so reward callback won't grant ad-free time
-          this.isManualRewardedAd = false;
-          await this.rewardedAd.show();
-          console.log('[AdMob] Rewarded ad shown as auto-fallback (NO ad-free grant)');
-          this.isRewardedLoaded = false;
-          // Do NOT grant ad-free time for automatic ads
-          this.loadRewardedAd();
-          return true;
-        } catch (error) {
-          console.log('[AdMob] Rewarded fallback error:', error);
-        }
-      }
-
-      // Neither worked - preload both for next time
-      console.log('[AdMob] No ads available, preloading for next time...');
-      this.loadInterstitialAd();
-      this.loadRewardedAd();
-      return false;
-    }
-
-    return false;
+    return this.showInterstitialAd();
   }
 
-  // Show Interstitial Ad
   async showInterstitialAd(): Promise<boolean> {
-    if (Platform.OS === 'web') return false;
-    
-    // isAdFree() already checked by onStationChange() caller - no double check needed
-
-    if (!this.isInterstitialLoaded || !this.interstitialAd) {
-      console.log('[AdMob] Interstitial not ready - loaded:', this.isInterstitialLoaded, 'instance:', !!this.interstitialAd);
-      return false;
+    const adFree = await this.isAdFree();
+    if (this.showing) { await this.presentation; return false; }
+    if (!this.isInitialized || !canShowStationAd({
+      now: Date.now(), sessionStartedAt: this.sessionStartedAt,
+      lastFullScreenAt: this.lastFullScreenAt, stationChanges: this.stationChangeCount,
+      automaticAdsThisSession: this.automaticAdsThisSession,
+      foreground: AppState.currentState === 'active', adFree, showing: this.showing,
+    })) return false;
+    const ad = this.interstitialAd;
+    if (!this.isInterstitialLoaded || !ad) {
+      if (!this.retryTimers.interstitial) void this.loadInterstitialAd();
+      return false; // No reward-ad fallback and no waiting for inventory.
     }
-
-    try {
-      console.log('[AdMob] Showing interstitial NOW...');
-      await this.interstitialAd.show();
-      return true;
-    } catch (error) {
-      console.error('[AdMob] Error showing interstitial:', error);
-      return false;
+    this.showing = true;
+    this.isInterstitialLoaded = false;
+    this.presentation = this.presentAd(ad, false);
+    const result = await this.presentation;
+    this.presentation = null;
+    this.showing = false;
+    if (result.shown) {
+      this.stationChangeCount = 0;
+      this.automaticAdsThisSession++;
+      await this.recordFullScreen();
     }
+    return result.shown;
   }
 
-  // Show Rewarded Interstitial Ad and return promise that resolves when reward is earned
-  // ONLY called from the manual "Watch Ad" button on profile page
+  // Reward ads are exclusively opt-in. Their completion gives 30 minutes of
+  // app-ad-free time; broadcaster advertisements cannot be removed.
   async showRewardedAd(): Promise<{ success: boolean; reward?: { type: string; amount: number } }> {
-    if (Platform.OS === 'web') {
-      return { success: false };
+    if (!this.isInitialized || this.privacyOptionsOpen || this.showing ||
+        AppState.currentState !== 'active' || !this.isRewardedAdReady()) return { success: false };
+    const { usePremiumStore } = require('../store/premiumStore');
+    if (usePremiumStore.getState().hasFeature('remove_ads')) return { success: false };
+    this.showing = true;
+    const ad = this.rewardedAd;
+    this.isRewardedLoaded = false;
+    this.presentation = this.presentAd(ad, true);
+    const result = await this.presentation;
+    this.presentation = null;
+    this.showing = false;
+    if (result.shown) await this.recordFullScreen();
+    void this.loadRewardedAd();
+    return { success: !!result.reward, reward: result.reward };
+  }
+
+  private async recordFullScreen(): Promise<void> {
+    this.lastFullScreenAt = Date.now();
+    try { await AsyncStorage.setItem(LAST_FULL_SCREEN_KEY, String(this.lastFullScreenAt)); }
+    catch { /* Session cap still applies if storage is unavailable. */ }
+  }
+
+  private async presentAd(ad: any, rewarded: boolean): Promise<{
+    shown: boolean; reward?: { type: string; amount: number };
+  }> {
+    const { AdEventType, RewardedAdEventType } = require('react-native-google-mobile-ads');
+    let player: any;
+    let pausedTrack: string | number | undefined;
+    try {
+      player = require('react-native-track-player').default;
+      const state = await player.getPlaybackState();
+      if (state.state === 'playing') {
+        pausedTrack = (await player.getActiveTrack())?.id;
+        await player.pause();
+      }
+    } catch { /* Advertising must not depend on an optional player API. */ }
+    if (AppState.currentState !== 'active' || await this.isAdFree() && !rewarded) {
+      if (pausedTrack !== undefined) { try { await player.play(); } catch {} }
+      return { shown: false };
     }
-
-    if (!this.isRewardedLoaded || !this.rewardedAd) {
-      console.log('[AdMob] Rewarded interstitial ad not ready');
-      return { success: false };
+    try {
+      return await new Promise<{ shown: boolean; reward?: { type: string; amount: number } }>(resolve => {
+        let finished = false;
+        let shown = false;
+        let reward: { type: string; amount: number } | undefined;
+        let rewardSaved: Promise<void> = Promise.resolve();
+        const listeners: (() => void)[] = [];
+        const format = rewarded ? 'rewarded' : 'interstitial';
+        this.metric('ad_show_requested', format);
+        const finish = async () => {
+          if (finished) return;
+          finished = true;
+          listeners.forEach(remove => remove());
+          if (Platform.OS === 'ios') StatusBar.setHidden(false);
+          this.metric(shown ? 'ad_dismissed' : 'ad_show_failed', format);
+          await rewardSaved;
+          resolve({ shown, reward });
+        };
+        listeners.push(ad.addAdEventListener(AdEventType.OPENED, () => {
+          shown = true;
+          this.metric('ad_shown', format);
+          if (Platform.OS === 'ios') StatusBar.setHidden(true);
+        }));
+        listeners.push(ad.addAdEventListener(AdEventType.CLOSED, finish));
+        listeners.push(ad.addAdEventListener(AdEventType.ERROR, finish));
+        if (rewarded) listeners.push(ad.addAdEventListener(RewardedAdEventType.EARNED_REWARD, (value: { type: string; amount: number }) => {
+          if (reward || finished) return;
+          reward = value;
+          this.metric('ad_reward_earned', 'rewarded');
+          rewardSaved = this.grantAdFreeTime(AD_POLICY.rewardedMinutes);
+        }));
+        try { Promise.resolve(ad.show()).catch(finish); }
+        catch { void finish(); }
+      });
+    } finally {
+      if (rewarded && pausedTrack !== undefined) {
+        try {
+          // Never restart a different station selected while the ad was open.
+          if ((await player.getActiveTrack())?.id === pausedTrack) await player.play();
+        } catch { /* The next explicit playback action can recover. */ }
+      }
     }
-
-    // CRITICAL: Mark as manual ad - this is the ONLY path that should grant ad-free time
-    this.isManualRewardedAd = true;
-    console.log('[AdMob] Manual rewarded ad requested by user (will grant 30 min if completed)');
-
-    return new Promise((resolve) => {
-      const { RewardedAdEventType, AdEventType } = require('react-native-google-mobile-ads');
-      let resolved = false;
-      
-      // Listen for reward earned
-      const rewardListener = this.rewardedAd.addAdEventListener(
-        RewardedAdEventType.EARNED_REWARD,
-        async (reward: { type: string; amount: number }) => {
-          console.log('[AdMob] Manual reward earned:', reward);
-          
-          // Grant 30 minutes ad-free time ONLY for manual button press
-          if (this.isManualRewardedAd) {
-            await this.grantAdFreeTime(30);
-            console.log('[AdMob] 30 min ad-free granted (manual button)');
-          } else {
-            console.log('[AdMob] Reward earned but NOT granting ad-free (automatic ad)');
-          }
-          
-          resolved = true;
-          this.isManualRewardedAd = false;
-          rewardListener();
-          closeListener();
-          resolve({ success: true, reward });
-        }
-      );
-
-      // CRITICAL: Listen for ad close WITHOUT earning reward (user cancelled)
-      const closeListener = this.rewardedAd.addAdEventsListener(({ type }: { type: string }) => {
-        if (type === AdEventType.CLOSED || type === 'closed') {
-          if (!resolved) {
-            console.log('[AdMob] Rewarded ad closed WITHOUT earning reward (user cancelled)');
-            resolved = true;
-            this.isManualRewardedAd = false;
-            rewardListener();
-            closeListener();
-            resolve({ success: false });
-          }
-        }
-      });
-
-      // Show the ad
-      this.rewardedAd.show().catch((error: any) => {
-        console.error('[AdMob] Error showing rewarded interstitial ad:', error);
-        if (!resolved) {
-          resolved = true;
-          this.isManualRewardedAd = false;
-          rewardListener();
-          closeListener();
-          resolve({ success: false });
-        }
-      });
-    });
   }
 
   // Check if rewarded ad is ready
@@ -622,7 +485,7 @@ class AdMobService {
 
   // Check if first station rewarded ad should be shown (per session)
   shouldShowFirstStationAd(): boolean {
-    return !this.firstStationAdShown && this.isRewardedLoaded && this.rewardedAd !== null;
+    return false; // No automatic first-station reward ad.
   }
 
   // Mark first station ad as shown (per session)

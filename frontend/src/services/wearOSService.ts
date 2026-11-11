@@ -91,7 +91,7 @@ class WearOSService {
     }
   }
 
-  updateStations(stations: any[]) {
+  updateStations(stations: any[], response?: { requestId: string; error: string }) {
     if (!this.isInitialized || !WearDataLayer) return;
     try {
       const mapped = stations.map(s => ({
@@ -103,7 +103,11 @@ class WearOSService {
         streamUrl: getStationStreamUrl(s),
         genre: s.genres?.[0] || s.genre || '',
       }));
-      WearDataLayer.updateStations(JSON.stringify(mapped));
+      if (response) {
+        WearDataLayer.updateStationResponse(response.requestId, JSON.stringify(mapped), response.error);
+      } else {
+        WearDataLayer.updateStations(JSON.stringify(mapped));
+      }
     } catch (error) {
       console.log('[WearOSService] Error updating stations:', error);
     }

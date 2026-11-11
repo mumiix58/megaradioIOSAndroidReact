@@ -33,7 +33,7 @@ function harness({native=true,existing=true,load=async()=>{}}={}){
 
  function playerHook(remote=true,stopSucceeds=true){
   const calls=[];const local={playStation:async()=>calls.push('local-play'),pause:()=>calls.push('local-pause'),resume:()=>calls.push('local-resume'),togglePlayPause:()=>calls.push('local-toggle'),stopPlayback:async()=>calls.push('local-stop')};
-  const state={currentStation:radio('a'),setPlaybackOrigin(){},reset(){}};const store=()=>state;store.getState=()=>state;
+  const state={currentStation:radio('a'),setPlaybackOrigin(){},reset(){}};const store=selector=>selector(state);store.getState=()=>state;
   const cast={remoteStationId:remote?'a':null,pause:async()=>calls.push('remote-pause'),resume:async()=>calls.push('remote-resume'),togglePlayPause:async()=>calls.push('remote-toggle'),stop:async()=>{calls.push('remote-stop');return stopSucceeds}};
   const R={useContext:()=>local,useCallback:f=>f};const mocks={'react':R,'../providers/AudioProvider':{AudioContext:{}},'../store/playerStore':{usePlayerStore:store},'../contexts/NativeCastContext':{useNativeCast:()=>cast},'../store/locationStore':{useLocationStore:{getState:()=>({countryEnglish:'Global'})}},'../utils/countryScope':{isGlobalCountry:()=>true}};
   const module={exports:{}};vm.runInNewContext(compile('src/hooks/useAudioPlayer.ts'),{module,exports:module.exports,require:id=>mocks[id],console});return {hook:module.exports.useAudioPlayer(),calls};

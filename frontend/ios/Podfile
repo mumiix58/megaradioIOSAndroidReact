@@ -65,6 +65,17 @@ target 'MegaRadio' do
       :ccache_enabled => ccache_enabled?(podfile_properties),
     )
 
+    # MegaRadio: align legacy iOS pod targets with the app minimum
+    minimum_ios = Gem::Version.new(podfile_properties['ios.deploymentTarget'] || '15.1')
+    installer.pods_project.targets.each do |pod_target|
+      pod_target.build_configurations.each do |build_config|
+        current_ios = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_s
+        if !current_ios.empty? && Gem::Version.correct?(current_ios) && Gem::Version.new(current_ios) < minimum_ios
+          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum_ios.to_s
+        end
+      end
+    end
+
     # Fix: fmt consteval error with Xcode 16.4+
     installer.pods_project.targets.each do |target|
       if target.name == 'fmt'

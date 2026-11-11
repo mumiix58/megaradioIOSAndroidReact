@@ -98,15 +98,15 @@ android {
         // MEGARADIO_ADMOB_PLACEHOLDERS: Resolve library manifest placeholders
         manifestPlaceholders += [
             appJSONGoogleMobileAdsAppID: "ca-app-pub-8771434485570434~7427742767",
-            appJSONGoogleMobileAdsDelayAppMeasurementInit: "false",
+            appJSONGoogleMobileAdsDelayAppMeasurementInit: "true",
             appJSONGoogleMobileAdsOptimizeInitialization: "true",
             appJSONGoogleMobileAdsOptimizeAdLoading: "true"
         ]
         applicationId 'com.megaradio'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 92
-        versionName "1.0.70"
+        versionCode 106
+        versionName "1.0.71"
 
         multiDexEnabled true
 
@@ -125,9 +125,6 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -146,6 +143,8 @@ android {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
 }
+
+apply from: new File(rootProject.projectDir, '../scripts/android-release-signing.gradle')
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`
 // Accepts values in comma delimited lists, example:
@@ -170,7 +169,7 @@ android {
 dependencies {
     implementation("com.google.android.gms:play-services-wearable:18.1.0")
 // @generated begin react-native-google-cast-dependencies - expo prebuild (DO NOT MODIFY) sync-3822a3c86222e7aca74039b551612aab7e75365d
-    implementation "com.google.android.gms:play-services-cast-framework:${safeExtGet('castFrameworkVersion', '+')}"
+    implementation "com.google.android.gms:play-services-cast-framework:${safeExtGet('castFrameworkVersion', '22.3.1')}"
 // @generated end react-native-google-cast-dependencies
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
@@ -203,3 +202,5 @@ dependencies {
 apply plugin: 'com.google.gms.google-services'
 
 apply plugin: 'com.google.firebase.crashlytics'
+
+apply plugin: 'com.google.firebase.firebase-perf'

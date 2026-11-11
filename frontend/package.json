@@ -92,6 +92,8 @@
     "@react-native-firebase/analytics": "^23.8.8",
     "@react-native-firebase/app": "^23.8.8",
     "@react-native-firebase/crashlytics": "^23.8.8",
+    "@react-native-firebase/perf": "23.8.8",
+    "@react-native-firebase/remote-config": "23.8.8",
     "@react-native-google-signin/google-signin": "^16.1.2",
     "@react-navigation/bottom-tabs": "^7.3.10",
     "@react-navigation/elements": "^2.3.8",

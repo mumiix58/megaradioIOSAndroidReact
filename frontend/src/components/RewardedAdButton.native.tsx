@@ -1,10 +1,11 @@
-import { MegaLoadingIndicator as ActivityIndicator } from './MegaLoadingIndicator';
+import {MegaLoadingIndicator as ActivityIndicator} from './MegaLoadingIndicator';
 // RewardedAdButton.tsx
 // Button component to watch rewarded ad and get ad-free time
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { colors } from '../constants/theme';
 
 // Native için adMobService'i import et
@@ -17,27 +18,33 @@ interface RewardedAdButtonProps {
 }
 
 export const RewardedAdButton: React.FC<RewardedAdButtonProps> = ({ onRewardEarned }) => {
+  const { i18n } = useTranslation();
+  const copy = rewardCopy[i18n.language.split('-')[0]] || rewardCopy.en;
   const [isLoading, setIsLoading] = useState(false);
   const [adFreeMinutes, setAdFreeMinutes] = useState(0);
   const [isAdReady, setIsAdReady] = useState(false);
 
   // Check ad-free status and ad readiness
   useEffect(() => {
+    let mounted = true;
     const checkStatus = async () => {
-      const minutes = await adMobService.getAdFreeMinutesRemaining();
-      setAdFreeMinutes(minutes);
-      setIsAdReady(adMobService.isRewardedAdReady());
+      try {
+        const minutes = await adMobService.getAdFreeMinutesRemaining();
+        if (!mounted) return;
+        setAdFreeMinutes(minutes);
+        setIsAdReady(adMobService.isRewardedAdReady());
+      } catch { if (mounted) setIsAdReady(false); }
     };
 
     checkStatus();
     
-    // Refresh every 30 seconds
-    const interval = setInterval(checkStatus, 30000);
-    return () => clearInterval(interval);
+    // Keep loading state responsive without causing any ad request.
+    const interval = setInterval(checkStatus, 5000);
+    return () => { mounted = false; clearInterval(interval); };
   }, []);
 
   const handleWatchAd = async () => {
-    if (Platform.OS === 'web') {
+    if (isLoading || Platform.OS === 'web') {
       return;
     }
 
@@ -51,7 +58,10 @@ export const RewardedAdButton: React.FC<RewardedAdButtonProps> = ({ onRewardEarn
         const minutes = await adMobService.getAdFreeMinutesRemaining();
         setAdFreeMinutes(minutes);
         onRewardEarned?.();
+      } else {
+        Alert.alert(copy.unavailable, copy.noReward);
       }
+      setIsAdReady(adMobService.isRewardedAdReady());
     } catch (error) {
       console.error('[RewardedAdButton] Error:', error);
     } finally {
@@ -66,8 +76,8 @@ export const RewardedAdButton: React.FC<RewardedAdButtonProps> = ({ onRewardEarn
         <View style={styles.adFreeStatus}>
           <Ionicons name="shield-checkmark" size={24} color="#4CAF50" />
           <View style={styles.textContainer}>
-            <Text style={styles.adFreeTitle}>Reklamsız Mod Aktif</Text>
-            <Text style={styles.adFreeTime}>{adFreeMinutes} dakika kaldı</Text>
+            <Text style={styles.adFreeTitle}>{copy.active}</Text>
+            <Text style={styles.adFreeTime}>{copy.remaining.replace('{{minutes}}', String(adFreeMinutes))}</Text>
           </View>
         </View>
         <TouchableOpacity
@@ -80,7 +90,7 @@ export const RewardedAdButton: React.FC<RewardedAdButtonProps> = ({ onRewardEarn
           ) : (
             <>
               <Ionicons name="add-circle-outline" size={18} color="#FFF" />
-              <Text style={styles.extendButtonText}>+30 dk</Text>
+              <Text style={styles.extendButtonText}>{copy.extend}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -90,7 +100,10 @@ export const RewardedAdButton: React.FC<RewardedAdButtonProps> = ({ onRewardEarn
 
   // Show watch ad button
   return (
+    <View>
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={copy.title}
       style={[styles.button, !isAdReady && styles.buttonDisabled]}
       onPress={handleWatchAd}
       disabled={isLoading || !isAdReady}
@@ -101,17 +114,28 @@ export const RewardedAdButton: React.FC<RewardedAdButtonProps> = ({ onRewardEarn
         <>
           <Ionicons name="play-circle" size={22} color="#FFF" />
           <View style={styles.buttonTextContainer}>
-            <Text style={styles.buttonTitle}>30 Dakika Reklamsız Dinle</Text>
-            <Text style={styles.buttonSubtitle}>Video izle, reklamsız keyfini çıkar</Text>
+            <Text style={styles.buttonTitle}>{copy.title}</Text>
+            <Text style={styles.buttonSubtitle}>{isAdReady ? copy.subtitle : copy.loading}</Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.6)" />
         </>
       )}
     </TouchableOpacity>
+    <Text style={styles.disclaimer}>{copy.disclaimer}</Text>
+    </View>
   );
 };
 
+const rewardCopy: Record<string, { active: string; remaining: string; extend: string; title: string; subtitle: string; loading: string; disclaimer: string; unavailable: string; noReward: string }> = {
+  en: { active: 'App ads paused', remaining: '{{minutes}} minutes left', extend: '+30 min', title: '30 minutes without app ads', subtitle: 'Watch one video to earn your break', loading: 'Video currently unavailable', disclaimer: 'Advertisements in radio broadcasts are controlled by the station and remain.', unavailable: 'No reward earned', noReward: 'Complete the video to receive 30 minutes without app ads. You can keep listening for free.' },
+  tr: { active: 'Uygulama reklamları duraklatıldı', remaining: '{{minutes}} dakika kaldı', extend: '+30 dk', title: '30 dakika uygulama reklamsız', subtitle: 'Bir video izle, 30 dakika kazan', loading: 'Video şu anda kullanılamıyor', disclaimer: 'Radyo yayınlarının içindeki reklamlar istasyon tarafından yönetilir ve devam eder.', unavailable: 'Ödül kazanılmadı', noReward: '30 dakika uygulama reklamsız kullanım için videoyu tamamla. Ücretsiz dinlemeye devam edebilirsin.' },
+  de: { active: 'App-Werbung pausiert', remaining: 'Noch {{minutes}} Minuten', extend: '+30 Min.', title: '30 Minuten ohne App-Werbung', subtitle: 'Ein Video ansehen und eine Pause verdienen', loading: 'Video derzeit nicht verfügbar', disclaimer: 'Werbung in Radiosendungen wird vom Sender bestimmt und bleibt bestehen.', unavailable: 'Keine Belohnung erhalten', noReward: 'Sieh das Video vollständig an, um 30 Minuten ohne App-Werbung zu erhalten. Du kannst weiterhin kostenlos zuhören.' },
+  fr: { active: 'Publicités de l’app en pause', remaining: '{{minutes}} minutes restantes', extend: '+30 min', title: '30 minutes sans publicité de l’app', subtitle: 'Regardez une vidéo pour obtenir votre pause', loading: 'Vidéo indisponible pour le moment', disclaimer: 'Les publicités diffusées par les radios restent sous le contrôle des stations.', unavailable: 'Aucune récompense obtenue', noReward: 'Terminez la vidéo pour obtenir 30 minutes sans publicité de l’app. L’écoute reste gratuite.' },
+  es: { active: 'Anuncios de la app en pausa', remaining: 'Quedan {{minutes}} minutos', extend: '+30 min', title: '30 minutos sin anuncios de la app', subtitle: 'Mira un vídeo para obtener tu pausa', loading: 'Vídeo no disponible ahora', disclaimer: 'Los anuncios de las emisoras siguen bajo su control y permanecen.', unavailable: 'No se obtuvo la recompensa', noReward: 'Completa el vídeo para obtener 30 minutos sin anuncios de la app. Puedes seguir escuchando gratis.' },
+};
+
 const styles = StyleSheet.create({
+  disclaimer: { color: colors.textMuted, fontSize: 11, lineHeight: 16, marginHorizontal: 4, marginBottom: 8 },
   container: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -50,7 +50,7 @@
     </service>
     <service android:name="org.birkir.carplay.CarPlayService" tools:node="remove"/>
     <service android:name="org.birkir.carplay.CarPlayHeadlessTaskService" tools:node="remove"/>
-    <service android:name=".MegaRadioAutoService" android:exported="true">
+    <service android:name=".MegaRadioAutoService" android:exported="true" android:foregroundServiceType="mediaPlayback">
       <intent-filter>
         <action android:name="android.media.browse.MediaBrowserService"/>
       </intent-filter>
@@ -76,6 +76,104 @@
         <data android:scheme="https" android:host="themegaradio.com" android:pathPattern="/.*/station/.*"/>
         <data android:scheme="https" android:host="themegaradio.com" android:pathPattern="/.*/user/.*"/>
         <data android:scheme="https" android:host="themegaradio.com" android:pathPattern="/.*/genre/.*"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/stations/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/users/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/genres/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/profile/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/en/station/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/en/stations/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/en/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/en/genres/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/en/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/en/users/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/en/profile/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/es/estacion/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/es/estaciones/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/es/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/es/generos/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/es/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/es/usuarios/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/es/perfil/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/fr/station/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/fr/stations/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/fr/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/fr/genres/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/fr/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/fr/utilisateurs/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/fr/profil/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/de/sender/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/de/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/de/genres/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/de/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/de/benutzer/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/de/profil/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/pt/estacao/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/pt/estacoes/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/pt/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/pt/generos/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/pt/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/pt/usuarios/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/pt/perfil/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/it/stazione/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/it/stazioni/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/it/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/it/generi/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/it/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/it/utenti/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/it/profilo/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ru/stantsiya/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ru/stantsii/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ru/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ru/zhanry/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ru/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ru/polzovateli/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ru/profil/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ar/mahta/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ar/mahtat/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ar/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ar/anwaa/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ar/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ar/mustakhdimin/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ar/malaf-shakhsi/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/zh/电台/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/zh/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/zh/类型/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/zh/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/zh/用户/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/zh/个人资料/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/tr/istasyon/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/tr/istasyonlar/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/tr/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/tr/turler/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/tr/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/tr/kullanicilar/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/tr/profil/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ja/ステーション/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ja/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ja/ジャンル/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ja/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ja/ユーザー/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ja/プロフィール/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ko/스테이션/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ko/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ko/장르/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ko/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ko/사용자/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/ko/프로필/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/hi/station/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/hi/stations/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/hi/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/hi/shailiyan/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/hi/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/hi/upyogkarta/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/hi/profile/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/he/tachana/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/he/tachanot/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/he/genre/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/he/zhanrim/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/he/user/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/he/mishtamshim/"/>
+        <data android:scheme="https" android:host="themegaradio.com" android:pathPrefix="/he/profil/"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>

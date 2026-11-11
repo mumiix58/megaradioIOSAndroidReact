@@ -61,12 +61,8 @@ export const NotificationHandler: React.FC = () => {
         
         // Listener for when notification is received while app is in foreground
         foregroundSubscription = pushNotificationService.addNotificationListener(
-          (notification: any) => {
+          () => {
             console.log('[NotificationHandler] Received notification in foreground');
-            const title = notification.request.content.title;
-            const body = notification.request.content.body;
-            const data = notification.request.content.data;
-            console.log('[NotificationHandler] Notification:', { title, body, data });
             void queryClient.invalidateQueries({ queryKey: ['notifications'] });
             void queryClient.invalidateQueries({ queryKey: ['chat-unread'] });
             void queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });

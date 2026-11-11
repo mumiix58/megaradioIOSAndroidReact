@@ -5,19 +5,22 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import api from './api';
+import axios from 'axios';
+import { API_BASE_URL } from '../constants/api';
+import { captureAccount, isAccountCurrent } from '../store/accountScope';
+import { notificationSettingsService } from './notificationSettingsService';
 import { API_ENDPOINTS } from '../constants/api';
 
-import {readCachedPushPreference,savePushPreference} from './notificationPreferences';
 const PUSH_TOKEN_KEY = '@megaradio_push_token';
-const currentOwner=()=>{const auth=require('../store/authStore').useAuthStore.getState();return auth.isAuthenticated?(auth.user?._id||auth.user?.id):undefined;};
+const NOTIFICATIONS_ENABLED_KEY = '@megaradio_notifications_enabled';
 
 // Only configure notification handler on native platforms
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
     handleNotification: async () => {
-      const owner=currentOwner();
-      const enabled=!!owner&&(await readCachedPushPreference(owner))===true;
-      return { shouldShowAlert: enabled, shouldShowBanner: enabled, shouldShowList: enabled, shouldPlaySound: enabled, shouldSetBadge: enabled };
+      const scope=captureAccount();
+      const enabled=!!scope.token && await notificationSettingsService.enabled() && isAccountCurrent(scope);
+      return {shouldShowAlert:enabled,shouldShowBanner:enabled,shouldShowList:enabled,shouldPlaySound:enabled,shouldSetBadge:enabled};
     },
   });
 }
@@ -25,7 +28,7 @@ if (Platform.OS !== 'web') {
 export interface PushNotificationService {
   registerForPushNotifications: (options?:{requestPermission?:boolean}) => Promise<string | null>;
   sendPushTokenToBackend: (token: string) => Promise<void>;
-  deletePushTokenFromBackend: (token: string) => Promise<void>;
+  deletePushTokenFromBackend: (token: string, authToken?: string) => Promise<void>;
   getStoredPushToken: () => Promise<string | null>;
   addNotificationListener: (callback: (notification: Notifications.Notification) => void) => () => void;
   addNotificationResponseListener: (callback: (response: Notifications.NotificationResponse) => void) => () => void;
@@ -39,8 +42,10 @@ const pushNotificationService: PushNotificationService = {
    * Register for push notifications and get the Expo Push Token
    * Call this AFTER user logs in
    */
-  async registerForPushNotifications({requestPermission=false}={}): Promise<string | null> {
+  async registerForPushNotifications(options:{requestPermission?:boolean}={}): Promise<string | null> {
     let token: string | null = null;
+    const account = captureAccount();
+    if (!account.token || (!options.requestPermission && !await notificationSettingsService.enabled())) return null;
 
     // Check if it's a real device (notifications don't work on simulators)
     if (!Device.isDevice) {
@@ -48,15 +53,12 @@ const pushNotificationService: PushNotificationService = {
       return null;
     }
 
-    // Android 13 requires a channel before requesting notification permission.
-    if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('default',{name:'Default',importance:Notifications.AndroidImportance.MAX,vibrationPattern:[0,250,250,250],lightColor:'#FF4199'});
-
-    // Silent on login; only an explicit enable action can request permission.
+    // Check existing permissions
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     // Request permission if not granted
-    if (existingStatus !== 'granted'&&requestPermission) {
+    if (existingStatus !== 'granted' && options.requestPermission) {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
@@ -95,11 +97,11 @@ const pushNotificationService: PushNotificationService = {
         projectId: projectId,
       });
       token = tokenData.data;
-      console.log('[PushNotification] Token:', token);
+      if (!isAccountCurrent(account)) return null;
 
       // Store token locally
       await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-
+      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, 'true');
 
       // Android specific channel setup
       if (Platform.OS === 'android') {
@@ -117,8 +119,6 @@ const pushNotificationService: PushNotificationService = {
           importance: Notifications.AndroidImportance.HIGH,
           sound: 'default',
         });
-
-        await Notifications.setNotificationChannelAsync('messages', { name: 'Messages', importance: Notifications.AndroidImportance.HIGH, sound: 'default' });
 
         // Create channel for radio updates
         await Notifications.setNotificationChannelAsync('radio', {
@@ -150,13 +150,13 @@ const pushNotificationService: PushNotificationService = {
   async sendPushTokenToBackend(token: string): Promise<void> {
     try {
       await api.post(API_ENDPOINTS.user.pushToken, {
+        tokenType: 'expo',
         token,                                        // "ExponentPushToken[xxxxxxx]"
         platform: Platform.OS,                        // 'ios' or 'android'
         deviceName: Device.deviceName ?? 'Unknown',   // Device name
       });
       console.log('[PushNotification] Token sent to backend successfully');
     } catch (error) {
-      console.error('[PushNotification] Failed to send token to backend:', error);
       throw error;
     }
   },
@@ -164,18 +164,14 @@ const pushNotificationService: PushNotificationService = {
   /**
    * Delete push token from backend (call on logout)
    */
-  async deletePushTokenFromBackend(token: string): Promise<void> {
-    try {
-      await api.delete(API_ENDPOINTS.user.deletePushToken, {
-        data: { token }
+  async deletePushTokenFromBackend(token: string, authToken?: string): Promise<void> {
+    if (authToken) {
+      // Logout cleanup uses the captured previous account, even after local auth is cleared.
+      await axios.delete(`${API_BASE_URL}${API_ENDPOINTS.user.deletePushToken}`, {
+        timeout: 5000, withCredentials: false, data: { token },
+        headers: { Authorization: `Bearer ${authToken}`, 'X-MegaRadio-Platform': Platform.OS },
       });
-      console.log('[PushNotification] Token deleted from backend');
-      
-      // Clear local storage
-      await AsyncStorage.removeItem(PUSH_TOKEN_KEY);
-    } catch (error) {
-      console.error('[PushNotification] Failed to delete token from backend:', error);
-    }
+    } else await api.delete(API_ENDPOINTS.user.deletePushToken, { data: { token } });
   },
 
   /**
@@ -213,12 +209,6 @@ const pushNotificationService: PushNotificationService = {
     
     if (!data) return;
 
-    if (data.screen === 'group-chat' && typeof data.groupId === 'string' && /^[a-f0-9]{24}$/.test(data.groupId)) { router.push({pathname:'/group-chat',params:{groupId:data.groupId}}); return; }
-    if ((data.type === 'new_message' || data.screen === 'messages' || data.url === '/profile/messages') && (data.fromUserId || data.userId)) {
-      router.push({ pathname: '/messages', params: { userId: data.fromUserId || data.userId, userName: data.userName || '' } }); return;
-    }
-    if (data.url === '/profile/messages') { router.push('/messages'); return; }
-    if (data.type === 'follow' && (data.userId || data.followerId)) { router.push({ pathname: '/user-profile', params: { userId: data.userId || data.followerId, userName: data.followerName || '' } }); return; }
     // Handle follow notification
     if (data.type === 'follow' && data.followerSlug) {
       router.push({
@@ -257,9 +247,21 @@ const pushNotificationService: PushNotificationService = {
   /**
    * Check if notifications are enabled
    */
-  async isNotificationsEnabled():Promise<boolean>{const owner=currentOwner();return !!owner&&(await readCachedPushPreference(owner))===true;},
-  async setNotificationsEnabled(enabled:boolean):Promise<void>{const owner=currentOwner();if(!owner)throw Error('missing-push-owner');await savePushPreference(owner,enabled);},
-
+  async isNotificationsEnabled(): Promise<boolean> {
+    return notificationSettingsService.enabled();
+  },
+  async setNotificationsEnabled(enabled: boolean): Promise<void> {
+    const account = captureAccount();
+    await notificationSettingsService.setEnabled(enabled);
+    if (!isAccountCurrent(account)) return;
+    if (enabled) {
+      const token = await this.registerForPushNotifications();
+      if (token && isAccountCurrent(account)) await this.sendPushTokenToBackend(token);
+    } else {
+      const token = await this.getStoredPushToken();
+      if (token && isAccountCurrent(account)) await this.deletePushTokenFromBackend(token);
+    }
+  },
 };
 
 export default pushNotificationService;

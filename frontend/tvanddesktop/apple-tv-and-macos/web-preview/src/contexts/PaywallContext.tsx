@@ -4,6 +4,7 @@
 import { createContext, useCallback, useContext, useState, useEffect, ReactNode } from 'react';
 import { PremiumPaywall, PaywallVariant } from '@/components/PremiumPaywall';
 import { usePremium } from '@/hooks/usePremium';
+import { isMacAppStore } from '@/lib/platform';
 
 interface PaywallContextType {
   showPaywall: (variant?: PaywallVariant) => void;
@@ -20,6 +21,8 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   const premium = usePremium();
 
   const showPaywall = useCallback((v: PaywallVariant = 'premium') => {
+    // This Mac app currently has no paid-only capabilities or app-inserted ads.
+    if (isMacAppStore()) { window.location.hash = '#/premium-upgrade'; return; }
     if (v === 'premium' && premium.isPremium) return;
     if (v === 'remove_ads' && premium.adsRemoved) return;
 
@@ -45,10 +48,12 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
 
   const hidePaywall = useCallback(() => setOpen(false), []);
 
-  // Auto-show paywall after 45s on app launch (once per session, non-premium only).
+  // Only native-IAP shells retain their existing timed offer. Passive TV/web listening
+  // never navigates to external checkout without an explicit Upgrade action.
   // Skipped on splash, login, paywall, and onboarding screens to avoid awkward overlap.
   useEffect(() => {
-    if (!premium.ready || premium.isPremium) return;
+    if (isMacAppStore() || !premium.ready || premium.isPremium) return;
+    if ((window as any).megaRadioNative?.supportsNativeIap !== true) return;
     const SHOWN_KEY = 'mr_auto_paywall_shown_session';
     if (sessionStorage.getItem(SHOWN_KEY) === '1') return;
 
@@ -77,6 +82,7 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
   const onPurchase = useCallback(async (productId: string) => {
     const bridge = (window as any).megaRadioNative;
     const token = localStorage.getItem('tv_auth_token');
+    if (isMacAppStore() && productId !== 'restore') return;
     if (!bridge?.supportsNativeIap) { window.location.hash = '#/premium-upgrade'; return; }
     if (!token) { alert('Please sign in before purchasing or restoring.'); return; }
     try {
@@ -112,11 +118,13 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
       setOpen(false);
     };
     const onFailed = (e: Event) => {
+      if (isMacAppStore()) return; // The Mac account page owns its restore status.
       const detail = (e as CustomEvent).detail || {};
       const msg = detail.message || detail.error || 'Satın alma tamamlanamadı.';
       alert('⚠️ ' + msg);
     };
     const onRestored = (e: Event) => {
+      if (isMacAppStore()) return;
       const detail = (e as CustomEvent).detail || {};
       if (detail.server?.isActive) {
         // Backend confirmed: refresh local state by re-reading from server next mount
@@ -145,7 +153,7 @@ export function PaywallProvider({ children }: { children: ReactNode }) {
     }}>
       {children}
       <PremiumPaywall
-        open={open}
+        open={open && !isMacAppStore()}
         variant={variant}
         onClose={hidePaywall}
         onPurchase={onPurchase}

@@ -4,11 +4,13 @@
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
   Capability,
+  TrackType,
   RepeatMode,
   Event,
   State,
 } from 'react-native-track-player';
 import { Platform } from 'react-native';
+import { isHlsStream } from '../utils/streamSources';
 
 let isSetup = false;
 
@@ -118,6 +120,7 @@ export async function addRadioStation(
     await TrackPlayer.add({
       id,
       url,
+      type: isHlsStream(url) ? TrackType.HLS : TrackType.Default,
       title,
       artist,
       artwork: artwork || 'https://themegaradio.com/logo.png',

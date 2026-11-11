@@ -223,9 +223,10 @@ export const RadioPlaying = (): JSX.Element => {
     } else if (currentStation._id !== station._id) {
       needsPlay = true;
       console.log('[RadioPlaying] Auto-play: different station (current:', currentStation.name, 'vs target:', station.name, ')');
-    } else if (!isPlaying && !isBuffering) {
-      needsPlay = true;
-      console.log('[RadioPlaying] Auto-play: same station but not playing/buffering');
+    } else {
+      // The route already owns this station. A later paused state is user intent,
+      // not a reason to start it again (including the first pause after selection).
+      autoPlayedRef.current = station._id;
     }
 
     if (needsPlay) {

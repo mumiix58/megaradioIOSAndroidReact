@@ -60,7 +60,7 @@
                     }
                     
                     // Open new stream
-                    console.log('[Samsung Player] Opening URL:', url);
+                    console.log('[Samsung Player] Opening stream');
                     webapis.avplay.open(url);
                     
                     // Set up event listeners
@@ -130,12 +130,12 @@
                         if (settled) return;
                         settled = true;
                         if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
-                        console.error('Prepare failed:', error);
+                        console.error('Prepare failed');
                         self.onError && self.onError(error);
                     });
                     
                 } catch (e) {
-                    console.error('Samsung player error:', e);
+                    console.error('Samsung player failed');
                     self.onError && self.onError(e);
                 }
             };
@@ -158,7 +158,7 @@
                         self.onPause && self.onPause();
                     }
                 } catch (e) {
-                    console.error('Pause error:', e);
+                    console.error('Pause failed');
                     // Still update internal state even on error
                     self.isPlaying = false;
                     self.onPause && self.onPause();
@@ -183,7 +183,7 @@
                         console.log('[Samsung Player] Cannot resume - invalid state:', state);
                     }
                 } catch (e) {
-                    console.error('Resume error:', e);
+                    console.error('Resume failed');
                 }
             };
             
@@ -194,7 +194,7 @@
                     self.isPlaying = false;
                     self.onStop && self.onStop();
                 } catch (e) {
-                    console.error('Stop error:', e);
+                    console.error('Stop failed');
                 }
             };
             
@@ -203,7 +203,7 @@
                     webapis.avplay.setStreamingProperty('SET_MODE_4K', 'false');
                     self.volume = Math.max(0, Math.min(1, vol));
                 } catch (e) {
-                    console.error('Volume error:', e);
+                    console.error('Volume update failed');
                 }
             };
         },
@@ -243,7 +243,7 @@
             
             this.audioElement.addEventListener('error', function(e) {
                 if (self.isStopping || !self.currentUrl) return;
-                console.error('LG audio error:', e);
+                console.error('LG audio failed');
                 self.onError && self.onError(e);
             });
             
@@ -263,7 +263,7 @@
                 var playPromise = self.audioElement.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(function(error) {
-                        console.error('Play error:', error);
+                        console.error('Play failed');
                         self.onError && self.onError(error);
                     });
                 }
@@ -277,7 +277,7 @@
                 var playPromise = self.audioElement.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(function(error) {
-                        console.error('Resume error:', error);
+                        console.error('Resume failed');
                         self.onError && self.onError(error);
                     });
                 }
@@ -353,9 +353,9 @@
                 };
                 var codeNames = {1: 'ABORTED', 2: 'NETWORK', 3: 'DECODE', 4: 'SRC_NOT_SUPPORTED'};
                 var codeName = codeNames[errorInfo.code] || 'UNKNOWN';
-                console.error('[WebPlayer] 🔴 ERROR:', codeName, '(' + errorInfo.code + ')', errorInfo.message);
+                console.error('[WebPlayer] Media failure:', codeName);
                 console.error('[WebPlayer] 🔴 Network state:', errorInfo.networkState, '| Ready state:', errorInfo.readyState);
-                console.error('[WebPlayer] 🔴 URL:', errorInfo.src);
+                console.error('[WebPlayer] Stream unavailable');
                 self.onError && self.onError(e);
             });
             
@@ -377,12 +377,12 @@
             });
 
             this.audioElement.addEventListener('loadstart', function() {
-                console.log('[WebPlayer] 📥 loadstart - beginning to load:', (self.currentUrl || '').substring(0, 80));
+                console.log('[WebPlayer] Load started');
             });
             
             this.play = function(url) {
                 self.currentUrl = url;
-                console.log('[WebPlayer] 🎵 play() called with:', url.substring(0, 120));
+                console.log('[WebPlayer] Play requested');
                 self.audioElement.src = url;
                 self.audioElement.load();
                 
@@ -391,7 +391,7 @@
                     playPromise.then(function() {
                         console.log('[WebPlayer] ✅ play() promise resolved');
                     }).catch(function(error) {
-                        console.error('[WebPlayer] 🔴 play() promise rejected:', error.name, error.message);
+                        console.error('[WebPlayer] Play request rejected');
                         self.onError && self.onError(error);
                     });
                 }
@@ -405,7 +405,7 @@
                 var playPromise = self.audioElement.play();
                 if (playPromise !== undefined) {
                     playPromise.catch(function(error) {
-                        console.error('Resume error:', error);
+                        console.error('Resume failed');
                         self.onError && self.onError(error);
                     });
                 }

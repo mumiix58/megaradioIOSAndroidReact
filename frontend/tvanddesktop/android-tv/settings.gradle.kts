@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "MegaRadioTV"
 include(":app")
+include(":desktop")

@@ -8,6 +8,7 @@
     document.addEventListener('megaradio-ready', ready);
     function failed() {
         if (window.__MR_APP_READY__) return;
+        try { if (window.MRTVTelemetry) window.MRTVTelemetry.emit('startup_error','startup_timeout',{module:'startup'}); } catch (_) {}
         if (typeof window.__MR_BOOT_FALLBACK__ === 'function') { window.__MR_BOOT_FALLBACK__(); return; }
         var root = document.getElementById('root');
         if (!root) return;

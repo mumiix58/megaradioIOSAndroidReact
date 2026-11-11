@@ -18,7 +18,12 @@ enum APIError: LocalizedError {
     }
 }
 
-final class APIClient {
+protocol TVPairingAPI {
+    func requestTVCode(deviceId: String) async throws -> TVCodeResponse
+    func checkTVCode(_ code: String, deviceId: String) async throws -> TVCodeStatusResponse
+}
+
+final class APIClient: TVPairingAPI {
     static let shared = APIClient()
     private init() {}
 
@@ -34,6 +39,8 @@ final class APIClient {
         cfg.timeoutIntervalForRequest = 15
         cfg.timeoutIntervalForResource = 30
         cfg.requestCachePolicy = .reloadIgnoringLocalCacheData
+        cfg.httpShouldSetCookies = false
+        cfg.httpCookieStorage = nil
         return URLSession(configuration: cfg)
     }()
 
@@ -53,6 +60,7 @@ final class APIClient {
         }
         guard let url = comps.url else { throw APIError.invalidURL }
         var req = URLRequest(url: url)
+        req.timeoutInterval = 15
         if let t = token { req.setValue("Bearer " + t, forHTTPHeaderField: "Authorization") }
         let (data, resp) = try await session.data(for: req)
         guard let http = resp as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
@@ -68,6 +76,7 @@ final class APIClient {
     func post<T: Decodable>(_ path: String, body: [String: Any] = [:], token: String? = nil) async throws -> T {
         let url = baseURL.appendingPathComponent(path)
         var req = URLRequest(url: url)
+        req.timeoutInterval = 15
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let t = token { req.setValue("Bearer " + t, forHTTPHeaderField: "Authorization") }
@@ -111,7 +120,7 @@ final class APIClient {
 
     // TV login (pairing code)
     func requestTVCode(deviceId: String) async throws -> TVCodeResponse {
-        return try await post("/api/auth/tv/code", body: ["deviceId": deviceId, "deviceName": "Apple TV"])
+        return try await post("/api/auth/tv/code", body: ["deviceId": deviceId, "deviceName": "Apple TV", "platform": "other"])
     }
 
     func checkTVCode(_ code: String, deviceId: String) async throws -> TVCodeStatusResponse {

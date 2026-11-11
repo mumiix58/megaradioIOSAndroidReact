@@ -13,6 +13,13 @@ interface MobileLoginResponse {
   message?: string;
 }
 
+interface GoogleLoginParams {
+  googleId: string;
+  email: string;
+  fullName: string;
+  avatar?: string;
+}
+
 // All native entry points persist the same user and token shape.
 function mobileAuthResponse(data: any): MobileLoginResponse {
   const id = data?.user?._id || data?.user?.id;
@@ -108,6 +115,19 @@ export const authService = {
   },
 
   /**
+   * Mobile Login with Google
+   * POST /api/auth/mobile/google
+   */
+  async mobileGoogleLogin(params: GoogleLoginParams): Promise<MobileLoginResponse> {
+    const { deviceInfo } = useAuthStore.getState();
+    
+    const response = await api.post(`${API_BASE}/api/auth/mobile/google`, {
+      ...params, deviceType: 'mobile', deviceName: deviceInfo.deviceName || 'Mobile Device',
+    });
+    return mobileAuthResponse(response.data);
+  },
+
+  /**
    * Check mobile auth status
    * GET /api/auth/mobile/me
    */
@@ -129,8 +149,9 @@ export const authService = {
         authenticated: response.data.authenticated || false,
         user: response.data.user,
       };
-    } catch (error) {
-      return { authenticated: false };
+    } catch (error: any) {
+      if (error.response?.status === 401) return { authenticated: false };
+      throw error;
     }
   },
 

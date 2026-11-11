@@ -53,7 +53,7 @@ export const Genres = (): JSX.Element => {
     
     return genresData.genres.map(genre => ({
       name: genre.name,
-      slug: genre.name.toLowerCase().replace(/\s+/g, '-'),
+      slug: genre.slug,
       stationCount: genre.stationCount || 0
     }));
   }, [genresData]);
