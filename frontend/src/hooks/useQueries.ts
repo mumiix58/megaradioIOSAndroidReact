@@ -1,3 +1,6 @@
+import { buildGlobalPopularPool } from '../utils/popularStationRotation';
+import { STATION_SEARCH_VERSION } from '../utils/stationSearch';
+import { nearbyScope } from '../utils/nearbyScope';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import stationService, { StationQueryParams } from '../services/stationService';
 import genreService from '../services/genreService';
@@ -63,31 +66,33 @@ export const queryKeys = {
 };
 
 // Station hooks - LONG CACHE (7 days disk, revalidate in background)
-export const useStations = (params: StationQueryParams = {}) => {
+export const useStations = (params: StationQueryParams = {}, enabled = true) => {
   const country = params.country || 'global';
   const page = params.page || 1;
-  const dKey = cacheKeys.stationsByCountry(country, page);
+  const dKey = `${cacheKeys.stationsByCountry(country, page)}:${JSON.stringify(Object.fromEntries(Object.entries(params).sort(([a], [b]) => a.localeCompare(b))))}`;
   
   return useQuery({
-    queryKey: [...queryKeys.stations, params],
-    queryFn: async () => {
-      const result = await stationService.getStations(params);
-      diskCache.set(dKey, result);
+    queryKey: [...queryKeys.stations, params, params.search ? STATION_SEARCH_VERSION : 'catalog'],
+    enabled,
+    queryFn: async ({ signal }) => {
+      const result = await stationService.getStations(params, signal);
+      if (!params.search) diskCache.set(dKey, result);
       return result;
     },
-    initialData: () => diskCache.get(dKey, CACHE_TTL.STATIONS_BY_COUNTRY),
-    ...LONG_CACHE,
+    initialData: params.search ? undefined : () => diskCache.get(dKey, CACHE_TTL.STATIONS_BY_COUNTRY),
+    ...(params.search ? NO_CACHE : LONG_CACHE),
   });
 };
 
-export const usePopularStations = (country?: string, limit: number = 12) => {
-  const dKey = cacheKeys.popularStations(country || 'global');
+export const usePopularStations = (country?: string, limit: number = 12, enabled = true, diverseCountries = false) => {
+  const dKey = `${cacheKeys.popularStations(country || 'global')}:${limit}${diverseCountries ? ':countries-v1' : ''}`;
   
   return useQuery({
-    queryKey: queryKeys.popularStations(country),
+    queryKey: [...queryKeys.popularStations(country), limit, ...(diverseCountries ? ['countries-v1'] : [])],
+    enabled,
     queryFn: async () => {
-      const result = await stationService.getPopularStations(country, limit);
-      const data = { stations: result.stations || [] };
+      const result = await stationService.getPopularStations(country, diverseCountries ? Math.max(80, limit) : limit);
+      const data = { stations: diverseCountries ? buildGlobalPopularPool(result.stations || [], limit) : result.stations || [] };
       diskCache.set(dKey, data);
       return data;
     },
@@ -96,11 +101,12 @@ export const usePopularStations = (country?: string, limit: number = 12) => {
   });
 };
 
-export const useNearbyStations = (lat: number | null, lng: number | null, radius: number = 150, limit: number = 12) => {
+export const useNearbyStations = (lat: number | null, lng: number | null, radius: number = 150, limit: number = 12, country?: string, enabled = true) => {
+  const scope = nearbyScope(lat, lng, country);
   return useQuery({
-    queryKey: [...queryKeys.nearbyStations(lat || 0, lng || 0), radius, limit],
-    queryFn: () => stationService.getNearbyStations(lat!, lng!, radius, limit),
-    enabled: lat !== null && lng !== null,
+    queryKey: ['stations', 'nearby', scope.params, radius, limit],
+    queryFn: () => stationService.getNearbyStations(lat, lng, radius, limit, country),
+    enabled: enabled && scope.enabled,
     ...MEDIUM_CACHE,
   });
 };
@@ -148,10 +154,11 @@ export const useSimilarStations = (stationId: string, limit: number = 12) => {
 
 export const useSearchStations = (query: string, limit: number = 20) => {
   return useQuery({
-    queryKey: queryKeys.searchStations(query),
-    queryFn: () => stationService.searchStations(query, limit),
+    queryKey: [...queryKeys.searchStations(query), STATION_SEARCH_VERSION, limit],
+    queryFn: ({signal}) => stationService.searchStations(query, limit, signal),
     enabled: query.length >= 2,
     ...NO_CACHE, // Search always fresh
+    retry: false,
   });
 };
 
@@ -186,11 +193,12 @@ export const useGenres = (page: number = 1, limit: number = 50) => {
   });
 };
 
-export const usePrecomputedGenres = (country?: string) => {
+export const usePrecomputedGenres = (country?: string, enabled = true) => {
   const dKey = cacheKeys.precomputedGenres(country || 'global');
   
   return useQuery({
     queryKey: queryKeys.precomputedGenres(country),
+    enabled,
     queryFn: async () => {
       const result = await genreService.getPrecomputedGenres(country);
       diskCache.set(dKey, result);
@@ -266,6 +274,7 @@ export const useRecentlyPlayed = () => {
   return useQuery({
     queryKey: [...queryKeys.recentlyPlayed, isAuthenticated, userId],
     queryFn: () => userService.getRecentlyPlayed(),
+    enabled: isAuthenticated,
     retry: false,
     staleTime: 30 * 1000,  // 30 seconds
     gcTime: 5 * 60 * 1000,
@@ -294,7 +303,7 @@ export const useCommunityFavorites = (limit: number = 20) => {
 };
 
 export const usePublicProfiles = (limit: number = 10) => {
-  const dKey = 'public_profiles';
+  const dKey = `public_profiles:${limit}:v2`;
   
   return useQuery({
     queryKey: ['publicProfiles', limit],
@@ -310,7 +319,7 @@ export const usePublicProfiles = (limit: number = 10) => {
     placeholderData: () => diskCache.get(dKey, CACHE_TTL.COMMUNITY_FAVORITES),
     staleTime: 5 * 60 * 1000,  // 5 min - refresh more often for user profiles
     gcTime: 30 * 60 * 1000,
-    refetchOnMount: 'always',   // ALWAYS refetch on mount, even if data exists
+    refetchOnMount: true, // Reuse fresh data for five minutes; refresh stale profiles on revisit
     refetchOnWindowFocus: false,
   });
 };

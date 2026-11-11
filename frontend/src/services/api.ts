@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
+import { isGlobalCountry } from '../utils/countryScope';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../constants/api';
 
@@ -37,6 +38,9 @@ const getAuthToken = (): string | null => {
 // This reduces response size by ~85% (18KB -> 2.5KB per station)
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    if (__DEV__ && isWeb && API_BASE_URL === '/__preview-api' && config.url?.startsWith('https://api.themegaradio.com/')) {
+      config.url = config.url.slice('https://api.themegaradio.com'.length);
+    }
     // Ensure API key is always present
     if (config.headers) {
       config.headers['X-API-Key'] = MEGARADIO_API_KEY;
@@ -57,6 +61,9 @@ api.interceptors.request.use(
     // Add tv=1 parameter to ALL requests for optimized mobile/TV responses
     // This returns only essential fields (name, slug, url, favicon, country, votes etc.)
     config.params = { ...config.params, tv: 1 };
+    for (const field of ['country', 'countryCode', 'countrycode']) {
+      if (isGlobalCountry(config.params[field])) delete config.params[field];
+    }
     
     return config;
   },
@@ -73,7 +80,7 @@ api.interceptors.response.use(
   async (error) => {
     const config = error.config;
     // Retry on 429 (rate limit) - max 2 retries with delay
-    if (error.response?.status === 429 && (!config._retryCount || config._retryCount < 2)) {
+    if (config && error.response?.status === 429 && !((config.method || 'get').toLowerCase() !== 'get' && config.url?.startsWith('/api/messages/')) && (!config._retryCount || config._retryCount < 2)) {
       config._retryCount = (config._retryCount || 0) + 1;
       const delay = config._retryCount * 1500; // 1.5s, 3s
       await new Promise(r => setTimeout(r, delay));

@@ -69,6 +69,7 @@ const secureStorage = {
       await SecureStore.setItemAsync(key, value);
     } catch (error) {
       console.error('SecureStore setItem error:', error);
+      throw error;
     }
   },
   
@@ -175,15 +176,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // Save auth after successful login
   saveAuth: async (user: User, token: string) => {
     try {
-      await Promise.all([
+      // Wait for BOTH writes before cleanup: one rejected write must not race
+      // a still-running write that could restore half a session afterwards.
+      const writes = await Promise.allSettled([
         secureStorage.setItem(TOKEN_KEY, token),
         secureStorage.setItem(USER_KEY, JSON.stringify(user)),
       ]);
+      const failed = writes.find((write) => write.status === 'rejected');
+      if (failed?.status === 'rejected') throw failed.reason;
       
       set({
         user,
         token,
         isAuthenticated: true,
+        isAuthLoaded: true,
         error: null,
       });
       
@@ -197,11 +203,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       
       // Load favorites from server after login - NO DELAY to avoid "no favorites" flash
       // Import dynamically to avoid circular dependency
-      const { useFavoritesStore } = await import('./favoritesStore');
-      
       // Immediately load favorites from server (no setTimeout!)
       console.log('[AuthStore] Login successful, loading favorites from server...');
       try {
+        const { useFavoritesStore } = await import('./favoritesStore');
         await useFavoritesStore.getState().loadFavorites();
         console.log('[AuthStore] Favorites loaded after login');
       } catch (error) {
@@ -220,6 +225,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     } catch (error) {
       console.error('Error saving auth:', error);
+      await Promise.allSettled([secureStorage.removeItem(TOKEN_KEY), secureStorage.removeItem(USER_KEY)]);
+      set({user: null, token: null, isAuthenticated: false, isAuthLoaded: true});
+      throw error;
     }
   },
 
@@ -237,6 +245,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   logout: async () => {
     try {
       const currentUser = get().user;
+      // Reset the native provider session as well, so the next login can choose
+      // another account instead of silently reusing the previous SDK identity.
+      try {
+        const {socialAuthService} = await import('../services/socialAuthService');
+        await socialAuthService.signOutGoogle();
+      } catch { /* local logout must still succeed without Google services */ }
+
       
       // Delete push token from backend FIRST (while we still have auth token)
       if (Platform.OS !== 'web') {
@@ -304,6 +319,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     
     set({
       ...initialState,
+      isAuthLoaded: true,
       isLoading: false,
       deviceInfo: get().deviceInfo,
     });

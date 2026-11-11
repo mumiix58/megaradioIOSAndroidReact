@@ -7,24 +7,23 @@ import { router } from 'expo-router';
 import api from './api';
 import { API_ENDPOINTS } from '../constants/api';
 
+import {readCachedPushPreference,savePushPreference} from './notificationPreferences';
 const PUSH_TOKEN_KEY = '@megaradio_push_token';
-const NOTIFICATIONS_ENABLED_KEY = '@megaradio_notifications_enabled';
+const currentOwner=()=>{const auth=require('../store/authStore').useAuthStore.getState();return auth.isAuthenticated?(auth.user?._id||auth.user?.id):undefined;};
 
 // Only configure notification handler on native platforms
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
+    handleNotification: async () => {
+      const owner=currentOwner();
+      const enabled=!!owner&&(await readCachedPushPreference(owner))===true;
+      return { shouldShowAlert: enabled, shouldShowBanner: enabled, shouldShowList: enabled, shouldPlaySound: enabled, shouldSetBadge: enabled };
+    },
   });
 }
 
 export interface PushNotificationService {
-  registerForPushNotifications: () => Promise<string | null>;
+  registerForPushNotifications: (options?:{requestPermission?:boolean}) => Promise<string | null>;
   sendPushTokenToBackend: (token: string) => Promise<void>;
   deletePushTokenFromBackend: (token: string) => Promise<void>;
   getStoredPushToken: () => Promise<string | null>;
@@ -40,7 +39,7 @@ const pushNotificationService: PushNotificationService = {
    * Register for push notifications and get the Expo Push Token
    * Call this AFTER user logs in
    */
-  async registerForPushNotifications(): Promise<string | null> {
+  async registerForPushNotifications({requestPermission=false}={}): Promise<string | null> {
     let token: string | null = null;
 
     // Check if it's a real device (notifications don't work on simulators)
@@ -49,12 +48,15 @@ const pushNotificationService: PushNotificationService = {
       return null;
     }
 
-    // Check existing permissions
+    // Android 13 requires a channel before requesting notification permission.
+    if(Platform.OS==='android')await Notifications.setNotificationChannelAsync('default',{name:'Default',importance:Notifications.AndroidImportance.MAX,vibrationPattern:[0,250,250,250],lightColor:'#FF4199'});
+
+    // Silent on login; only an explicit enable action can request permission.
     const { status: existingStatus } = await Notifications.getPermissionsAsync();
     let finalStatus = existingStatus;
 
     // Request permission if not granted
-    if (existingStatus !== 'granted') {
+    if (existingStatus !== 'granted'&&requestPermission) {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }
@@ -97,7 +99,7 @@ const pushNotificationService: PushNotificationService = {
 
       // Store token locally
       await AsyncStorage.setItem(PUSH_TOKEN_KEY, token);
-      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, 'true');
+
 
       // Android specific channel setup
       if (Platform.OS === 'android') {
@@ -115,6 +117,8 @@ const pushNotificationService: PushNotificationService = {
           importance: Notifications.AndroidImportance.HIGH,
           sound: 'default',
         });
+
+        await Notifications.setNotificationChannelAsync('messages', { name: 'Messages', importance: Notifications.AndroidImportance.HIGH, sound: 'default' });
 
         // Create channel for radio updates
         await Notifications.setNotificationChannelAsync('radio', {
@@ -153,6 +157,7 @@ const pushNotificationService: PushNotificationService = {
       console.log('[PushNotification] Token sent to backend successfully');
     } catch (error) {
       console.error('[PushNotification] Failed to send token to backend:', error);
+      throw error;
     }
   },
 
@@ -208,6 +213,12 @@ const pushNotificationService: PushNotificationService = {
     
     if (!data) return;
 
+    if (data.screen === 'group-chat' && typeof data.groupId === 'string' && /^[a-f0-9]{24}$/.test(data.groupId)) { router.push({pathname:'/group-chat',params:{groupId:data.groupId}}); return; }
+    if ((data.type === 'new_message' || data.screen === 'messages' || data.url === '/profile/messages') && (data.fromUserId || data.userId)) {
+      router.push({ pathname: '/messages', params: { userId: data.fromUserId || data.userId, userName: data.userName || '' } }); return;
+    }
+    if (data.url === '/profile/messages') { router.push('/messages'); return; }
+    if (data.type === 'follow' && (data.userId || data.followerId)) { router.push({ pathname: '/user-profile', params: { userId: data.userId || data.followerId, userName: data.followerName || '' } }); return; }
     // Handle follow notification
     if (data.type === 'follow' && data.followerSlug) {
       router.push({
@@ -246,25 +257,9 @@ const pushNotificationService: PushNotificationService = {
   /**
    * Check if notifications are enabled
    */
-  async isNotificationsEnabled(): Promise<boolean> {
-    try {
-      const enabled = await AsyncStorage.getItem(NOTIFICATIONS_ENABLED_KEY);
-      return enabled === 'true';
-    } catch {
-      return false;
-    }
-  },
+  async isNotificationsEnabled():Promise<boolean>{const owner=currentOwner();return !!owner&&(await readCachedPushPreference(owner))===true;},
+  async setNotificationsEnabled(enabled:boolean):Promise<void>{const owner=currentOwner();if(!owner)throw Error('missing-push-owner');await savePushPreference(owner,enabled);},
 
-  /**
-   * Set notifications enabled/disabled
-   */
-  async setNotificationsEnabled(enabled: boolean): Promise<void> {
-    try {
-      await AsyncStorage.setItem(NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false');
-    } catch (error) {
-      console.error('[PushNotification] Failed to set notifications enabled:', error);
-    }
-  },
 };
 
 export default pushNotificationService;

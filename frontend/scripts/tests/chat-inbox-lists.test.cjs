@@ -1,0 +1,15 @@
+const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const moduleUnderTest={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/chatInboxLists.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:moduleUnderTest,exports:moduleUnderTest.exports});
+const {parseChatLists,filterInbox}=moduleUnderTest.exports;
+const rows=[{partnerId:'person:1',unreadCount:2},{partnerId:'group:1',group:{name:'Radio'},unreadCount:0},{partnerId:'group:2',group:{name:'Jazz'},unreadCount:3}];
+const lists=parseChatLists(JSON.stringify([{id:'list-a',name:' Jazz ',chatIds:['person:1','group:2','person:1',42]},{id:'list-a',name:'duplicate',chatIds:[]},{id:'all',name:'reserved',chatIds:[]} ]));
+assert.equal(lists.length,1);assert.equal(lists[0].name,'Jazz');assert.equal(lists[0].chatIds.length,2);
+const ids=items=>Array.from(items,row=>row.partnerId);
+assert.deepEqual(ids(filterInbox(rows,'all',lists)),ids(rows));
+assert.deepEqual(ids(filterInbox(rows,'unread',lists)),['person:1','group:2']);
+assert.deepEqual(ids(filterInbox(rows,'groups',lists)),['group:1','group:2']);
+assert.deepEqual(ids(filterInbox(rows,'list-a',lists)),['person:1','group:2']);
+assert.equal(filterInbox(rows,'deleted-list',lists).length,0);
+assert.equal(parseChatLists('invalid').length,0);assert.equal(parseChatLists('{}').length,0);
+assert.deepEqual(JSON.parse(JSON.stringify(parseChatLists(JSON.stringify(lists)))),JSON.parse(JSON.stringify(lists)));
+console.log('PASS unread/groups/custom membership, malformed storage, deduplication, reserved IDs, serialization');

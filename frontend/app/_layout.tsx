@@ -1,3 +1,4 @@
+import { canRevealStartup } from '../src/utils/startupReadiness';
 // LOGGING: Import at very top
 
 // Cold start timing anchor: JS bundle execution start
@@ -12,6 +13,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, StyleSheet, Platform, AppState, AppStateStatus, Text, InteractionManager } from 'react-native';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { BrandSplash } from '../src/components/BrandSplash';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { I18nextProvider } from 'react-i18next';
 
@@ -21,7 +23,6 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 import i18n, { initI18n } from '../src/services/i18nService';
 import { colors } from '../src/constants/theme';
 import { RadioErrorModal } from '../src/components/RadioErrorModal';
-import { preloadEssentialData, preloadStationData } from '../src/services/preloadService';
 import { initializeApp as initializeTvData } from '../src/services/tvInitService';
 import { useLocationStore } from '../src/store/locationStore';
 import { useLanguageStore } from '../src/store/languageStore';
@@ -95,15 +96,18 @@ class AudioErrorBoundary extends React.Component<{ children: React.ReactNode }, 
     return <AudioProvider>{this.props.children}</AudioProvider>;
   }
 }
+import { ChatFloatingMiniPlayer } from '../src/components/ChatFloatingMiniPlayer';
 import { MiniPlayer } from '../src/components/MiniPlayer';
 import { usePlayerStore } from '../src/store/playerStore';
+import { NativeCastProvider } from '../src/providers/NativeCastProvider';
 import { PlayAtLoginHandler } from '../src/components/PlayAtLoginHandler';
 import { QuickActionsHandler } from '../src/components/QuickActionsHandler';
+import { ChatListeningReporter } from '../src/components/chat/ChatListeningReporter';
 import { NotificationHandler } from '../src/components/NotificationHandler';
 // FlowAlive DISABLED - NPM package has bug (yalc reference in dependencies)
 // import { FlowAliveProvider } from 'flowalive-analytics/expo';
-import { flowaliveService } from '../src/services/flowaliveService';
 import analyticsService from '../src/services/analyticsService';
+import {AnalyticsObserver} from '../src/components/AnalyticsObserver';
 import crashlyticsService from '../src/services/crashlyticsService';
 
 // CarPlay - Re-enabled after fixing native delegate issues
@@ -162,10 +166,12 @@ const GlobalMiniPlayer = React.memo(() => {
   const isPlayerScreen = segments.includes('player');
   const isAuthScreen = ['login', 'signup', 'auth-options', 'onboarding'].includes(segments[0] as string);
   
-  if (isTabScreen || isPlayerScreen || isAuthScreen || !isMiniPlayerVisible) {
+  if (isTabScreen || isPlayerScreen || isAuthScreen || segments.some(segment => ['messages','group-chat'].includes(String(segment))) || !isMiniPlayerVisible) {
     return null;
   }
   
+  if (segments.some(segment => ['group-chat','chat','conversation'].includes(String(segment)))) return <ChatFloatingMiniPlayer />;
+
   // For non-tab screens, show MiniPlayer at the bottom with safe area padding
   return <MiniPlayer isGlobal={true} />;
 });
@@ -174,9 +180,12 @@ export default function RootLayout() {
   const [isNavigationReady, setIsNavigationReady] = useState(false);
   const startupReportedRef = useRef(false);
   const [hasCheckedOnboarding, setHasCheckedOnboarding] = useState(false);
+  const [initialRouteReady, setInitialRouteReady] = useState(false);
+  const authReady = useAuthStore(state => state.isAuthLoaded);
   const [i18nReady, setI18nReady] = useState(false);
   const preloadStarted = useRef(false);
   const [splashHidden, setSplashHidden] = useState(false);
+  const showBrandedOpening = Platform.OS !== 'web' || process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY !== '1';
   const [showRateUs, setShowRateUs] = useState(false);
   
   const segments = useSegments();
@@ -241,26 +250,13 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Initialize FlowAlive Analytics
-  useEffect(() => {
-    const initFlowalive = async () => {
-      try {
-        const timeout = new Promise<void>((resolve) => setTimeout(resolve, 5000));
-        await Promise.race([flowaliveService.initDevice(), timeout]);
-        console.log('[Layout] FlowAlive Analytics initialized');
-      } catch (error) {
-        console.error('[Layout] FlowAlive initialization error:', error);
-      }
-    };
-    initFlowalive();
-  }, []);
-
   // Initialize Firebase Analytics (GA4)
   useEffect(() => {
     const initAnalytics = async () => {
       try {
         await analyticsService.initialize();
-        await analyticsService.logAppOpen();
+        // Firebase collects native app_open automatically; do not count cold starts twice.
+        if (Platform.OS === 'web') await analyticsService.logAppOpen();
         console.log('[Layout] Firebase Analytics initialized');
       } catch (error) {
         console.warn('[Layout] Firebase Analytics init error:', error);
@@ -313,7 +309,7 @@ export default function RootLayout() {
           // Set analytics & crashlytics user properties
           const authState = useAuthStore.getState();
           if (authState.user?.id) {
-            analyticsService.setUserId(authState.user.id);
+            // AnalyticsObserver synchronizes identity on every account change.
             crashlyticsService.setUserId(authState.user.id);
           }
           try {
@@ -374,19 +370,8 @@ export default function RootLayout() {
         const state = useLocationStore.getState();
         console.log('[Layout] Country loaded:', state.country, 'isManuallySet:', state.isManuallySet);
 
-        // GPS detection runs fully in BACKGROUND — it must never hold the splash
-        // screen (it used to block it for up to 5s on every cold start)
-        if (!state.isManuallySet) {
-          console.log('[Layout] Country not manually set, starting background GPS detection...');
-          useLocationStore.getState().fetchLocation()
-            .then(() => {
-              const newState = useLocationStore.getState();
-              console.log('[Layout] GPS detection result:', newState.country, newState.countryCode);
-            })
-            .catch(() => {});
-        } else {
-          console.log('[Layout] Country manually set by user, skipping GPS detection');
-        }
+        // Existing authorization can load GPS silently. Never prompt at startup.
+        void useLocationStore.getState().fetchLocation();
       } catch (error) {
         console.error('[Layout] Failed to load stored country:', error);
       } finally {
@@ -403,6 +388,7 @@ export default function RootLayout() {
     'FontAwesome5_Brands': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Brands.ttf'),
     'FontAwesome5_Regular': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Regular.ttf'),
     'FontAwesome5_Solid': require('@expo/vector-icons/build/vendor/react-native-vector-icons/Fonts/FontAwesome5_Solid.ttf'),
+    'Ubuntu-Light': require('../assets/fonts/Ubuntu-Light.ttf'),
     'Ubuntu-Regular': require('../assets/fonts/Ubuntu-Regular.ttf'),
     'Ubuntu-Medium': require('../assets/fonts/Ubuntu-Medium.ttf'),
     'Ubuntu-Bold': require('../assets/fonts/Ubuntu-Bold.ttf'),
@@ -533,10 +519,7 @@ export default function RootLayout() {
         
         setAppDataReady(true);
         
-        // Background pre-fetch station data to disk cache
-        if (country) {
-          preloadStationData(country).catch(() => {});
-        }
+
       } catch (error) {
         console.error('[Layout] App data init error:', error);
         setAppDataReady(true); // Continue anyway
@@ -553,6 +536,7 @@ export default function RootLayout() {
   useEffect(() => {
     const handleAppStateChange = (nextAppState: AppStateStatus) => {
       if (nextAppState === 'active') {
+        void useLocationStore.getState().fetchLocation();
         console.log('[Layout] App came to foreground');
       } else if (nextAppState === 'background') {
         console.log('[Layout] App went to background');
@@ -580,6 +564,7 @@ export default function RootLayout() {
       if (!isNavigationReady || hasCheckedOnboarding) return;
       
       try {
+        if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1' && window.location.pathname === '/onboarding' && new URLSearchParams(window.location.search).get('preview') === '1') { setHasCheckedOnboarding(true); return; }
         const onboardingComplete = await checkOnboardingComplete();
         setHasCheckedOnboarding(true);
 
@@ -599,19 +584,22 @@ export default function RootLayout() {
         }
         
         if (onboardingComplete) {
-          console.log('[Layout] Onboarding complete, going to home...');
-          router.replace('/(tabs)');
+          // Preserve a tab deep link (such as Genres) instead of resetting it to Home.
+          if (segments[0] !== '(tabs)') router.replace('/(tabs)');
         } else {
           console.log('[Layout] Going to onboarding...');
           router.replace('/onboarding');
         }
         
         // Initialize language store (this will load stored/device language)
-        await useLanguageStore.getState().initialize();
+        // Language resources are already restored by initI18n. Refresh the language list off the launch path.
+        void useLanguageStore.getState().initialize().catch(() => {});
       } catch (error) {
         console.error('Error during routing:', error);
         setHasCheckedOnboarding(true);
         router.replace('/onboarding');
+      } finally {
+        setInitialRouteReady(true);
       }
     };
 
@@ -631,15 +619,17 @@ export default function RootLayout() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Mark splash as hidden once fonts are loaded and app data is ready
+  const startupReady = canRevealStartup({ fonts: !!(fontsLoaded || fontError), country: countryLoaded, auth: authReady, locale: i18nReady, route: initialRouteReady });
+
+  // Mark splash as hidden once local launch prerequisites are ready
   // This triggers AdMob/ATT initialization (must happen AFTER splash hides on iOS)
   useEffect(() => {
-    if ((fontsLoaded || fontError) && countryLoaded && !splashHidden) {
+    if (!showBrandedOpening && startupReady && !splashHidden) {
       console.log('[Layout] App ready - hiding splash screen');
       SplashScreen.hideAsync().catch((e) => console.log('[Layout] SplashScreen.hide error:', e));
       setSplashHidden(true);
     }
-  }, [fontsLoaded, fontError, countryLoaded, splashHidden]);
+  }, [startupReady, splashHidden, showBrandedOpening]);
 
   // Report cold start duration (JS start → splash hidden) once, deferred 8s
   useEffect(() => {
@@ -666,9 +656,12 @@ export default function RootLayout() {
       <I18nextProvider i18n={i18n}>
           <QueryClientProvider client={queryClient}>
             <AudioErrorBoundary>
+              <NativeCastProvider>
               <PlayAtLoginHandler />
               <QuickActionsHandler />
               <NotificationHandler />
+              <ChatListeningReporter />
+              <AnalyticsObserver opening={showBrandedOpening && !splashHidden} />
               {/* CarPlay - Re-enabled after native delegate fixes */}
               <CarPlayHandler />
               <View style={styles.container}>
@@ -690,6 +683,7 @@ export default function RootLayout() {
                     }}
                   />
                   <Stack.Screen name="search" options={{ headerShown: false }} />
+                  <Stack.Screen name="station-country" options={{ headerShown: false }} />
                   <Stack.Screen name="login" options={{ headerShown: false }} />
                   <Stack.Screen name="signup" options={{ headerShown: false }} />
                   <Stack.Screen name="statistics" options={{ headerShown: false }} />
@@ -723,7 +717,13 @@ export default function RootLayout() {
                     rateUsService.markRated().catch(() => {});
                   }}
                 />
+                {showBrandedOpening && !splashHidden && (
+                  <BrandSplash ready={startupReady}
+                    onReady={() => { SplashScreen.hideAsync().catch(() => {}); }}
+                    onComplete={() => { setSplashHidden(true); }} />
+                )}
               </View>
+              </NativeCastProvider>
             </AudioErrorBoundary>
           </QueryClientProvider>
         </I18nextProvider>

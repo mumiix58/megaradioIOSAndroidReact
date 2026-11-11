@@ -1,0 +1,6 @@
+const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict');
+let rejectHandler,calls=0;
+const api=config=>{calls++;return Promise.resolve({config})};api.interceptors={request:{use(){}},response:{use(_ok,reject){rejectHandler=reject}}};
+const source=ts.transpileModule(fs.readFileSync('src/services/api.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;const mod={exports:{}};
+vm.runInNewContext(source,{module:mod,exports:mod.exports,__DEV__:true,setTimeout:f=>f(),console:{log(){}},require:id=>id==='axios'?{create:()=>api}:id==='react-native'?{Platform:{OS:'web'}}:id.includes('countryScope')?{isGlobalCountry:()=>false}:{API_BASE_URL:'/__preview-api'}});
+(async()=>{for(const url of ['/api/messages/send','/api/messages/upload-audio','/api/messages/upload-image']){const error={response:{status:429},config:{method:'post',url}};await assert.rejects(rejectHandler(error));}assert.equal(calls,0);await rejectHandler({response:{status:429},config:{method:'get',url:'/api/stations'}});assert.equal(calls,1);console.log('PASS rate-limited chat writes never auto-repeat; catalog GET retry retained (no network)');})().catch(e=>{console.error(e);process.exitCode=1});

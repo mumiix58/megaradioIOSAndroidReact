@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const file='src/providers/AudioProvider.tsx',source=fs.readFileSync(file,'utf8'),sf=ts.createSourceFile(file,source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX);
+let arrow;function visit(n){if(ts.isVariableDeclaration(n)&&n.name.getText(sf)==='fetchNowPlaying')arrow=n.initializer.arguments[0].getText(sf);ts.forEachChild(n,visit);}visit(sf);assert.ok(arrow);
+const utilModule={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/nowPlaying.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{module:utilModule,exports:utilModule.exports,require(){},Date,Number,String});const utils=utilModule.exports;
+const state={currentStation:{_id:'a',name:'Station',country:'Austria'},nowPlaying:null,metadataStatus:'loading',setMetadataStatus(v){this.metadataStatus=v;}};
+let response={title:'Song',artist:'Artist'},deferred,calls=0;
+const context={...utils,globalPlayId:1,metadataPendingGenerationRef:{current:null},icyMetadataActiveRef:{current:false},icyMetadataAtRef:{current:0},usePlayerStore:{getState:()=>state},setNowPlaying:v=>{state.nowPlaying=v;},stationService:{getNowPlaying:async()=>{calls++;if(deferred)await deferred;return response;}},lastMetadataTitle:null,statsService:{incrementMusicPlayed:async()=>{}},updateLockScreenMetadata:async()=>{},console:{log(){}},Date,require:()=>({useSongHistoryStore:{getState:()=>({addEntry(){}})}})};
+vm.createContext(context);vm.runInContext(ts.transpileModule(`const fetchNowPlaying=${arrow};globalThis.fetch=fetchNowPlaying;`,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,context);
+(async()=>{
+ await context.fetch('a');assert.equal(utils.currentTrackText(state.nowPlaying,'Station','Austria'),'Artist - Song');
+ response={title:'Station'};await context.fetch('a');assert.equal(state.nowPlaying.title,'Song','transient empty response retains known song');
+ state.nowPlaying.timestamp=Date.now()-120001;await context.fetch('a');assert.equal(state.nowPlaying,null);assert.equal(state.metadataStatus,'unavailable');
+ response={title:'New song',song:'<html>Error</html>',artist:'Artist'};await context.fetch('a');assert.equal(state.nowPlaying.title,'New song');
+ context.icyMetadataActiveRef.current=true;context.icyMetadataAtRef.current=Date.now();response={title:'Old API'};await context.fetch('a');assert.equal(state.nowPlaying.title,'New song','fresh native metadata wins');
+ context.icyMetadataAtRef.current=Date.now()-120001;await context.fetch('a');assert.equal(state.nowPlaying.title,'Old API','stalled native metadata no longer blocks fallback');
+ context.icyMetadataActiveRef.current=false;let finish;deferred=new Promise(r=>finish=r);const first=context.fetch('a'),before=calls;await context.fetch('a');assert.equal(calls,before,'one API request per playback generation');
+ context.globalPlayId=2;state.currentStation={_id:'b',name:'Other',country:'Austria'};state.nowPlaying=null;finish();await first;assert.equal(state.nowPlaying,null,'old station response ignored');deferred=null;
+ const block=source.slice(source.indexOf('      // Keep the bounded fallback alive'),source.indexOf('      // STEP 9:'));
+ let timeout,interval,refreshes=0;const scheduling={metadataFallbackTimerRef:{current:null},nowPlayingIntervalRef:{current:null},globalPlayId:2,myPlayId:2,station:{_id:'b'},currentPlayingStationId:'b',icyMetadataActiveRef:{current:true},icyMetadataAtRef:{current:Date.now()},hasFreshIcyMetadata:utils.hasFreshIcyMetadata,fetchNowPlaying:()=>{refreshes++;},setTimeout:fn=>{timeout=fn;return 1;},clearTimeout(){},setInterval:fn=>{interval=fn;return 2;}};
+ vm.runInNewContext(block,scheduling);timeout();assert.equal(typeof interval,'function','fallback remains scheduled even when initially healthy');assert.equal(refreshes,0);scheduling.icyMetadataActiveRef.current=false;interval();assert.equal(refreshes,1);scheduling.globalPlayId=3;interval();assert.equal(refreshes,1,'old playback generation cannot poll new playback');
+ console.log('PASS actual native metadata fetch: field salvage, expiry, initial-ICY recovery, single flight, station/generation race guards and permanent bounded fallback scheduling');
+})().catch(e=>{console.error(e);process.exitCode=1;});

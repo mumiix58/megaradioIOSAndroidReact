@@ -68,7 +68,7 @@ test('malformed or explicitly failed sessions are never accepted', async () => {
 });
 
 function social({ result, appleCredential, backendError } = {}) {
-  const calls = { configure: 0, tokens: 0, backend: 0 };
+  const calls = { configure: 0, tokens: 0, backend: 0, signOut: 0 };
   const response = { success: true, token: 'fixture-token', user: backendUser };
   const backend = async () => { calls.backend++; if (backendError) throw backendError; return response; };
   const module = load('src/services/socialAuthService.ts', {
@@ -76,6 +76,7 @@ function social({ result, appleCredential, backendError } = {}) {
     'expo-apple-authentication': { isAvailableAsync: async () => true, signInAsync: async () => appleCredential, AppleAuthenticationScope: { FULL_NAME: 0, EMAIL: 1 } },
     './authService': { __esModule: true, default: { googleSignIn: backend, appleSignIn: backend }, authErrorMessage: (e, fallback) => e.response?.data?.error || e.message || fallback },
     '@react-native-google-signin/google-signin': { statusCodes: {}, GoogleSignin: {
+      signOut: async () => { calls.signOut++; },
       configure: () => calls.configure++, hasPlayServices: async () => true,
       signIn: async () => result,
       getTokens: async () => { calls.tokens++; return { idToken: 'PREVIOUS_ACCOUNT_TOKEN' }; },
@@ -109,4 +110,67 @@ test('repeat Apple login works when Apple no longer supplies the name and email'
 test('provider verification failures expose the backend error instead of an Axios status message', async () => {
   const { service } = social({ result: { type: 'success', data: { idToken: 'fixture' } }, backendError: { message: 'Request failed with status code 401', response: { data: { error: 'Invalid or expired Google token' } } } });
   assert.equal((await service.signInWithGoogle()).error, 'Invalid or expired Google token');
+});
+
+
+test('app logout clears Google SDK identity without revoking consent', async () => {
+  const { service, calls } = social();
+  await service.signOutGoogle();
+  assert.equal(calls.signOut, 1);
+});
+
+function authStore(failWrites = false) {
+  const storage = new Map(); let state;
+  const favorites = {setState() {}, getState: () => ({loadFavorites: async () => {}})};
+  const module = load('src/store/authStore.ts', {
+    zustand: {create: initializer => {
+      const set = patch => {state = {...state, ...patch};};
+      state = initializer(set, () => state);
+      return {getState: () => state};
+    }},
+    'react-native': {Platform: {OS: 'ios'}},
+    'expo-secure-store': {getItemAsync: async k => storage.get(k) || null,
+      setItemAsync: async (k,v) => {if(failWrites)throw Error('fixture keychain failure');storage.set(k,v);},
+      deleteItemAsync: async k => {storage.delete(k);}},
+    '../services/socialAuthService': {socialAuthService: {signOutGoogle: async () => {}}},
+    '../services/flowaliveService': {flowaliveService: {setUser: async () => {}, clearUser: async () => {},trackUserLogout() {}}},
+    './favoritesStore': {useFavoritesStore: favorites},
+    '../services/iapService': {iapService: {syncSubscriptionFromBackend: async () => {}}},
+    '../services/pushNotificationService': {__esModule: true, default: {getStoredPushToken: async () => null}},
+    '@react-native-async-storage/async-storage': {__esModule: true, default: {getItem: async () => null, removeItem: async () => {}}},
+  });
+  return {store: module.useAuthStore, storage};
+}
+
+test('secure storage failure never creates a successful in-memory login', async () => {
+  const {store, storage} = authStore(true);
+  await assert.rejects(store.getState().saveAuth(backendUser, 'fixture-token'));
+  assert.equal(store.getState().isAuthenticated, false);
+  assert.equal(store.getState().token, null);
+  assert.equal(storage.size, 0);
+});
+
+test('persisted login restores, logout removes both keys and remains loaded', async () => {
+  const {store, storage} = authStore();
+  await store.getState().saveAuth(backendUser, 'fixture-token');
+  assert.equal(store.getState().isAuthLoaded, true);
+  store.getState().clearAuth();
+  await store.getState().loadStoredAuth();
+  assert.equal(store.getState().user._id, backendUser._id);
+  await store.getState().logout();
+  assert.equal(store.getState().isAuthenticated, false);
+  assert.equal(store.getState().isAuthLoaded, true);
+  assert.equal(storage.size, 0);
+});
+
+
+test('rapid Google taps cannot launch two SDK flows', async () => {
+  let release;
+  const result = new Promise(resolve => {release = resolve;});
+  const {service,calls} = social({result});
+  const first = service.signInWithGoogle();
+  assert.equal((await service.signInWithGoogle()).error, 'Sign-in already in progress');
+  release({type:'success',data:{idToken:'fixture',user:{id:'subject'}}});
+  assert.equal((await first).success,true);
+  assert.equal(calls.backend,1);
 });

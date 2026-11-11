@@ -1,350 +1,75 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  ActivityIndicator,
-  TextInput,
-  Animated,
-} from 'react-native';
+import {MegaLoadingState} from '../src/components/MegaLoadingState';
+import { MegaLoadingIndicator as ActivityIndicator } from '../src/components/MegaLoadingIndicator';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Platform, Alert } from 'react-native';
+import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useLanguageStore } from '../src/store/languageStore';
-import { getAvailableLanguages, changeLanguage } from '../src/services/i18nService';
+import { useResponsive } from '../src/hooks/useResponsive';
 
-interface Language {
-  code: string;
-  name: string;
-}
-
-// Supported languages with their native names
-const NATIVE_NAMES: Record<string, string> = {
-  en: 'English',
-  tr: 'Türkçe',
-  de: 'Deutsch',
-  fr: 'Français',
-  es: 'Español',
-  it: 'Italiano',
-  pt: 'Português',
-  nl: 'Nederlands',
-  pl: 'Polski',
-  ru: 'Русский',
-  ja: '日本語',
-  ko: '한국어',
-  zh: '中文',
-  ar: 'العربية',
-};
+const DESIGN_ORDER = ['en', 'tr', 'es', 'de', 'fr', 'it'];
+const DESIGN_NAMES: Record<string, string> = { en: 'English', tr: 'Turkish', es: 'Spanish', de: 'German', fr: 'French', it: 'Italian' };
 
 export default function LanguagesScreen() {
   const router = useRouter();
   const { t, i18n } = useTranslation();
-  const { currentLanguage, setLanguage, isLoading: languageLoading, initialize, languageVersion } = useLanguageStore();
-  const [languages, setLanguages] = useState<Language[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isChanging, setIsChanging] = useState(false);
-  
-  // Animation value for language change effect
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-
-  // Initialize language store and fetch available languages
+  const { currentLanguage, availableLanguages, initialize, setLanguage } = useLanguageStore();
+  const responsive = useResponsive();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const savingRef = useRef(false);
+  useFocusEffect(useCallback(() => {
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') {
+      const notify = (visible: boolean) => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'languages', visible }, 'http://localhost:8082');
+      notify(true); return () => notify(false);
+    }
+  }, []));
   useEffect(() => {
-    const init = async () => {
-      setIsLoading(true);
-      try {
-        await initialize();
-        const availableLanguages = await getAvailableLanguages();
-        setLanguages(availableLanguages);
-      } catch (error) {
-        console.error('Error initializing languages:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    init();
-  }, []);
-
-  const handleLanguageSelect = async (code: string) => {
-    if (code === currentLanguage || isChanging) return;
-    
-    setIsChanging(true);
-    
-    // Animate out
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 0.3,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 0.98,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-    ]).start(async () => {
-      try {
-        await setLanguage(code);
-        
-        // Animate back in
-        Animated.parallel([
-          Animated.spring(fadeAnim, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 50,
-            friction: 7,
-          }),
-          Animated.spring(scaleAnim, {
-            toValue: 1,
-            useNativeDriver: true,
-            tension: 50,
-            friction: 7,
-          }),
-        ]).start();
-      } catch (error) {
-        console.error('Error saving language:', error);
-        // Reset animation on error
-        fadeAnim.setValue(1);
-        scaleAnim.setValue(1);
-      } finally {
-        setIsChanging(false);
-      }
-    });
+    let active = true;
+    void initialize().finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [initialize]);
+  const languages = useMemo(() => [...availableLanguages].sort((a, b) => {
+    const rank = (code: string) => { const index = DESIGN_ORDER.indexOf(code); return index < 0 ? DESIGN_ORDER.length : index; };
+    return rank(a.code) - rank(b.code);
+  }), [availableLanguages]);
+  const activeLanguage = (i18n.resolvedLanguage || i18n.language || currentLanguage).split('-')[0];
+  const selectLanguage = async (code: string) => {
+    if (savingRef.current || code === activeLanguage) return;
+    savingRef.current = true; setSaving(code);
+    try { await setLanguage(code); }
+    catch { Alert.alert(t('error', 'Error'), t('error_changing_language', 'Unable to change language. Please try again.')); }
+    finally { savingRef.current = false; setSaving(null); }
   };
-
-  // Filter languages by search
-  const filteredLanguages = searchQuery
-    ? languages.filter(
-        (lang) =>
-          lang.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          (NATIVE_NAMES[lang.code]?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
-          lang.code.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : languages;
-
-  // Use i18n.language for real-time current language (not just store value)
-  const activeLanguage = i18n.language || currentLanguage;
-
-  const renderLanguageItem = ({ item }: { item: Language }) => {
-    const isSelected = activeLanguage === item.code;
-    const nativeName = NATIVE_NAMES[item.code] || item.name;
-
-    return (
-      <TouchableOpacity
-        style={[styles.languageRow, isSelected && styles.languageRowActive]}
-        onPress={() => handleLanguageSelect(item.code)}
-        disabled={isChanging}
-        data-testid={`language-${item.code}`}
-      >
-        <View style={styles.languageInfo}>
-          <Text style={styles.languageName}>{item.name}</Text>
-          <Text style={styles.languageNative}>{nativeName}</Text>
-        </View>
-        <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-          {isSelected && <View style={styles.radioCircleFill} />}
-        </View>
+  return <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <View style={[styles.header, { marginHorizontal: responsive.sidePadding }]}>
+      <TouchableOpacity style={styles.back} onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/profile')} accessibilityRole="button" accessibilityLabel={t('back', 'Back')} testID="language-back">
+        <Image source={require('../assets/images/language/back.svg')} style={styles.backIcon} contentFit="contain" />
       </TouchableOpacity>
-    );
-  };
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <Animated.View 
-        style={[
-          styles.animatedContainer,
-          { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }
-        ]}
-      >
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} data-testid="back-btn">
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{t('languages', 'Languages')}</Text>
-          <View style={{ width: 24 }} />
-        </View>
-
-        {/* Search Bar */}
-        <View style={styles.searchContainer}>
-          <View style={styles.searchBar}>
-            <TextInput
-              style={styles.searchInput}
-              placeholder={t('search_placeholder', 'Search...')}
-              placeholderTextColor="#999"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              data-testid="language-search-input"
-            />
-            <Ionicons name="search" size={20} color="#999" />
-          </View>
-        </View>
-
-        {/* Language List */}
-        {isLoading || languageLoading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#FF4199" />
-          </View>
-        ) : (
-          <FlatList
-            data={filteredLanguages}
-            renderItem={renderLanguageItem}
-            keyExtractor={(item) => item.code}
-            extraData={activeLanguage} // Force re-render on language change
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>{t('no_results', 'No languages found')}</Text>
-              </View>
-            }
-          />
-        )}
-        
-        {/* Loading overlay during language change */}
-        {isChanging && (
-          <View style={styles.changingOverlay}>
-            <ActivityIndicator size="large" color="#FF4199" />
-            <Text style={styles.changingText}>{t('loading', 'Loading...')}</Text>
-          </View>
-        )}
-      </Animated.View>
-    </SafeAreaView>
-  );
+      <Text style={styles.title}>{t('language', 'Language')}</Text>
+      <View style={styles.back} />
+    </View>
+    {loading ? <MegaLoadingState page variant="settings" count={7}/> :
+      <FlatList data={languages} keyExtractor={item => item.code} extraData={{ activeLanguage, saving }} showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: responsive.sidePadding, paddingTop: 13, paddingBottom: 25 }}
+        renderItem={({ item }) => <TouchableOpacity style={styles.row} onPress={() => void selectLanguage(item.code)} disabled={saving !== null}
+          accessibilityRole="radio" accessibilityLabel={DESIGN_NAMES[item.code] || item.name} accessibilityState={{ checked: activeLanguage === item.code, disabled: saving !== null }} testID={`language-${item.code}`}>
+          <Text style={styles.name}>{DESIGN_NAMES[item.code] || item.name}</Text>
+          {saving === item.code ? <ActivityIndicator color="#FF4199" /> : <View style={styles.radio}>{activeLanguage === item.code && <View style={styles.radioFill} />}</View>}
+        </TouchableOpacity>} />}
+  </SafeAreaView>;
 }
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0D0D0F',
-  },
-  animatedContainer: {
-    flex: 1,
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFF',
-  },
-
-  // Search
-  searchContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  searchBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    height: 48,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-  },
-
-  // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // List
-  listContent: {
-    paddingHorizontal: 12,
-    paddingBottom: 40,
-  },
-
-  // Language Row
-  languageRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#1A1A1C',
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    marginBottom: 6,
-  },
-  languageRowActive: {
-    borderWidth: 1,
-    borderColor: '#FF4199',
-  },
-  languageInfo: {
-    flex: 1,
-  },
-  languageName: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-  },
-  languageNative: {
-    fontSize: 14,
-    color: '#888',
-    marginTop: 2,
-  },
-
-  // Radio Button
-  radioCircle: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#FF4199',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioCircleActive: {
-    borderColor: '#FF4199',
-  },
-  radioCircleFill: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#FF4199',
-  },
-
-  // Empty
-  emptyContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#888',
-  },
-  
-  // Language changing overlay
-  changingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(13, 13, 15, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  changingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#FFF',
-    fontFamily: 'Ubuntu-Medium',
-  },
+  screen: { flex: 1, backgroundColor: '#1B1C1E' },
+  header: { height: 78, flexDirection: 'row', alignItems: 'center' },
+  back: { width: 44, height: 44, justifyContent: 'center' },
+  backIcon: { width: 24, height: 24 },
+  title: { flex: 1, textAlign: 'center', fontFamily: 'Ubuntu-Bold', fontSize: 18, lineHeight: 21, color: '#FFFFFF' },
+  row: { height: 50, marginBottom: 25, borderBottomWidth: 1, borderBottomColor: '#333436', flexDirection: 'row', alignItems: 'flex-start', paddingTop: 2, justifyContent: 'space-between' },
+  name: { flex: 1, marginTop: 2, fontFamily: 'Ubuntu-Medium', fontSize: 18, lineHeight: 21, color: '#FFFFFF', textShadowColor: 'rgba(0,0,0,0.3)', textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 10 },
+  radio: { width: 25, height: 25, borderRadius: 20, borderWidth: 3, borderColor: '#FF4199', alignItems: 'center', justifyContent: 'center' },
+  radioFill: { width: 15, height: 15, borderRadius: 8, backgroundColor: '#FF4199' },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

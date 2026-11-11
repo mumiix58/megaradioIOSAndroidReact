@@ -1,0 +1,20 @@
+const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const code=ts.transpileModule(fs.readFileSync('src/services/stationIssueReporter.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
+const mod={exports:{}};vm.runInNewContext(code,{module:mod,exports:mod.exports,require:id=>id.includes('async-storage')?{}:id==='./api'?{}:{API_ENDPOINTS:{stations:{reportError:'/api/stations/report-error'}}}});
+const create=mod.exports.createStationIssueReporter;
+(async()=>{
+ let time=1000,calls=[],fail=false,invalid=false,release;
+ const storage=new Map(),storageAdapter={getItem:async key=>storage.get(key)||null,setItem:async(k,v)=>storage.set(k,v)};
+ let gate=new Promise(r=>release=r);
+ const report=create({storage:storageAdapter,now:()=>time,post:async body=>{calls.push(body);await gate;if(fail)throw Error('offline');return invalid?{success:false}:{success:true,errorId:'receipt'};}});
+ const station={_id:'station-a',name:'Radio A',url:'https://radio.invalid/a'};
+ const input={station,message:'decoder unavailable',platform:'ios',language:'tr'};
+ const first=report(input),double=report(input);assert.equal(first,double,'double tap shares the same request');station.name='Radio B';station._id='station-b';release();
+ assert.equal(await first,'sent');assert.equal(calls.length,1);assert.equal(calls[0].stationId,'station-a');assert.equal(calls[0].stationName,'Radio A');assert.equal(calls[0].errorType,'USER_REPORT');assert.equal(calls[0].errorDetails.userInitiated,true);
+ input.station={_id:'station-a',name:'Radio A',url:'https://radio.invalid/a'};assert.equal(await report(input),'already');assert.equal(calls.length,1);
+ const reopened=create({storage:storageAdapter,now:()=>time,post:async()=>{throw Error('must not submit');}});assert.equal(await reopened(input),'already','cooldown survives remount');
+ time+=86400001;fail=true;await assert.rejects(report(input));assert.equal(calls.length,2);fail=false;invalid=true;await assert.rejects(report(input));invalid=false;assert.equal(await report(input),'sent','failed requests remain retryable');
+ const brokenStorage={getItem:async()=>{throw Error('disk');},setItem:async()=>{throw Error('disk');}};let sent=0;
+ const resilient=create({storage:brokenStorage,now:()=>time,post:async()=>{sent++;return{success:true,errorId:'ok'};}});assert.equal(await resilient(input),'sent');assert.equal(await resilient(input),'already');assert.equal(sent,1);
+ console.log('PASS report payload, captured station identity, double-tap coalescing, persisted cooldown, expiry, failure retry, acknowledgement and storage failure');
+})().catch(e=>{console.error(e);process.exitCode=1;});

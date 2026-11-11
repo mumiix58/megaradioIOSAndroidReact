@@ -1,8 +1,9 @@
+import { MegaLoadingIndicator as ActivityIndicator } from './MegaLoadingIndicator';
 // RewardedAdButton.tsx
 // Button component to watch rewarded ad and get ad-free time
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../constants/theme';
 

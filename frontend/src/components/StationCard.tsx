@@ -1,5 +1,6 @@
+import { MegaLoadingIndicator as ActivityIndicator } from './MegaLoadingIndicator';
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity} from 'react-native';
 import { ImageWithFallback } from './ImageWithFallback';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';

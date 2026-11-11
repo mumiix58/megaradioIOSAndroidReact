@@ -1,3 +1,6 @@
+import { createSubmissionLock } from '../src/utils/submissionLock';
+import { MegaLoadingIndicator as ActivityIndicator } from '../src/components/MegaLoadingIndicator';
+import { Image } from 'expo-image';
 import React, { useState } from 'react';
 import {
   View,
@@ -5,12 +8,10 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  Platform} from 'react-native';
+import { AuthErrorNotice } from '../src/components/AuthErrorNotice';
+import { AuthNavigation } from '../src/components/AuthNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -18,12 +19,14 @@ import { colors, spacing, borderRadius, typography } from '../src/constants/them
 import authService from '../src/services/authService';
 
 // Input icons
-const EMAIL_ICON = require('../assets/icons/email-input.png');
+const EMAIL_ICON = require('../assets/images/auth/figma/email-input.svg');
 
 export default function ForgotPasswordScreen() {
   const { t } = useTranslation();
   const router = useRouter();
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [email, setEmail] = useState('');
+  const [submissionLock] = useState(createSubmissionLock);
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
@@ -41,8 +44,9 @@ export default function ForgotPasswordScreen() {
   };
 
   const handleSend = async () => {
+    if (!submissionLock.tryAcquire()) return;
     setError('');
-    if (!validateEmail()) return;
+    if (!validateEmail()) { submissionLock.release(); return; }
 
     setIsLoading(true);
     try {
@@ -54,12 +58,10 @@ export default function ForgotPasswordScreen() {
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+      submissionLock.release();
     }
   };
 
-  const handleBack = () => {
-    router.back();
-  };
 
   const handleGoToSignup = () => {
     router.push('/signup');
@@ -68,14 +70,8 @@ export default function ForgotPasswordScreen() {
   if (success) {
     return (
       <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            data-testid="forgot-password-back-button"
-          >
-            <Ionicons name="chevron-back" size={28} color={colors.text} />
-          </TouchableOpacity>
+        <View style={styles.safeArea}>
+
 
           <View style={styles.successContainer}>
             <View style={styles.successIcon}>
@@ -92,26 +88,20 @@ export default function ForgotPasswordScreen() {
               <Text style={styles.sendButtonText}>Back to Login</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
+        </View>
+        <AuthNavigation fallback="/login" testID="forgot-password-back-button" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-          {/* Back Button */}
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            data-testid="forgot-password-back-button"
-          >
-            <Ionicons name="chevron-back" size={28} color={colors.text} />
-          </TouchableOpacity>
+          <AuthErrorNotice message={error} testID="forgot-password-error-toast" />
 
           {/* Content */}
           <View style={styles.content}>
@@ -122,12 +112,14 @@ export default function ForgotPasswordScreen() {
             </Text>
 
             {/* Email Input */}
-            <View style={[styles.inputContainer, error && styles.inputError]}>
+            <View style={[styles.inputContainer, focusedField === 'email' && styles.inputFocused, error && styles.inputError]}>
               <View style={styles.inputIconContainer}>
-                <Image source={EMAIL_ICON} style={styles.inputIcon} resizeMode="contain" />
+                <Image source={EMAIL_ICON} style={styles.inputIcon} contentFit="contain" />
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, Platform.OS === 'web' && { outlineWidth: 0, outlineStyle: 'solid' }]}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
                 placeholder={t('email', 'Email')}
                 placeholderTextColor={colors.inputPlaceholder}
                 value={email}
@@ -138,7 +130,7 @@ export default function ForgotPasswordScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                data-testid="forgot-password-email-input"
+                testID="forgot-password-email-input"
               />
             </View>
 
@@ -146,8 +138,8 @@ export default function ForgotPasswordScreen() {
             <TouchableOpacity
               style={[styles.sendButton, isLoading && styles.sendButtonDisabled]}
               onPress={handleSend}
-              disabled={isLoading}
-              data-testid="forgot-password-send-button"
+              accessibilityRole="button" accessibilityState={{disabled:isLoading,busy:isLoading}} disabled={isLoading}
+              testID="forgot-password-send-button"
             >
               {isLoading ? (
                 <ActivityIndicator color={colors.text} />
@@ -164,7 +156,8 @@ export default function ForgotPasswordScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
+      <AuthNavigation fallback="/login" testID="forgot-password-back-button" />
     </View>
   );
 }
@@ -172,20 +165,15 @@ export default function ForgotPasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#1B1C1E',
   },
   safeArea: {
     flex: 1,
+    paddingTop: 108,
+    paddingBottom: 24,
   },
   keyboardView: {
     flex: 1,
-  },
-  backButton: {
-    marginLeft: spacing.md,
-    marginTop: spacing.sm,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
   },
   content: {
     flex: 1,
@@ -196,18 +184,21 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'Ubuntu-Bold',
     fontSize: 24,
-    lineHeight: 24,
+    lineHeight: 28,
     letterSpacing: 0,
     color: colors.text,
     marginBottom: spacing.xs,
   },
   subtitle: {
-    fontSize: typography.sizes.md,
-    color: colors.textSecondary,
+    fontFamily: 'Ubuntu-Medium',
+    fontSize: 15,
+    color: '#FFFFFF',
     marginBottom: spacing.xl,
-    lineHeight: 22,
+    lineHeight: 17,
   },
   inputContainer: {
+    borderWidth: 2,
+    borderColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     height: 56,
@@ -216,27 +207,29 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.md,
   },
+  inputFocused: { borderColor: '#FF3494' },
   inputError: {
     borderWidth: 2,
     borderColor: colors.errorBorder,
     backgroundColor: '#FFF5F5',
   },
   inputIconContainer: {
-    width: 40,
-    height: 40,
+    width: 24,
+    height: 24,
     borderRadius: borderRadius.full,
-    backgroundColor: '#E8EDF2',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   inputIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
   },
   input: {
     flex: 1,
-    marginLeft: spacing.md,
+    marginLeft: 10,
     fontSize: typography.sizes.lg,
+    fontFamily: 'Ubuntu-Regular',
     color: '#1A1A1D',
   },
   sendButton: {
@@ -263,7 +256,6 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.md,
     fontFamily: 'Ubuntu-Medium',
     color: colors.text,
-    textDecorationLine: 'underline',
   },
   successContainer: {
     flex: 1,
@@ -285,6 +277,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: spacing.xl,
-    lineHeight: 22,
+    lineHeight: 17,
   },
 });

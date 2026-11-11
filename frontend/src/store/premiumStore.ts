@@ -5,7 +5,7 @@ import { Platform } from 'react-native';
 const PREMIUM_KEY = 'megaradio_premium_status';
 const REMOVE_ADS_KEY = 'megaradio_remove_ads';
 
-export type PremiumPlan = 'none' | 'remove_ads' | 'premium_monthly' | 'premium_yearly' | 'premium_lifetime';
+export type PremiumPlan = 'none' | 'remove_ads' | 'premium_monthly' | 'premium_quarterly' | 'premium_yearly' | 'premium_lifetime';
 
 interface PremiumState {
   // Status
@@ -38,6 +38,7 @@ const PLAN_FEATURES: Record<PremiumPlan, PremiumFeature[]> = {
   none: [],
   remove_ads: ['remove_ads'],
   premium_monthly: ['remove_ads', 'song_info', 'spotify_link', 'youtube_link', 'hd_stream', 'song_history', 'stream_record'],
+  premium_quarterly: ['remove_ads', 'song_info', 'spotify_link', 'youtube_link', 'hd_stream', 'song_history', 'stream_record'],
   premium_yearly: ['remove_ads', 'song_info', 'spotify_link', 'youtube_link', 'hd_stream', 'song_history', 'stream_record'],
   premium_lifetime: ['remove_ads', 'song_info', 'spotify_link', 'youtube_link', 'hd_stream', 'song_history', 'stream_record'],
 };

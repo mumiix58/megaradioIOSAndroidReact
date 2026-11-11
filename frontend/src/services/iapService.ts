@@ -9,6 +9,7 @@ const API_BASE = 'https://api.themegaradio.com';
 export const PRODUCT_IDS = {
   REMOVE_ADS_YEARLY: 'megaradio_remove_ads_yearly1',
   PREMIUM_MONTHLY: 'megaradio_premium_monthly1',
+  PREMIUM_QUARTERLY: 'megaradio_premium_quarterly',
   PREMIUM_YEARLY: 'megaradio_premium_yearly',
   PREMIUM_LIFETIME: 'megaradio_premium_lifetime',
 };
@@ -19,6 +20,7 @@ const ALL_SKUS = Object.values(PRODUCT_IDS);
 const PRODUCT_TO_PLAN: Record<string, PremiumPlan> = {
   [PRODUCT_IDS.REMOVE_ADS_YEARLY]: 'remove_ads',
   [PRODUCT_IDS.PREMIUM_MONTHLY]: 'premium_monthly',
+  [PRODUCT_IDS.PREMIUM_QUARTERLY]: 'premium_quarterly',
   [PRODUCT_IDS.PREMIUM_YEARLY]: 'premium_yearly',
   [PRODUCT_IDS.PREMIUM_LIFETIME]: 'premium_lifetime',
 };
@@ -317,7 +319,7 @@ class IAPService {
       const localPlan = usePremiumStore.getState().plan;
 
       const PLAN_RANK: Record<string, number> = {
-        none: 0, remove_ads: 1, premium_monthly: 2, premium_yearly: 3, premium_lifetime: 4,
+        none: 0, remove_ads: 1, premium_monthly: 2, premium_quarterly: 3, premium_yearly: 4, premium_lifetime: 5,
       };
 
       const backendRank = PLAN_RANK[backendPlan] || 0;
@@ -358,6 +360,9 @@ class IAPService {
       case 'premium_monthly':
         expiryDate = new Date(now + 30 * 86400000).toISOString();
         break;
+      case 'premium_quarterly':
+        expiryDate = new Date(now + 90 * 86400000).toISOString();
+        break;
       case 'premium_yearly':
         expiryDate = new Date(now + 365 * 86400000).toISOString();
         break;
@@ -389,7 +394,7 @@ class IAPService {
       let bestExpiry: string | null = null;
       let bestPurchase: any = null;
       const ranks: Record<string, number> = {
-        none: 0, remove_ads: 1, premium_monthly: 2, premium_yearly: 3, premium_lifetime: 4,
+        none: 0, remove_ads: 1, premium_monthly: 2, premium_quarterly: 3, premium_yearly: 4, premium_lifetime: 5,
       };
 
       for (const p of purchases) {
@@ -404,7 +409,7 @@ class IAPService {
             bestExpiry = null;
           } else {
             const transDate = p.transactionDate ? new Date(Number(p.transactionDate)) : new Date();
-            const dur = plan === 'premium_monthly' ? 30 * 86400000 : 365 * 86400000;
+            const dur = plan === 'premium_monthly' ? 30 * 86400000 : plan === 'premium_quarterly' ? 90 * 86400000 : 365 * 86400000;
             bestExpiry = new Date(transDate.getTime() + dur).toISOString();
           }
         }

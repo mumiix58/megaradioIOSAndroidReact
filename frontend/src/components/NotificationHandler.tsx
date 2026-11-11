@@ -2,75 +2,52 @@
 // Must be used at the top level of the app to catch all notifications
 // NOTE: This component only works on native platforms (iOS/Android), not web
 
+import { useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { Platform,AppState } from 'react-native';
+import {getPushPreference} from '../services/notificationPreferences';
 import { useAuthStore } from '../store/authStore';
 
 // Only import notification modules on native platforms
 const isNative = Platform.OS === 'ios' || Platform.OS === 'android';
 
 export const NotificationHandler: React.FC = () => {
+  const queryClient = useQueryClient();
   const hasRegistered = useRef(false);
   const { isAuthenticated, user, token: authToken } = useAuthStore();
   
-  // Register for push notifications when user logs in
-  useEffect(() => {
-    // Skip entirely on web
-    if (!isNative) {
-      console.log('[NotificationHandler] Skipping - not a native platform');
-      return;
-    }
-    
-    // Only register when user is authenticated
-    if (!isAuthenticated || !authToken) {
-      console.log('[NotificationHandler] User not authenticated, skipping registration');
-      return;
-    }
-    
-    const registerForNotifications = async () => {
-      // Only register once per login session
-      if (hasRegistered.current) return;
-      
-      try {
-        // Dynamically import the service only on native
-        const pushNotificationService = (await import('../services/pushNotificationService')).default;
-        
-        console.log('[NotificationHandler] Registering for push notifications...');
-        
-        // Wait for app to fully initialize
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        
-        // Register and get token
-        const pushToken = await pushNotificationService.registerForPushNotifications();
-        
-        if (pushToken) {
-          console.log('[NotificationHandler] Got push token:', pushToken.substring(0, 30) + '...');
-          hasRegistered.current = true;
-          
-          // Send token to backend (Authorization header is automatically added by api interceptor)
-          await pushNotificationService.sendPushTokenToBackend(pushToken);
-        }
-      } catch (error) {
-        console.error('[NotificationHandler] Failed to register:', error);
-      }
+  // Refresh the server preference on login/resume without prompting for OS access.
+  useEffect(()=>{
+    if(!isNative||!isAuthenticated||!authToken){hasRegistered.current=false;return;}
+    const owner=user?._id||user?.id;if(!owner)return;
+    let active=true,running=false;
+    hasRegistered.current=false;
+    const current=()=>{const auth=useAuthStore.getState();return active&&auth.isAuthenticated&&auth.token===authToken&&(auth.user?._id||auth.user?.id)===owner;};
+    const register=async()=>{
+      if(running)return;running=true;
+      try{
+        const enabled=await getPushPreference(owner);
+        if(!enabled||!current()||hasRegistered.current)return;
+        const service=(await import('../services/pushNotificationService')).default;
+        const token=await service.registerForPushNotifications();
+        if(!token||!current())return;
+        await service.sendPushTokenToBackend(token);
+        if(current())hasRegistered.current=true;
+      }catch(error){console.error('[NotificationHandler] Push registration unavailable',error);}
+      finally{running=false;}
     };
-    
-    registerForNotifications();
-  }, [isAuthenticated, authToken]);
-  
-  // Reset registration flag when user logs out
-  useEffect(() => {
-    if (!isAuthenticated) {
-      hasRegistered.current = false;
-    }
-  }, [isAuthenticated]);
-  
+    void register();const sub=AppState.addEventListener('change',state=>{if(state==='active')void register();});
+    return()=>{active=false;sub.remove();};
+  },[isAuthenticated,authToken,user?._id,user?.id]);
+
   // Set up notification listeners (native only)
   useEffect(() => {
     if (!isNative) {
       return;
     }
     
+    let disposed=false;
+    let navigationTimer:ReturnType<typeof setTimeout>|undefined;
     let foregroundSubscription: (() => void) | null = null;
     let responseSubscription: (() => void) | null = null;
     
@@ -78,6 +55,7 @@ export const NotificationHandler: React.FC = () => {
       try {
         const pushNotificationService = (await import('../services/pushNotificationService')).default;
         const Notifications = await import('expo-notifications');
+        if(disposed)return;
         
         console.log('[NotificationHandler] Setting up notification listeners...');
         
@@ -89,6 +67,9 @@ export const NotificationHandler: React.FC = () => {
             const body = notification.request.content.body;
             const data = notification.request.content.data;
             console.log('[NotificationHandler] Notification:', { title, body, data });
+            void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+            void queryClient.invalidateQueries({ queryKey: ['chat-unread'] });
+            void queryClient.invalidateQueries({ queryKey: ['chat-conversations'] });
           }
         );
         
@@ -111,7 +92,7 @@ export const NotificationHandler: React.FC = () => {
             console.log('[NotificationHandler] App opened from notification');
             const data = lastNotificationResponse.notification.request.content.data;
             
-            setTimeout(() => {
+            navigationTimer=setTimeout(() => {
               if (data) {
                 pushNotificationService.handleNotificationNavigation(data);
               }
@@ -130,6 +111,7 @@ export const NotificationHandler: React.FC = () => {
     
     // Cleanup
     return () => {
+      disposed=true;if(navigationTimer)clearTimeout(navigationTimer);
       console.log('[NotificationHandler] Cleaning up listeners');
       if (foregroundSubscription) foregroundSubscription();
       if (responseSubscription) responseSubscription();

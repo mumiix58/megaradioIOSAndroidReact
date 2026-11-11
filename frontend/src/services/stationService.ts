@@ -1,3 +1,5 @@
+import { stationSearchRequests, stationSearchLocation, rankStationSearch, stationSearchGenre, rankGenreStations, registerStationSearchGenres } from '../utils/stationSearch';
+import { nearbyScope } from '../utils/nearbyScope';
 // Station Service - Direct API calls without local caching
 // All data is fetched fresh from API
 
@@ -11,11 +13,32 @@ export interface StationQueryParams {
   country?: string;
   genre?: string;
   search?: string;
-  sort?: 'votes' | 'clickCount' | 'name' | 'createdAt';
+  sort?: 'votes' | 'az' | 'za' | 'clickCount' | 'name' | 'createdAt';
   order?: 'asc' | 'desc';
 }
 
+// One shared taxonomy cache, never per-image probes in search.
+let genreCatalogRequest: Promise<void> | undefined;
+let genreCatalogUpdated=0;
+function warmSearchGenres():Promise<void> {
+ if(genreCatalogRequest)return genreCatalogRequest;
+ if(Date.now()-genreCatalogUpdated<300000)return Promise.resolve();
+ genreCatalogRequest=api.get('/api/genres',{params:{limit:500,page:1},timeout:3000}).then(({data})=>{
+  registerStationSearchGenres(Array.isArray(data)?data:data?.genres||data?.data||[]);genreCatalogUpdated=Date.now();
+ }).catch(()=>{}).finally(()=>{genreCatalogRequest=undefined;});
+ return genreCatalogRequest;
+}
 export const stationService = {
+  async voteStation(id: string): Promise<{ success: true; votes: number; alreadyVoted: boolean; hasVoted: boolean }> {
+    const { data } = await api.post(API_ENDPOINTS.stations.vote(id));
+    if (data?.success !== true || typeof data.votes !== 'number' || !Number.isFinite(data.votes) || data.votes < 0) throw new Error('Invalid vote response');
+    return data;
+  },
+  async voteState(id: string): Promise<{votes: number; hasVoted: boolean}> {
+    const {data} = await api.get(API_ENDPOINTS.stations.vote(id));
+    if (typeof data?.hasVoted !== 'boolean' || !Number.isFinite(data?.votes)) throw new Error('Invalid vote state');
+    return data;
+  },
   // Get single station by identifier (slug or id)
   async getStation(identifier: string): Promise<Station | null> {
     try {
@@ -28,10 +51,16 @@ export const stationService = {
   },
 
   // Get list of stations - direct API call
-  async getStations(params: StationQueryParams = {}): Promise<{ stations: Station[]; totalCount: number }> {
+  async getStations(params: StationQueryParams = {}, signal?: AbortSignal): Promise<{ stations: Station[]; totalCount: number }> {
+    if (params.search?.trim()) {
+      const matches = await stationService.searchStations(params.search, 500, signal, { country: params.country, genre: params.genre });
+      const page = Math.max(1, Math.floor(params.page || 1));
+      const limit = Math.min(500, Math.max(1, Math.floor(params.limit || 25)));
+      return { stations: matches.slice((page - 1) * limit, page * limit), totalCount: matches.length };
+    }
     try {
       console.log('[stationService] getStations - params:', params);
-      const response = await api.get(API_ENDPOINTS.stations.list, { params });
+      const response = await api.get(API_ENDPOINTS.stations.list, { params, signal });
       return response.data;
     } catch (error) {
       console.error('[stationService] getStations error:', error);
@@ -81,16 +110,17 @@ export const stationService = {
   },
 
   // Get nearby stations - direct API call
-  async getNearbyStations(lat: number, lng: number, radius: number = 100, limit: number = 20) {
+  async getNearbyStations(lat: number | null, lng: number | null, radius: number = 100, limit: number = 20, country?: string) {
     try {
-      console.log('[stationService] getNearbyStations - lat:', lat, 'lng:', lng);
+      const scope = nearbyScope(lat, lng, country);
+      if (!scope.enabled) return [];
       const response = await api.get(API_ENDPOINTS.stations.nearby, {
-        params: { lat, lng, radius, limit },
+        params: { ...scope.params, radius, limit, slim: 1 },
       });
       return response.data;
     } catch (error) {
       console.error('[stationService] getNearbyStations error:', error);
-      return { stations: [], count: 0 };
+      throw error;
     }
   },
 
@@ -108,31 +138,41 @@ export const stationService = {
   },
 
   // Search stations - direct API call
-  async searchStations(query: string, limit: number = 20): Promise<Station[]> {
-    try {
-      if (!query || query.trim().length === 0) {
-        return [];
-      }
-      
-      console.log('[stationService] searchStations - query:', query);
-      const response = await api.get(API_ENDPOINTS.stations.list, {
-        params: { search: query, limit },
-      });
-      
-      const data = response.data;
-      let stations: Station[] = [];
-      
-      if (data && data.stations) {
-        stations = data.stations;
-      } else if (Array.isArray(data)) {
-        stations = data;
-      }
-
-      return stations;
-    } catch (error) {
-      console.error('[stationService] searchStations error:', error);
-      return [];
+  async searchStations(query: string, limit: number = 20, signal?: AbortSignal, scope: {country?: string; genre?: string} = {}): Promise<Station[]> {
+    const searches=stationSearchRequests(query);
+    if(!searches.length)return [];
+    const outputLimit=Number.isFinite(limit)?Math.min(500,Math.max(1,Math.floor(limit))):20;
+    const candidateLimit=Math.min(500,Math.max(60,outputLimit*3));
+    const knownGenre=stationSearchGenre(query);
+    const taxonomy=warmSearchGenres();
+    if(knownGenre && (!scope.genre || stationSearchGenre(scope.genre)===knownGenre || scope.genre===knownGenre)) {
+      const {data}=await api.get(API_ENDPOINTS.stations.search,{params:{countryName:scope.country,countryCode:scope.country?undefined:'global',genre:knownGenre,sort:'votes',limit:candidateLimit,slim:1},signal,timeout:5000});
+      if(signal?.aborted)throw new Error('Search cancelled');
+      return rankGenreStations(Array.isArray(data)?data:data?.stations||data?.data||[],knownGenre,outputLimit,true);
     }
+    // This existing public reader preserves literal names (no destructive synonym rewrite).
+    // Compact payloads + cancellation keep typeahead light, including the compatibility path.
+    const requests=searches.map(search=>api.get(API_ENDPOINTS.stations.search,{
+      params:{countryName:scope.country,countryCode:scope.country?undefined:'global',genre:scope.genre,search,sort:'votes',limit:candidateLimit,slim:1},signal,timeout:5000,
+    }));
+    const location=stationSearchLocation(query);
+    if(location)requests.push(api.get(API_ENDPOINTS.stations.list,{
+      params:{state:location,country:scope.country,countryName:scope.country,genre:scope.genre,sort:'votes',limit:candidateLimit,slim:1},signal,timeout:5000,
+    }));
+    const responses=await Promise.allSettled(requests);
+    if(signal?.aborted)throw new Error('Search cancelled');
+    const fulfilled=responses.filter((result):result is PromiseFulfilledResult<any>=>result.status==='fulfilled');
+    if(!fulfilled.length)throw (responses[0] as PromiseRejectedResult).reason;
+    const stations=fulfilled.flatMap(({value:{data}})=>Array.isArray(data)?data:Array.isArray(data?.stations)?data.stations:Array.isArray(data?.data)?data.data:[]);
+    // Cold uncommon category names resolve against the shared catalog while name reads run.
+    await taxonomy;
+    const discoveredGenre=stationSearchGenre(query);
+    if(discoveredGenre && (!scope.genre || stationSearchGenre(scope.genre)===discoveredGenre || scope.genre===discoveredGenre)) {
+      const {data}=await api.get(API_ENDPOINTS.stations.search,{params:{countryName:scope.country,countryCode:scope.country?undefined:'global',genre:discoveredGenre,sort:'votes',limit:candidateLimit,slim:1},signal,timeout:5000});
+      if(signal?.aborted)throw new Error('Search cancelled');
+      return rankGenreStations(Array.isArray(data)?data:data?.stations||data?.data||[],discoveredGenre,outputLimit,true);
+    }
+    return rankStationSearch(stations,query,outputLimit);
   },
 
   // Get top 100 - direct API call

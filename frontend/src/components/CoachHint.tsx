@@ -1,0 +1,10 @@
+import React from 'react';
+import {View,Text,TouchableOpacity,StyleSheet,type StyleProp,type ViewStyle} from 'react-native';
+import {Image} from 'expo-image';
+import {useTranslation} from 'react-i18next';
+/** Shared tutorial bubble used by the movable player and profile photo. */
+export function CoachHint({testID,title,body,style,point='down',tipLeft='50%',onClose}:{testID:string;title:string;body:string;style?:StyleProp<ViewStyle>;point?:'up'|'down';tipLeft?:number|`${number}%`;onClose?:()=>void}){
+ const {t}=useTranslation();
+ return <View testID={testID} pointerEvents={onClose?'auto':'none'} accessibilityLiveRegion="polite" style={[s.card,style,onClose&&{paddingRight:40}]}><Image source={require('../../assets/images/all-stations/back.svg')} contentFit="contain" tintColor="#FF4199" style={{width:26,height:26,transform:[{rotate:'90deg'}]}}/><View style={{flex:1}}><Text style={s.title}>{title}</Text><Text style={s.body}>{body}</Text></View><View pointerEvents="none" style={[s.tip,{left:tipLeft},point==='up'?s.up:s.down]}/>{onClose&&<TouchableOpacity testID={`${testID}-close`} accessibilityRole="button" accessibilityLabel={t('cancel')} onPress={onClose} style={s.close}><Image source={require('../../assets/images/share/close.svg')} style={{width:24,height:24}}/></TouchableOpacity>}</View>;
+}
+const s=StyleSheet.create({card:{paddingHorizontal:14,paddingVertical:12,borderRadius:10,backgroundColor:'#303136',borderWidth:1,borderColor:'#494A50',flexDirection:'row',alignItems:'center',gap:12,shadowColor:'#000',shadowOpacity:.2,shadowRadius:10},title:{color:'#FAFAFC',fontFamily:'Ubuntu-Bold',fontSize:14,lineHeight:20},body:{color:'#B9BAC2',fontFamily:'Ubuntu-Regular',fontSize:12,lineHeight:18},tip:{position:'absolute',marginLeft:-6,width:11,height:11,backgroundColor:'#303136',borderColor:'#494A50',transform:[{rotate:'45deg'}]},up:{top:-6,borderLeftWidth:1,borderTopWidth:1},down:{bottom:-6,borderRightWidth:1,borderBottomWidth:1},close:{position:'absolute',top:2,right:0,width:40,height:40,alignItems:'center',justifyContent:'center'}});

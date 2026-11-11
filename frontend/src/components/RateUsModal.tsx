@@ -1,4 +1,5 @@
-import React from 'react';
+import {useAnalyticsOverlay} from '../hooks/useAnalyticsOverlay';
+import React, {useEffect,useState,useRef} from 'react';
 import {
   View,
   Text,
@@ -9,9 +10,9 @@ import {
   Linking,
   Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import {Image} from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import * as StoreReview from 'expo-store-review';
+import {reviewStore,openStoreReview,type ReviewStore} from '../utils/storeReview';
 
 interface Props {
   visible: boolean;
@@ -19,40 +20,38 @@ interface Props {
   onRated?: () => void;
 }
 
-const APP_STORE_URL = 'https://apps.apple.com/app/id6759302561';
-const PLAY_STORE_URL =
-  'https://play.google.com/store/apps/details?id=com.megaradio';
-
 export const RateUsModal: React.FC<Props> = ({ visible, onClose, onRated }) => {
   // This modal is mounted even while hidden. Suspending before RootLayout's
   // i18n initialization effect commits would deadlock the entire app startup.
   const { t } = useTranslation(undefined, { useSuspense: false });
+  useAnalyticsOverlay('rate-us',visible);
 
-  const handleRate = async () => {
-    try {
-      // Native in-app review on iOS / Android (preferred — keeps user in app)
-      const isAvailable = await StoreReview.isAvailableAsync();
-      const hasAction = await StoreReview.hasAction();
-
-      if (isAvailable && hasAction) {
-        await StoreReview.requestReview();
-      } else {
-        // Fallback: open store page directly
-        const url = Platform.OS === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
-        await Linking.openURL(url);
-      }
-      onRated?.();
-    } catch (e) {
-      console.log('[RateUs] Error opening review:', e);
-      const url = Platform.OS === 'ios' ? APP_STORE_URL : PLAY_STORE_URL;
-      Linking.openURL(url).catch(() => {});
-    } finally {
-      onClose();
-    }
+  const [chooseStore,setChooseStore]=useState(false);
+  const [opening,setOpening]=useState(false);
+  const openingRef=useRef(false);
+  useEffect(()=>{if(!visible)setChooseStore(false);},[visible]);
+  const handleRate=async(selected?:ReviewStore)=>{
+    if(openingRef.current)return;
+    const target=selected??reviewStore(Platform.OS,Platform.OS==='web'?navigator.userAgent:'',Platform.OS==='web'?navigator.maxTouchPoints:0);
+    if(!target){setChooseStore(true);return;}
+    openingRef.current=true;setOpening(true);
+    try{
+      await openStoreReview(target,Platform.OS!=='web',url=>Linking.openURL(url));
+      onRated?.();onClose();
+    }catch(error){console.log('[RateUs] Could not open review:',error);}
+    finally{openingRef.current=false;setOpening(false);}
   };
 
-  // 5 stars arranged in arc (V-shape ascending then descending)
-  const starOffsets = [-12, -6, 0, -6, -12];
+  useEffect(()=>{
+    if(__DEV__&&Platform.OS==='web'&&process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY==='1'){
+      window.parent.postMessage({type:'megaradio-preview-theme',screen:'rateModal',visible},'http://localhost:8082');
+      return()=>window.parent.postMessage({type:'megaradio-preview-theme',screen:'rateModal',visible:false},'http://localhost:8082');
+    }
+  },[visible]);
+  const embeddedPreview=__DEV__&&Platform.OS==='web'&&process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY==='1'&&window.parent!==window;
+
+  // Hidden modals must not translate before the root finishes i18n startup.
+  if (!visible) return null;
 
   return (
     <Modal
@@ -60,39 +59,30 @@ export const RateUsModal: React.FC<Props> = ({ visible, onClose, onRated }) => {
       animationType="fade"
       transparent
       statusBarTranslucent
+      navigationBarTranslucent
       onRequestClose={onClose}
     >
       <Pressable style={styles.backdrop} onPress={onClose}>
         <Pressable
-          style={styles.card}
+          style={[styles.card,embeddedPreview&&{transform:[{translateY:-12.5}]}]}
+          accessibilityViewIsModal onAccessibilityEscape={onClose}
           onPress={(e) => e.stopPropagation()}
-          data-testid="rate-us-modal"
+          testID="rate-us-modal"
         >
           {/* Close button */}
           <TouchableOpacity
             style={styles.closeBtn}
             onPress={onClose}
-            data-testid="rate-us-close-btn"
-            hitSlop={12}
+            testID="rate-us-close-btn"
+            accessibilityRole="button" accessibilityLabel={t('close','Close')}
           >
-            <Ionicons name="close" size={20} color="#000" />
+            <Image source={require('../../assets/images/rate-us/close-circle.svg')} style={{width:24,height:24}} contentFit="contain"/>
           </TouchableOpacity>
 
-          {/* Stars in arc formation */}
-          <View style={styles.starsRow}>
-            {starOffsets.map((offset, i) => (
-              <Ionicons
-                key={i}
-                name="star"
-                size={28}
-                color="#F5C25C"
-                style={[styles.star, { marginTop: offset }]}
-              />
-            ))}
-          </View>
+          <Image testID="rate-us-stars" source={require('../../assets/images/rate-us/stars.svg')} style={styles.stars} contentFit="contain"/>
 
           {/* Title */}
-          <Text style={styles.title} data-testid="rate-us-title">
+          <Text style={styles.title} testID="rate-us-title">
             {t('rate_us_title', 'You like MegaRadio?')}
           </Text>
 
@@ -103,15 +93,18 @@ export const RateUsModal: React.FC<Props> = ({ visible, onClose, onRated }) => {
 
           {/* Rate us button */}
           <TouchableOpacity
-            style={styles.rateBtn}
-            onPress={handleRate}
-            data-testid="rate-us-btn"
+            style={styles.rateTouch}
+            accessibilityRole="button"
+            onPress={()=>void handleRate()}
+            disabled={opening}
+            testID="rate-us-btn"
             activeOpacity={0.85}
           >
-            <Text style={styles.rateBtnText}>
+            <View style={styles.rateBtn}><Text style={styles.rateBtnText}>
               {t('rate_us_button', 'Rate us!')}
-            </Text>
+            </Text></View>
           </TouchableOpacity>
+          {chooseStore&&<View testID="rate-us-store-choice" style={styles.storeChoice}>{(['ios','android'] as const).map(store=><TouchableOpacity key={store} testID={`rate-us-store-${store}`} accessibilityRole="button" disabled={opening} onPress={()=>void handleRate(store)} style={styles.storeTouch}><View style={styles.rateBtn}><Text style={styles.rateBtnText}>{store==='ios'?'App Store':'Google Play'}</Text></View></TouchableOpacity>)}</View>}
         </Pressable>
       </Pressable>
     </Modal>
@@ -119,79 +112,17 @@ export const RateUsModal: React.FC<Props> = ({ visible, onClose, onRated }) => {
 };
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-  },
-  card: {
-    width: '100%',
-    maxWidth: 360,
-    backgroundColor: '#0A0A0A',
-    borderRadius: 20,
-    paddingVertical: 32,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.4,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 12,
-  },
-  closeBtn: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  starsRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginTop: 8,
-    marginBottom: 18,
-    gap: 2,
-  },
-  star: {
-    // marginTop applied dynamically for arc shape
-  },
-  title: {
-    color: '#FFFFFF',
-    fontSize: 22,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 10,
-  },
-  subtitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    textAlign: 'center',
-    lineHeight: 22,
-    opacity: 0.9,
-    marginBottom: 24,
-    paddingHorizontal: 8,
-  },
-  rateBtn: {
-    backgroundColor: '#FF4199',
-    paddingVertical: 12,
-    paddingHorizontal: 36,
-    borderRadius: 999,
-    minWidth: 140,
-    alignItems: 'center',
-  },
-  rateBtnText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
+  backdrop:{flex:1,backgroundColor:'rgba(0,0,0,0.4)',justifyContent:'center',alignItems:'center',paddingHorizontal:24},
+  card:{width:302,maxWidth:'100%',minHeight:204,backgroundColor:'#000000',borderRadius:6,borderWidth:1,borderColor:'#292929',paddingTop:5,paddingBottom:15.5,alignItems:'center'},
+  closeBtn:{position:'absolute',top:-1,right:-1,width:44,height:44,alignItems:'center',justifyContent:'center',zIndex:2},
+  stars:{width:62,height:62},
+  title:{color:'#FFFFFF',fontSize:20,lineHeight:23,fontFamily:'Ubuntu-Bold',textAlign:'center',marginBottom:10,maxWidth:'92%'},
+  subtitle:{color:'#FFFFFF',fontSize:15,lineHeight:17,fontFamily:'Ubuntu-Medium',textAlign:'center',width:196,maxWidth:'88%'},
+  rateTouch:{minWidth:67,minHeight:44,marginTop:8.5,marginLeft:7,alignItems:'center',justifyContent:'center'},
+  rateBtn:{backgroundColor:'#FF4199',paddingVertical:6,paddingHorizontal:9,borderRadius:30,alignItems:'center'},
+  storeChoice:{flexDirection:'row',gap:16,marginTop:4},
+  storeTouch:{minHeight:44,justifyContent:'center'},
+  rateBtnText:{color:'#FFFFFF',fontSize:13,lineHeight:15,fontFamily:'Ubuntu-Medium'},
 });
 
 export default RateUsModal;

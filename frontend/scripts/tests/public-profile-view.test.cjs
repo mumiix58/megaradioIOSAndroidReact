@@ -1,0 +1,16 @@
+const fs = require('fs'), vm = require('vm'), ts = require('typescript'), assert = require('node:assert/strict');
+const moduleView = { exports: {} };
+vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/publicProfileView.ts','utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS } }).outputText, { module: moduleView, exports: moduleView.exports });
+const { profileAvatar, favoriteSubtitle, profileCount } = moduleView.exports;
+assert.equal(profileAvatar({}, 'https://images.example/user.jpg'), 'https://images.example/user.jpg');
+assert.equal(profileAvatar({ profilePhoto: '/uploads/avatar.png' }), 'https://themegaradio.com/uploads/avatar.png');
+assert.equal(profileAvatar({ avatar: 'null' }), null);
+assert.equal(profileAvatar({ profileImageUrl: 'undefined' }, 'https://images.example/user.jpg'), 'https://images.example/user.jpg');
+assert.equal(favoriteSubtitle({ genres: ['pop, rock, jazz'] }), 'pop, rock');
+assert.equal(favoriteSubtitle({ genre: 'Türkçe Pop' }), 'Türkçe Pop');
+assert.equal(favoriteSubtitle({ tags: 'jazz, slow, music' }), 'jazz, slow');
+assert.equal(favoriteSubtitle({}), 'Radio');
+assert.equal(profileCount('86'), 86);
+assert.equal(profileCount(['a','b']), 2);
+assert.equal(profileCount(-1), 0);
+console.log('PASS 11 public profile view cases');

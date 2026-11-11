@@ -1,1 +1,1 @@
-export { default } from '../src/components/CommunityDirectory';
+export { default } from '../src/components/UsersDirectory';

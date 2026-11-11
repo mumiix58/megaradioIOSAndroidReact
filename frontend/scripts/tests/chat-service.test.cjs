@@ -1,0 +1,12 @@
+const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const compile=file=>ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,esModuleInterop:true}}).outputText;
+const calls=[];const api={get:async path=>{calls.push(path);return {data:path.includes('is-following')?{isFollowing:true}:{isPublicProfile:true}}},post:async()=>{throw Error('Unexpected network mutation')}};
+const helper={exports:{}};vm.runInNewContext(compile('src/utils/chatMessageState.ts'),{module:helper,exports:helper.exports});
+const mod={exports:{}};vm.runInNewContext(compile('src/services/chatService.ts'),{module:mod,exports:mod.exports,require:id=>id==='../utils/chatMessageState'?helper.exports:id==='./api'?api:{Platform:{OS:'web'}}});
+const {mergeChatMessages,chatImageUrl,chatService}=mod.exports;
+const a={_id:'a',createdAt:'2026-11-09T10:00:00Z',read:false},b={_id:'b',createdAt:'2026-11-09T11:00:00Z',read:false};
+const merged=mergeChatMessages([b,a],[{...a,read:true}]);
+assert.equal(merged.length,2);assert.equal(merged[0]._id,'a');assert.equal(merged[0].read,true);
+assert.equal(chatImageUrl('/uploads/chat/image_a-2.webp'),'https://api.themegaradio.com/uploads/chat/image_a-2.webp');
+for(const url of ['https://evil.test/a.png','/uploads/chat/../private.jpg','/uploads/chat/a.svg','javascript:alert(1)','/uploads/chat/a.png?token=x'])assert.equal(chatImageUrl(url),undefined);
+(async()=>{assert.equal(await chatService.canStart('member'),true);api.get=async path=>({data:path.includes('is-following')?{isFollowing:false}:{isPublicProfile:true}});assert.equal(await chatService.canStart('member'),false);api.get=async path=>({data:path.includes('is-following')?{isFollowing:true}:{isPublicProfile:false}});assert.equal(await chatService.canStart('member'),false);console.log('PASS message dedup/read updates, chronological merge, upload URL allowlist and follow/public-profile gate (no network)');})().catch(e=>{console.error(e);process.exitCode=1});

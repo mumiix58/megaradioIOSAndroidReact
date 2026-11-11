@@ -4,7 +4,7 @@
 import { Platform, NativeModules } from 'react-native';
 import TrackPlayer from 'react-native-track-player';
 import i18n, { addLanguageChangeListener } from './i18nService';
-import { getStationLogoUrl as centralGetStationLogoUrl, DEFAULT_STATION_LOGO_URL } from '../utils/stationLogoHelper';
+import { getStationLogoUrl as centralGetStationLogoUrl, DEFAULT_STATION_LOGO_URL, DEFAULT_STATION_LOGO_NATIVE_SOURCE } from '../utils/stationLogoHelper';
 import { getCarPlayImagePath, cacheStationImages } from './carPlayImageCache';
 
 // Native module for cache bridge (iOS only)
@@ -33,7 +33,7 @@ const saveToNativeCache = (stations: any[], key: string = 'popular') => {
 
 // LOCAL ASSETS for CarPlay - NO backend dependency
 // These ensure CarPlay works even when offline
-const LOCAL_FALLBACK_LOGO = require('../../assets/images/default-station-logo.png');
+const LOCAL_FALLBACK_LOGO = DEFAULT_STATION_LOGO_NATIVE_SOURCE;
 
 // Genre-specific icons for CarPlay
 const GENRE_ICONS: { [key: string]: any } = {

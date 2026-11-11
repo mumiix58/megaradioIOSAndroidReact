@@ -1,0 +1,17 @@
+import { MegaLoadingIndicator as ActivityIndicator } from '../MegaLoadingIndicator';
+import {ChatContextMenu,type ContextMenuAnchor} from './ChatContextMenu';
+import React,{useState,useEffect} from 'react';
+import {View,Text,TouchableOpacity,StyleSheet} from 'react-native';
+import {Image} from 'expo-image';
+import {useTranslation} from 'react-i18next';
+import type {InboxAction,InboxState} from '../../services/chatInboxService';
+export type InboxTarget={id:string;name:string;groupStatus?:'active'|'invited'|'left';unread:boolean;anchor?:ContextMenuAnchor};
+export function ChatInboxActions({target,state,busy,error,onClose,onAction}:{target:InboxTarget|null;state?:InboxState;busy:boolean;error:string;onClose:()=>void;onAction:(action:InboxAction|'leave')=>void}){
+ const {t}=useTranslation(),[confirm,setConfirm]=useState<'clear'|'delete'|'leave'|null>(null);
+ useEffect(()=>setConfirm(null),[target?.id]);
+ const group=!!target?.groupStatus;
+ const rows:{action:InboxAction|'leave';icon:any;label:string;danger?:boolean}[]=[{action:state?.muted?'unmute':'mute',icon:state?.muted?'bell-ring-outline':'bell-off-outline',label:t(state?.muted?'inbox_unmute':'inbox_mute')},{action:target?.unread||state?.markedUnread?'read':'unread',icon:'message-badge-outline',label:t(target?.unread||state?.markedUnread?'inbox_read':'inbox_unread')},...(target?.groupStatus==='invited'?[]:[{action:'clear' as const,icon:'broom',label:t('inbox_clear')}]),{action:group&&target?.groupStatus!=='left'?'leave':'delete',icon:group&&target?.groupStatus!=='left'?'logout':'trash-can-outline',label:t(target?.groupStatus==='invited'?'inbox_decline':group&&target?.groupStatus!=='left'?'inbox_leave':'inbox_delete'),danger:true}];
+ const actions=rows.map(row=>({id:row.action,icon:row.icon,label:row.label,danger:row.danger,run:()=>['clear','delete','leave'].includes(row.action)?setConfirm(row.action as 'clear'|'delete'|'leave'):onAction(row.action)}));
+ return <ChatContextMenu visible={!!target} anchor={target?.anchor||null} rightAligned busy={busy} error={error} onClose={onClose} actions={confirm?[]:actions} prefix="inbox-action" menuTestID="inbox-context-menu" dismissTestID="inbox-actions-dismiss" contentHeight={confirm?230:undefined}>{confirm?<View><View style={s.header}><Text style={s.title}>{t(`inbox_${confirm}_title`)}</Text><TouchableOpacity testID="inbox-actions-close" style={s.close} disabled={busy} accessibilityRole="button" accessibilityLabel={t('cancel')} onPress={onClose}><Image source={require('../../../assets/images/share/close.svg')} style={{width:28,height:28}}/></TouchableOpacity></View><Text style={s.help}>{t(`inbox_${confirm}_hint`)}</Text><TouchableOpacity testID={`inbox-confirm-${confirm}`} style={s.confirm} disabled={busy} accessibilityRole="button" onPress={()=>onAction(confirm)}><Text style={s.danger}>{t(`inbox_${confirm}`)}</Text>{busy&&<ActivityIndicator color="#FF4199"/>}</TouchableOpacity></View>:undefined}</ChatContextMenu>;
+}
+const s=StyleSheet.create({header:{flexDirection:'row',alignItems:'center',paddingTop:6},title:{fontFamily:'Ubuntu-Medium',fontSize:15,lineHeight:21,color:'#FFF',flex:1},close:{width:38,height:44,alignItems:'center',justifyContent:'center'},danger:{color:'#FF739B',fontFamily:'Ubuntu-Regular',fontSize:14},help:{fontFamily:'Ubuntu-Regular',fontSize:13,lineHeight:19,color:'#BBBDC6',paddingVertical:12},confirm:{minHeight:46,marginBottom:10,flexDirection:'row',alignItems:'center',justifyContent:'space-between',backgroundColor:'#36373B',borderRadius:8,paddingHorizontal:12}});

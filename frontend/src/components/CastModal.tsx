@@ -1,3 +1,5 @@
+import {useAnalyticsOverlay} from '../hooks/useAnalyticsOverlay';
+import { MegaLoadingIndicator as ActivityIndicator } from './MegaLoadingIndicator';
 // Cast Modal - Apple AirPlay style modern popup
 import React, { useState, useEffect, useRef } from 'react';
 import {
@@ -6,12 +8,10 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  ActivityIndicator,
   Dimensions,
   Alert,
   Platform,
-  Animated,
-} from 'react-native';
+  Animated} from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -35,6 +35,7 @@ export const CastModal: React.FC<CastModalProps> = ({
   currentStation,
 }) => {
   const { token, isAuthenticated } = useAuthStore();
+  useAnalyticsOverlay('cast',visible);
   const [isCasting, setIsCasting] = useState(false);
   const [castSuccess, setCastSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);

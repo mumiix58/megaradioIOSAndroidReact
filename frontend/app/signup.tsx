@@ -1,3 +1,7 @@
+import { createSubmissionLock } from '../src/utils/submissionLock';
+import analyticsService from '../src/services/analyticsService';
+import { MegaLoadingIndicator as ActivityIndicator } from '../src/components/MegaLoadingIndicator';
+import { Image } from 'expo-image';
 import React, { useState } from 'react';
 import {
   View,
@@ -5,13 +9,11 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  ScrollView} from 'react-native';
+import { AuthErrorNotice } from '../src/components/AuthErrorNotice';
+import { AuthNavigation } from '../src/components/AuthNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -20,9 +22,9 @@ import authService, { authErrorMessage } from '../src/services/authService';
 import { useAuthStore } from '../src/store/authStore';
 
 // Input icons
-const EMAIL_ICON = require('../assets/icons/email-input.png');
-const PASSWORD_ICON = require('../assets/icons/password-input.png');
-const PERSON_ICON = require('../assets/icons/person-input.png');
+const EMAIL_ICON = require('../assets/images/auth/figma/email-input.svg');
+const PASSWORD_ICON = require('../assets/images/auth/figma/password-input.svg');
+const PERSON_ICON = require('../assets/images/auth/figma/person-input.svg');
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -30,8 +32,10 @@ export default function SignupScreen() {
   const { saveAuth } = useAuthStore();
 
   const [name, setName] = useState('');
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submissionLock] = useState(createSubmissionLock);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasError, setHasError] = useState(false);
@@ -61,16 +65,18 @@ export default function SignupScreen() {
   };
 
   const handleSignup = async () => {
+    if (!submissionLock.tryAcquire()) return;
     setError('');
     setHasError(false);
-    if (!validateForm()) return;
+    if (!validateForm()) { submissionLock.release(); return; }
 
     setIsLoading(true);
     try {
       const response = await authService.mobileRegister(email.trim(), password, name.trim());
-      
+
       if (response.success && response.token && response.user) {
         await saveAuth(response.user, response.token);
+        void analyticsService.logSignUp('email');
         router.replace('/(tabs)');
       } else {
         throw new Error('Invalid response from server');
@@ -82,16 +88,14 @@ export default function SignupScreen() {
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+      submissionLock.release();
     }
   };
 
-  const handleBack = () => {
-    router.back();
-  };
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
@@ -102,20 +106,10 @@ export default function SignupScreen() {
             showsVerticalScrollIndicator={false}
           >
             {/* Back Button */}
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={handleBack}
-              data-testid="signup-back-button"
-            >
-              <Ionicons name="chevron-back" size={28} color={colors.text} />
-            </TouchableOpacity>
+
 
             {/* Error Toast */}
-            {hasError && error && (
-              <View style={styles.errorToast} data-testid="signup-error-toast">
-                <Text style={styles.errorToastText}>{error}</Text>
-              </View>
-            )}
+            <AuthErrorNotice message={hasError ? error : ''} testID="signup-error-toast" />
 
             {/* Content */}
             <View style={styles.content}>
@@ -123,12 +117,14 @@ export default function SignupScreen() {
               <Text style={styles.title}>{t('signup', 'Signup')}</Text>
 
               {/* Name Input */}
-              <View style={[styles.inputContainer, hasError && styles.inputError]}>
+              <View style={[styles.inputContainer, focusedField === 'name' && styles.inputFocused, hasError && styles.inputError]}>
                 <View style={styles.inputIconContainer}>
-                  <Image source={PERSON_ICON} style={styles.inputIcon} resizeMode="contain" />
+                  <Image source={PERSON_ICON} style={styles.inputIcon} contentFit="contain" />
                 </View>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, Platform.OS === 'web' && { outlineWidth: 0, outlineStyle: 'solid' }]}
+                  onFocus={() => setFocusedField('name')}
+                  onBlur={() => setFocusedField(null)}
                   placeholder={t('your_name', 'Your name')}
                   placeholderTextColor={colors.inputPlaceholder}
                   value={name}
@@ -138,17 +134,19 @@ export default function SignupScreen() {
                     setError('');
                   }}
                   autoCapitalize="words"
-                  data-testid="signup-name-input"
+                  testID="signup-name-input"
                 />
               </View>
 
               {/* Email Input */}
-              <View style={[styles.inputContainer, hasError && styles.inputError]}>
+              <View style={[styles.inputContainer, focusedField === 'email' && styles.inputFocused, hasError && styles.inputError]}>
                 <View style={styles.inputIconContainer}>
-                  <Image source={EMAIL_ICON} style={styles.inputIcon} resizeMode="contain" />
+                  <Image source={EMAIL_ICON} style={styles.inputIcon} contentFit="contain" />
                 </View>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, Platform.OS === 'web' && { outlineWidth: 0, outlineStyle: 'solid' }]}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
                   placeholder={t('email_placeholder', 'Email')}
                   placeholderTextColor={colors.inputPlaceholder}
                   value={email}
@@ -160,17 +158,19 @@ export default function SignupScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   autoCorrect={false}
-                  data-testid="signup-email-input"
+                  testID="signup-email-input"
                 />
               </View>
 
               {/* Password Input */}
-              <View style={[styles.inputContainer, hasError && styles.inputError]}>
+              <View style={[styles.inputContainer, focusedField === 'password' && styles.inputFocused, hasError && styles.inputError]}>
                 <View style={styles.inputIconContainer}>
-                  <Image source={PASSWORD_ICON} style={styles.inputIcon} resizeMode="contain" />
+                  <Image source={PASSWORD_ICON} style={styles.inputIcon} contentFit="contain" />
                 </View>
                 <TextInput
-                  style={styles.input}
+                  style={[styles.input, Platform.OS === 'web' && { outlineWidth: 0, outlineStyle: 'solid' }]}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => setFocusedField(null)}
                   placeholder={t('password_placeholder', 'Password')}
                   placeholderTextColor={colors.inputPlaceholder}
                   value={password}
@@ -180,7 +180,7 @@ export default function SignupScreen() {
                     setError('');
                   }}
                   secureTextEntry
-                  data-testid="signup-password-input"
+                  testID="signup-password-input"
                 />
               </View>
 
@@ -191,8 +191,8 @@ export default function SignupScreen() {
               <TouchableOpacity
                 style={[styles.signupButton, isLoading && styles.signupButtonDisabled]}
                 onPress={handleSignup}
-                disabled={isLoading}
-                data-testid="signup-submit-button"
+                accessibilityRole="button" accessibilityState={{disabled:isLoading,busy:isLoading}} disabled={isLoading}
+                testID="signup-submit-button"
               >
                 {isLoading ? (
                   <ActivityIndicator color={colors.text} />
@@ -203,7 +203,8 @@ export default function SignupScreen() {
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
+      <AuthNavigation fallback="/login" testID="signup-back-button" />
     </View>
   );
 }
@@ -211,37 +212,18 @@ export default function SignupScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#1B1C1E',
   },
   safeArea: {
     flex: 1,
+    paddingTop: 108,
+    paddingBottom: 24,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-  },
-  backButton: {
-    marginLeft: spacing.md,
-    marginTop: spacing.sm,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-  },
-  errorToast: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.errorToast,
-    alignItems: 'center',
-  },
-  errorToastText: {
-    fontFamily: 'Ubuntu-Medium',
-    fontSize: typography.sizes.md,
-    color: colors.text,
   },
   content: {
     flex: 1,
@@ -257,6 +239,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   inputContainer: {
+    borderWidth: 2,
+    borderColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     height: 56,
@@ -265,26 +249,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.md,
   },
+  inputFocused: { borderColor: '#FF3494' },
   inputError: {
     borderWidth: 2,
     borderColor: colors.errorBorder,
     backgroundColor: '#FFF5F5',
   },
   inputIconContainer: {
-    width: 40,
-    height: 40,
+    width: 24,
+    height: 24,
     borderRadius: borderRadius.full,
-    backgroundColor: '#E8EDF2',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   inputIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
   },
   input: {
     flex: 1,
-    marginLeft: spacing.md,
+    marginLeft: 10,
     fontSize: typography.sizes.lg,
     fontFamily: 'Ubuntu-Regular',
     color: '#1A1A1D',

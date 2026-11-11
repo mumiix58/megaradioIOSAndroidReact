@@ -3,11 +3,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from './authStore';
 import api from '../services/api';
 import type { Station } from '../types';
+import { mergeRecentlyPlayed } from '../utils/recentlyPlayed';
 
 const STORAGE_KEY = 'megaradio_recently_played';
-const MAX_RECENT = 12;
-
+const ownerNow = () => {
+  const state = useAuthStore.getState();
+  return state.isAuthenticated && state.user?._id ? String(state.user._id) : 'guest';
+};
+// Legacy device history has no account identity; keep it guest-only.
+const storageKey = (owner: string) => owner === 'guest' ? STORAGE_KEY : `${STORAGE_KEY}:${owner}`;
+let write = Promise.resolve();
+function persist(owner: string, stations: Station[]) {
+  const value = JSON.stringify(stations);
+  write = write.then(() => AsyncStorage.setItem(storageKey(owner),value)).catch(() => {});
+}
+const localLoads = new Map<string,Promise<void>>();
 interface RecentlyPlayedState {
+  owner: string;
   stations: Station[];
   loaded: boolean;
   isLoading: boolean;
@@ -16,129 +28,65 @@ interface RecentlyPlayedState {
   loadFromAPI: () => Promise<void>;
   syncToAPI: (stationId: string) => Promise<void>;
 }
-
-// Helper to check if user is authenticated
-const isAuthenticated = (): boolean => {
-  return useAuthStore.getState().isAuthenticated;
-};
-
-export const useRecentlyPlayedStore = create<RecentlyPlayedState>((set, get) => ({
-  stations: [],
-  loaded: false,
-  isLoading: false,
-
-  addStation: (station: Station) => {
-    const current = get().stations;
-    // Remove if already exists, then prepend
-    const filtered = current.filter(s => s._id !== station._id);
-    const updated = [station, ...filtered].slice(0, MAX_RECENT);
-    set({ stations: updated });
-    
-    // Persist to local storage
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated)).catch(() => {});
-    
-    // Sync to API if authenticated
-    if (isAuthenticated()) {
-      get().syncToAPI(station._id);
-    }
-  },
-
-  loadFromStorage: async () => {
-    if (get().loaded) return;
-    try {
-      const data = await AsyncStorage.getItem(STORAGE_KEY);
-      if (data) {
-        set({ stations: JSON.parse(data), loaded: true });
-      } else {
-        set({ loaded: true });
-      }
-    } catch {
-      set({ loaded: true });
-    }
-  },
-
-  // Load recently played from API for authenticated users
-  loadFromAPI: async () => {
-    if (!isAuthenticated()) {
-      console.log('[RecentlyPlayedStore] Not authenticated, loading from local storage');
-      await get().loadFromStorage();
-      return;
-    }
-
-    set({ isLoading: true });
-
-    try {
-      console.log('[RecentlyPlayedStore] Loading from API with auth token...');
-      
-      // Use api instance which automatically adds Authorization header via interceptor
-      const response = await api.get('/api/recently-played');
-      const data = response.data;
-      
-      // API returns array of stations with playedAt field
-      let stations = Array.isArray(data) ? data : (data.stations || []);
-      
-      // DEDUPLICATION: Ensure no duplicate station IDs from API
-      const seenIds = new Set<string>();
-      stations = stations.filter((s: Station) => {
-        if (seenIds.has(s._id)) {
-          console.log('[RecentlyPlayedStore] Removing duplicate station:', s._id);
-          return false;
+export const useRecentlyPlayedStore = create<RecentlyPlayedState>((set,get) => {
+  const ensureOwner = () => {
+    const owner = ownerNow();
+    if (get().owner !== owner) set({ owner, stations: [], loaded: false, isLoading: false });
+    return owner;
+  };
+  return {
+    owner: ownerNow(), stations: [], loaded: false, isLoading: false,
+    addStation(station) {
+      const owner = ensureOwner();
+      if (!station?._id) return;
+      const stations = mergeRecentlyPlayed([{...station,playedAt:new Date().toISOString()}],get().stations);
+      set({ stations });
+      if (get().loaded) persist(owner,stations);
+      else void get().loadFromStorage().then(() => persist(owner,get().owner === owner ? get().stations : stations));
+      if (owner !== 'guest') void get().syncToAPI(station._id);
+    },
+    loadFromStorage() {
+      const owner = ensureOwner();
+      if (get().loaded) return Promise.resolve();
+      const pending = localLoads.get(owner);
+      if (pending) return pending;
+      const load = (async () => {
+        try {
+          const raw = await AsyncStorage.getItem(storageKey(owner));
+          const stored = raw ? JSON.parse(raw) : [];
+          if (get().owner === owner) set({ stations:mergeRecentlyPlayed(get().stations,stored), loaded:true });
+        } catch {
+          if (get().owner === owner) set({ loaded:true });
         }
-        seenIds.add(s._id);
-        return true;
-      });
-      
-      console.log('[RecentlyPlayedStore] API returned', stations.length, 'unique stations');
-      
-      // Merge with local storage (API takes priority)
-      const localData = await AsyncStorage.getItem(STORAGE_KEY);
-      const localStations: Station[] = localData ? JSON.parse(localData) : [];
-      
-      // Merge: API stations + local-only stations (avoid duplicates)
-      const apiIds = new Set(stations.map((s: Station) => s._id));
-      const localOnly = localStations.filter(s => !apiIds.has(s._id));
-      const merged = [...stations, ...localOnly].slice(0, MAX_RECENT);
-      
-      set({ stations: merged, loaded: true, isLoading: false });
-      
-      // Update local storage with merged data
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-    } catch (error) {
-      console.error('[RecentlyPlayedStore] Error loading from API:', error);
+      })().finally(() => { localLoads.delete(owner); });
+      localLoads.set(owner,load);
+      return load;
+    },
+    async loadFromAPI() {
+      const owner = ensureOwner();
       await get().loadFromStorage();
-      set({ isLoading: false });
-    }
-  },
-
-  // Sync a station play to API
-  syncToAPI: async (stationId: string) => {
-    if (!isAuthenticated()) {
-      console.log('[RecentlyPlayedStore] Not authenticated, skipping API sync');
-      return;
-    }
-
-    try {
-      console.log('[RecentlyPlayedStore] Syncing station to API:', stationId);
-      
-      // Use api instance which automatically adds Authorization header via interceptor
-      await api.post('/api/recently-played', { stationId });
-      
-      console.log('[RecentlyPlayedStore] Successfully synced to API');
-    } catch (error) {
-      console.error('[RecentlyPlayedStore] Error syncing to API:', error);
-    }
-  },
-}));
-
-// Subscribe to auth changes and reload recently played when user logs in/out
-useAuthStore.subscribe((state, prevState) => {
-  // Reload when authentication status changes
-  if (state.isAuthenticated !== prevState.isAuthenticated) {
-    console.log('[RecentlyPlayedStore] Auth status changed, reloading...');
-    // Reset loaded state to allow fresh fetch
-    useRecentlyPlayedStore.setState({ loaded: false });
-    useRecentlyPlayedStore.getState().loadFromAPI();
+      if (owner === 'guest' || get().owner !== owner) return;
+      set({ isLoading:true });
+      try {
+        const response = await api.get('/api/recently-played');
+        if (ownerNow() !== owner || get().owner !== owner) return;
+        const stations = mergeRecentlyPlayed(get().stations,Array.isArray(response.data) ? response.data : response.data?.stations);
+        set({ stations,loaded:true,isLoading:false });
+        persist(owner,stations);
+      } catch {
+        if (get().owner === owner) set({ isLoading:false });
+      }
+    },
+    async syncToAPI(stationId) {
+      if (ownerNow() === 'guest') return;
+      try { await api.post('/api/recently-played',{stationId}); } catch { /* Local history remains available offline. */ }
+    },
+  };
+});
+useAuthStore.subscribe((state,previous) => {
+  if (state.isAuthenticated !== previous.isAuthenticated || state.user?._id !== previous.user?._id) {
+    useRecentlyPlayedStore.setState({ owner:ownerNow(), stations:[],loaded:false,isLoading:false });
+    void useRecentlyPlayedStore.getState().loadFromStorage();
   }
 });
-
 export default useRecentlyPlayedStore;

@@ -27,7 +27,7 @@ export const useNetworkStatus = () => {
   const updateNetworkStatus = useCallback((state: NetInfoState) => {
     const isWifi = state.type === 'wifi';
     const isCellular = state.type === 'cellular';
-    const isConnected = state.isConnected ?? false;
+    const isConnected = state.isConnected ?? true;
     const isInternetReachable = state.isInternetReachable;
     
     // Consider offline if not connected OR internet not reachable
@@ -51,9 +51,14 @@ export const useNetworkStatus = () => {
   }, []);
 
   useEffect(() => {
-    // Skip on web
     if (Platform.OS === 'web') {
-      return;
+      const update = () => setNetworkStatus(previous => ({
+        ...previous, isConnected: navigator.onLine, isInternetReachable: navigator.onLine, isOffline: !navigator.onLine,
+      }));
+      update();
+      window.addEventListener('online', update);
+      window.addEventListener('offline', update);
+      return () => { window.removeEventListener('online', update); window.removeEventListener('offline', update); };
     }
 
     // Get initial state

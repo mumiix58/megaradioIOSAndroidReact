@@ -1,3 +1,7 @@
+import { createSubmissionLock } from '../src/utils/submissionLock';
+import analyticsService from '../src/services/analyticsService';
+import { MegaLoadingIndicator as ActivityIndicator } from '../src/components/MegaLoadingIndicator';
+import { Image } from 'expo-image';
 import React, { useState } from 'react';
 import {
   View,
@@ -5,12 +9,10 @@ import {
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  ActivityIndicator,
   KeyboardAvoidingView,
-  Platform,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  Platform} from 'react-native';
+import { AuthErrorNotice } from '../src/components/AuthErrorNotice';
+import { AuthNavigation } from '../src/components/AuthNavigation';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useTranslation } from 'react-i18next';
@@ -19,8 +21,8 @@ import authService, { authErrorMessage } from '../src/services/authService';
 import { useAuthStore } from '../src/store/authStore';
 
 // Input icons
-const EMAIL_ICON = require('../assets/icons/email-input.png');
-const PASSWORD_ICON = require('../assets/icons/password-input.png');
+const EMAIL_ICON = require('../assets/images/auth/figma/email-input.svg');
+const PASSWORD_ICON = require('../assets/images/auth/figma/password-input.svg');
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -43,8 +45,10 @@ export default function LoginScreen() {
     }
   };
 
+  const [focusedField, setFocusedField] = useState<string | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [submissionLock] = useState(createSubmissionLock);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [hasError, setHasError] = useState(false);
@@ -69,9 +73,10 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
+    if (!submissionLock.tryAcquire()) return;
     setError('');
     setHasError(false);
-    if (!validateForm()) return;
+    if (!validateForm()) { submissionLock.release(); return; }
 
     setIsLoading(true);
     try {
@@ -103,6 +108,7 @@ export default function LoginScreen() {
           totalListeningTime: apiUser.totalListeningTime || 0,
         };
         await saveAuth(user as any, response.token);
+        void analyticsService.logLogin('email');
         
         // Use router.replace with dismissAll for clean navigation
         // This ensures the login screen is completely removed from the stack
@@ -129,12 +135,10 @@ export default function LoginScreen() {
       }
     } finally {
       setIsLoading(false);
+      submissionLock.release();
     }
   };
 
-  const handleBack = () => {
-    router.back();
-  };
 
   const handleForgotPassword = () => {
     router.push('/forgot-password');
@@ -146,26 +150,13 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
+      <View style={styles.safeArea}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
         >
-          {/* Back Button */}
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBack}
-            data-testid="login-back-button"
-          >
-            <Ionicons name="chevron-back" size={28} color={colors.text} />
-          </TouchableOpacity>
-
           {/* Error Toast */}
-          {hasError && error && (
-            <View style={styles.errorToast} data-testid="login-error-toast">
-              <Text style={styles.errorToastText}>{error}</Text>
-            </View>
-          )}
+          <AuthErrorNotice message={hasError ? error : ''} testID="login-error-toast" />
 
           {/* Content */}
           <View style={styles.content}>
@@ -173,12 +164,14 @@ export default function LoginScreen() {
             <Text style={styles.title}>{t('login', 'Login')}</Text>
 
             {/* Email Input */}
-            <View style={[styles.inputContainer, hasError && styles.inputError]}>
+            <View style={[styles.inputContainer, focusedField === 'email' && styles.inputFocused, hasError && styles.inputError]}>
               <View style={styles.inputIconContainer}>
-                <Image source={EMAIL_ICON} style={styles.inputIcon} resizeMode="contain" />
+                <Image source={EMAIL_ICON} style={styles.inputIcon} contentFit="contain" />
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, Platform.OS === 'web' && { outlineWidth: 0, outlineStyle: 'solid' }]}
+                  onFocus={() => setFocusedField('email')}
+                  onBlur={() => setFocusedField(null)}
                 placeholder={t('email_placeholder', 'Email')}
                 placeholderTextColor={colors.inputPlaceholder}
                 value={email}
@@ -190,17 +183,19 @@ export default function LoginScreen() {
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoCorrect={false}
-                data-testid="login-email-input"
+                testID="login-email-input"
               />
             </View>
 
             {/* Password Input */}
-            <View style={[styles.inputContainer, hasError && styles.inputError]}>
+            <View style={[styles.inputContainer, focusedField === 'password' && styles.inputFocused, hasError && styles.inputError]}>
               <View style={styles.inputIconContainer}>
-                <Image source={PASSWORD_ICON} style={styles.inputIcon} resizeMode="contain" />
+                <Image source={PASSWORD_ICON} style={styles.inputIcon} contentFit="contain" />
               </View>
               <TextInput
-                style={styles.input}
+                style={[styles.input, Platform.OS === 'web' && { outlineWidth: 0, outlineStyle: 'solid' }]}
+                  onFocus={() => setFocusedField('password')}
+                  onBlur={() => setFocusedField(null)}
                 placeholder={t('password_placeholder', 'Password')}
                 placeholderTextColor={colors.inputPlaceholder}
                 value={password}
@@ -210,7 +205,7 @@ export default function LoginScreen() {
                   setError('');
                 }}
                 secureTextEntry
-                data-testid="login-password-input"
+                testID="login-password-input"
               />
             </View>
 
@@ -218,8 +213,8 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={[styles.loginButton, isLoading && styles.loginButtonDisabled]}
               onPress={handleLogin}
-              disabled={isLoading}
-              data-testid="login-submit-button"
+              accessibilityRole="button" accessibilityState={{disabled:isLoading,busy:isLoading}} disabled={isLoading}
+              testID="login-submit-button"
             >
               {isLoading ? (
                 <ActivityIndicator color={colors.text} />
@@ -232,7 +227,7 @@ export default function LoginScreen() {
             <TouchableOpacity
               style={styles.forgotPasswordButton}
               onPress={handleForgotPassword}
-              data-testid="login-forgot-password-button"
+              testID="login-forgot-password-button"
             >
               <Text style={styles.forgotPasswordText}>{t('forgot_password', 'Forgot your password?')}</Text>
             </TouchableOpacity>
@@ -248,7 +243,8 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
-      </SafeAreaView>
+      </View>
+      <AuthNavigation fallback="/auth-options" testID="login-back-button" />
     </View>
   );
 }
@@ -256,34 +252,15 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: '#1B1C1E',
   },
   safeArea: {
     flex: 1,
+    paddingTop: 108,
+    paddingBottom: 24,
   },
   keyboardView: {
     flex: 1,
-  },
-  backButton: {
-    marginLeft: spacing.md,
-    marginTop: spacing.sm,
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-  },
-  errorToast: {
-    marginHorizontal: spacing.lg,
-    marginTop: spacing.md,
-    paddingVertical: 14,
-    paddingHorizontal: spacing.lg,
-    borderRadius: borderRadius.full,
-    backgroundColor: colors.errorToast,
-    alignItems: 'center',
-  },
-  errorToastText: {
-    fontFamily: 'Ubuntu-Medium',
-    fontSize: typography.sizes.md,
-    color: colors.text,
   },
   content: {
     flex: 1,
@@ -294,14 +271,15 @@ const styles = StyleSheet.create({
   title: {
     fontFamily: 'Ubuntu-Bold',
     fontSize: 24,
-    lineHeight: 24,
+    lineHeight: 30,
     letterSpacing: 0,
     color: colors.text,
     marginBottom: spacing.lg,
-    width: 64,
-    height: 28,
+    flexShrink: 1,
   },
   inputContainer: {
+    borderWidth: 2,
+    borderColor: 'transparent',
     flexDirection: 'row',
     alignItems: 'center',
     height: 56,
@@ -310,26 +288,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.sm,
     marginBottom: spacing.md,
   },
+  inputFocused: { borderColor: '#FF3494' },
   inputError: {
     borderWidth: 2,
     borderColor: colors.errorBorder,
     backgroundColor: '#FFF5F5',
   },
   inputIconContainer: {
-    width: 40,
-    height: 40,
+    width: 24,
+    height: 24,
     borderRadius: borderRadius.full,
-    backgroundColor: '#E8EDF2',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   inputIcon: {
-    width: 20,
-    height: 20,
+    width: 24,
+    height: 24,
   },
   input: {
     flex: 1,
-    marginLeft: spacing.md,
+    marginLeft: 10,
     fontSize: typography.sizes.lg,
     fontFamily: 'Ubuntu-Regular',
     color: '#1A1A1D',
@@ -356,9 +335,9 @@ const styles = StyleSheet.create({
   },
   forgotPasswordText: {
     fontFamily: 'Ubuntu-Medium',
-    fontSize: typography.sizes.md,
+    fontSize: 15,
+    lineHeight: 17,
     color: colors.text,
-    textDecorationLine: 'underline',
   },
   footer: {
     alignItems: 'center',
@@ -370,14 +349,14 @@ const styles = StyleSheet.create({
   },
   continueWithoutText: {
     fontFamily: 'Ubuntu-Medium',
-    fontSize: typography.sizes.md,
-    color: colors.textSecondary,
-    textDecorationLine: 'underline',
+    fontSize: 15,
+    lineHeight: 17,
+    color: colors.text,
   },
   footerText: {
     fontFamily: 'Ubuntu-Medium',
-    fontSize: typography.sizes.md,
+    fontSize: 15,
+    lineHeight: 17,
     color: colors.text,
-    textDecorationLine: 'underline',
   },
 });

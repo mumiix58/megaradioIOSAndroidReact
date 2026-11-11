@@ -1,0 +1,10 @@
+import { MegaLoadingIndicator as ActivityIndicator } from './MegaLoadingIndicator';
+import React,{useState,useEffect} from 'react';
+import {View,Text,TouchableOpacity,StyleSheet} from 'react-native';
+import {useTranslation} from 'react-i18next';
+import {ChatContextMenu,type ContextMenuAnchor} from './chat/ChatContextMenu';
+export function ProfilePhotoActions({visible,anchor,busy,onClose,onChange,onRemove,onDismiss}:{visible:boolean;anchor:ContextMenuAnchor|null;busy:boolean;onClose:()=>void;onChange:()=>void;onRemove:()=>void;onDismiss?:()=>void}){
+ const {t}=useTranslation(),[confirm,setConfirm]=useState(false);useEffect(()=>{if(!visible)setConfirm(false);},[visible]);
+ return <ChatContextMenu onDismiss={onDismiss} visible={visible} anchor={anchor} rightAligned={false} busy={busy} error="" onClose={onClose} prefix="profile-photo" menuTestID="profile-photo-menu" dismissTestID="profile-photo-dismiss" contentHeight={confirm?180:undefined} actions={confirm?[]:[{id:'change',label:t('change_photo'),icon:'image-edit-outline',run:onChange},{id:'remove',label:t('remove_photo'),icon:'trash-can-outline',run:()=>setConfirm(true),danger:true}]}>{confirm?<View><Text style={s.title}>{t('avatar_remove_title')}</Text><TouchableOpacity testID="profile-photo-remove-confirm" accessibilityRole="button" disabled={busy} onPress={onRemove} style={s.row}><Text style={s.danger}>{t('remove_photo')}</Text>{busy&&<ActivityIndicator color="#FF4199"/>}</TouchableOpacity><TouchableOpacity accessibilityRole="button" disabled={busy} onPress={()=>setConfirm(false)} style={s.row}><Text style={s.label}>{t('cancel')}</Text></TouchableOpacity></View>:undefined}</ChatContextMenu>;
+}
+const s=StyleSheet.create({title:{fontFamily:'Ubuntu-Medium',fontSize:15,lineHeight:22,color:'#FFF',paddingVertical:12},row:{minHeight:49,flexDirection:'row',alignItems:'center',justifyContent:'space-between',borderTopWidth:1,borderColor:'#FFFFFF0D'},danger:{fontFamily:'Ubuntu-Regular',fontSize:15,color:'#FF739B'},label:{fontFamily:'Ubuntu-Regular',fontSize:15,color:'#F7F8FC'}});

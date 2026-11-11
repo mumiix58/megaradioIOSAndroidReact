@@ -1,3 +1,5 @@
+import {useAnalyticsOverlay} from '../hooks/useAnalyticsOverlay';
+import { MegaLoadingIndicator as ActivityIndicator } from './MegaLoadingIndicator';
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -7,24 +9,29 @@ import {
   TouchableOpacity,
   Share,
   Linking,
-  ActivityIndicator,
   StatusBar,
-} from 'react-native';
-import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+  Platform,
+  Animated,
+  useWindowDimensions} from 'react-native';
+import { Image } from 'expo-image';
+import { useTranslation } from 'react-i18next';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { GlowEffect } from './GlowEffect';
+import { LogoShadow } from './LogoShadow';
+import { useLogoAccent } from '../hooks/useLogoAccent';
+import { PlayerEqualizer } from './PlayerEqualizer';
 import * as Clipboard from 'expo-clipboard';
 import type { Station } from '../types';
 import { ImageWithFallback } from './ImageWithFallback';
-import { resolveStationShareUrl, stationShareContent } from '../utils/stationShare';
+import { resolveStationShareUrl, stationShareContent, stationShareUrl } from '../utils/stationShare';
 
-const ARTWORK_SIZE = 190;
+const ARTWORK_SIZE = 150;
 
 interface ShareModalProps {
   visible: boolean;
   onClose: () => void;
   station: Station | null;
   nowPlayingTitle?: string;
+  playing?: boolean;
   getLogoUrl: (station: Station) => string | null;
 }
 
@@ -33,9 +40,23 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   onClose,
   station,
   nowPlayingTitle,
+  playing = false,
   getLogoUrl,
 }) => {
   const insets = useSafeAreaInsets();
+  useAnalyticsOverlay('share-radio',visible);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const { t } = useTranslation();
+  const { width } = useWindowDimensions();
+  const unit = Math.min(width, 430) / 375;
+  const styles = React.useMemo(() => makeStyles(unit), [unit]);
+  const logoUrl = station ? getLogoUrl(station) : null;
+  const logoAccent = useLogoAccent(visible ? logoUrl : null);
+  useEffect(() => {
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'share', visible }, 'http://localhost:8082');
+  }, [visible]);
+  const [copied, setCopied] = useState(false);
+  const preparedUrl = useRef<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const inFlight = useRef(false);
@@ -43,26 +64,32 @@ export const ShareModal: React.FC<ShareModalProps> = ({
   useEffect(() => {
     generation.current++;
     setShareError(null);
-    return () => { generation.current++; };
-  }, [visible, station?._id]);
+    scrollY.setValue(0);
+    setCopied(false);
+    preparedUrl.current = station ? stationShareUrl(station) : null;
+    let active = true;
+    if (visible && station) resolveStationShareUrl(station).then(url => {
+      if (active) preparedUrl.current = url;
+    }).catch(() => {});
+    return () => { active = false; generation.current++; };
+  }, [visible, station]);
 
   if (!station) return null;
 
-  const logoUrl = getLogoUrl(station);
   const shareText = `${station.name} - MegaRadio`;
-  const withShareUrl = async (action: (url: string) => Promise<unknown>) => {
+  const withShareUrl = async (action: (url: string) => Promise<unknown>, closeAfter = true) => {
     if (inFlight.current) return;
     inFlight.current = true;
     const request = generation.current;
     setBusy(true);
     setShareError(null);
     try {
-      const url = await resolveStationShareUrl(station);
+      const url = preparedUrl.current || await resolveStationShareUrl(station);
       if (request !== generation.current) return;
       await action(url);
-      if (request === generation.current) onClose();
+      if (closeAfter && request === generation.current) onClose();
     } catch (error) {
-      if (request === generation.current) setShareError(error instanceof Error ? error.message : 'Paylaşım başarısız. Tekrar deneyin.');
+      if (request === generation.current && !(error instanceof Error && error.name === 'AbortError')) setShareError(error instanceof Error ? error.message : 'Paylaşım başarısız. Tekrar deneyin.');
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -74,10 +101,34 @@ export const ShareModal: React.FC<ShareModalProps> = ({
     return Linking.openURL(supported ? facebook :
       `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}&quote=${encodeURIComponent(shareText)}`);
   });
-  const handleInstagramShare = () => withShareUrl(url => Share.share(stationShareContent(station, url, nowPlayingTitle)));
-  const handleWhatsAppShare = handleInstagramShare;
-  const handleMore = handleInstagramShare;
-  const handleCopyLink = () => withShareUrl(url => Clipboard.setStringAsync(url));
+  const handleNativeShare = () => withShareUrl(async url => {
+    const content = stationShareContent(station, url, nowPlayingTitle);
+    if (Platform.OS === 'web') {
+      if (typeof navigator.share === 'function') {
+        await navigator.share({ title: content.title, text: content.message });
+      } else {
+        await Clipboard.setStringAsync(url);
+        setCopied(true);
+        setShareError(t('browser_share_unavailable', 'This browser cannot open the device share sheet. Link copied; you can paste it into your preferred app.'));
+      }
+    } else {
+      await Share.share(content);
+    }
+  }, false);
+  const handleWhatsAppShare = () => withShareUrl(async url => {
+    const message = encodeURIComponent(`${shareText} ${url}`);
+    const appUrl = `whatsapp://send?text=${message}`;
+    const supported = await Linking.canOpenURL(appUrl).catch(() => false);
+    return Linking.openURL(supported ? appUrl : `https://wa.me/?text=${message}`);
+  });
+  const handleTwitterShare = () => withShareUrl(url => Linking.openURL(
+    `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`,
+  ));
+  const handleMore = handleNativeShare;
+  const handleCopyLink = () => withShareUrl(async url => {
+    await Clipboard.setStringAsync(url);
+    setCopied(true);
+  }, false);
 
   return (
     <Modal
@@ -89,73 +140,94 @@ export const ShareModal: React.FC<ShareModalProps> = ({
       testID="share-modal-dialog"
     >
       <StatusBar barStyle="light-content" backgroundColor="#1B1C1E" />
-      <View style={[styles.fullScreen, { paddingTop: insets.top, paddingBottom: insets.bottom || 24 }]} testID="share-modal">
+      <View style={[styles.fullScreen, { paddingTop: insets.top, paddingBottom: insets.bottom }]} testID="share-modal">
+        {/* Keep the full Gaussian behind the header, outside the scroll viewport's clip. */}
+        {logoAccent && <Animated.View pointerEvents="none" accessible={false}
+          style={[StyleSheet.absoluteFillObject, { transform: [{ translateY: Animated.multiply(scrollY, -1) }] }]}>
+          <LogoShadow testID="share-logo-glow" color={logoAccent} scale={unit} opacity={0.4}
+            centerX={width / (2 * unit)} centerY={insets.top / unit + 80 + 63 + ARTWORK_SIZE / 2} />
+        </Animated.View>}
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerSpacer} />
-          <Text style={styles.headerTitle}>Share</Text>
+          <Text style={styles.headerTitle}>{t('share', 'Share')}</Text>
           <TouchableOpacity
             style={styles.closeBtn}
+            hitSlop={4}
             onPress={onClose}
             testID="share-modal-close"
+            accessibilityRole="button"
+            accessibilityLabel={t('close', 'Close')}
           >
-            <Ionicons name="close" size={22} color="#FFF" />
+            <Image source={require('../../assets/images/share/close.svg')} style={styles.closeIcon} contentFit="contain" accessible={false} />
           </TouchableOpacity>
         </View>
 
+        <Animated.ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}
+          scrollEventThrottle={16} onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}>
         {/* Main content centered */}
         <View style={styles.content}>
           {/* Artwork with glow */}
           <View style={styles.artworkSection}>
-            <GlowEffect size={ARTWORK_SIZE + 80} top={0} left={0} opacity={0.40} />
             <View style={styles.artworkWrapper}>
                 <ImageWithFallback
                   testID="share-station-logo"
                   uri={logoUrl}
                   style={styles.artwork}
-                  contentFit="cover"
+                  contentFit="contain"
                 />
             </View>
           </View>
 
-          {/* Equalizer bars */}
-          <View style={styles.eqDots}>
-            <View style={[styles.eqBar, { height: 10 }]} />
-            <View style={[styles.eqBar, { height: 16 }]} />
-            <View style={[styles.eqBar, { height: 12 }]} />
+          <View style={styles.stationInfo}>
+            <View style={styles.equalizerSlot}><View style={{ transform: [{ scale: unit }] }}><PlayerEqualizer playing={visible && playing} /></View></View>
+            <Text testID="share-station-name" style={styles.stationName} numberOfLines={1}>{station.name}</Text>
+            <Text testID="share-song-title" style={styles.songTitle} numberOfLines={1}>{nowPlayingTitle || t('live_radio', 'Live Radio')}</Text>
           </View>
-
-          {/* Station info */}
-          <Text testID="share-station-name" style={styles.stationName} numberOfLines={1}>{station.name}</Text>
-          <Text testID="share-song-title" style={styles.songTitle} numberOfLines={1}>{nowPlayingTitle || 'Live Radio'}</Text>
           {busy && <ActivityIndicator testID="share-loading" color="#FF4199" />}
           {shareError && <Text testID="share-error" accessibilityRole="alert" style={styles.shareError}>{shareError}</Text>}
 
-          {/* Social buttons - Facebook, Instagram, WhatsApp */}
+          {/* Social buttons - Facebook, Instagram, Twitter, WhatsApp */}
           <View style={styles.socialRow}>
             <TouchableOpacity
-              style={[styles.socialBtn, { backgroundColor: '#3b5998' }]}
+              style={styles.socialBtn}
               onPress={handleFacebookShare}
               testID="share-facebook"
+            accessibilityRole="button"
+            accessibilityLabel="Facebook"
               disabled={busy}
             >
-              <FontAwesome5 name="facebook-f" size={24} color="#FFF" />
+              <Image source={require('../../assets/images/share/facebook.svg')} style={styles.socialImage} contentFit="contain" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.socialBtn, { backgroundColor: '#C13584' }]}
-              onPress={handleInstagramShare}
+              style={styles.socialBtn}
+              onPress={handleNativeShare}
               testID="share-instagram"
+              accessibilityRole="button"
+              accessibilityLabel="Instagram"
               disabled={busy}
             >
-              <FontAwesome5 name="instagram" size={26} color="#FFF" />
+              <Image source={require('../../assets/images/share/instagram.svg')} style={styles.socialImage} contentFit="contain" accessible={false} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.socialBtn, { backgroundColor: '#25D366' }]}
+              style={styles.socialBtn}
+              onPress={handleTwitterShare}
+              testID="share-twitter"
+            accessibilityRole="button"
+            accessibilityLabel="Twitter"
+              disabled={busy}
+            >
+              <Image source={require('../../assets/images/share/twitter.svg')} style={styles.socialImage} contentFit="contain" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.socialBtn}
               onPress={handleWhatsAppShare}
               testID="share-whatsapp"
+            accessibilityRole="button"
+            accessibilityLabel="WhatsApp"
               disabled={busy}
             >
-              <FontAwesome5 name="whatsapp" size={26} color="#FFF" />
+              <Image source={require('../../assets/images/share/whatsapp.svg')} style={styles.socialImage} contentFit="contain" />
             </TouchableOpacity>
           </View>
         </View>
@@ -167,10 +239,12 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             style={styles.actionRow}
             onPress={handleCopyLink}
             testID="share-copy-link"
+            accessibilityRole="button"
+            accessibilityLabel={copied ? t('copied', 'Copied') : t('copy_link', 'Copy Link')}
             disabled={busy}
           >
-            <Ionicons name="link-outline" size={22} color="#FFF" />
-            <Text style={styles.actionText}>Copy Link</Text>
+            <Image source={require('../../assets/images/share/link.svg')} style={styles.linkIcon} contentFit="contain" accessible={false} />
+            <Text accessibilityLiveRegion="polite" style={styles.actionText}>{copied ? t('copied', 'Copied') : t('copy_link', 'Copy Link')}</Text>
           </TouchableOpacity>
 
           {/* More */}
@@ -178,145 +252,46 @@ export const ShareModal: React.FC<ShareModalProps> = ({
             style={styles.actionRow}
             onPress={handleMore}
             testID="share-more"
+            accessibilityRole="button"
+            accessibilityLabel={t('more', 'More')}
             disabled={busy}
           >
-            <Ionicons name="ellipsis-horizontal" size={22} color="#FFF" />
-            <Text style={styles.actionText}>More</Text>
+            <Image source={require('../../assets/images/share/more.svg')} style={styles.moreIcon} contentFit="contain" accessible={false} />
+            <Text style={styles.actionText}>{t('more', 'More')}</Text>
           </TouchableOpacity>
         </View>
+        </Animated.ScrollView>
       </View>
     </Modal>
   );
 };
 
-const styles = StyleSheet.create({
-  shareError: { color: '#FF4199', textAlign: 'center', fontSize: 14, marginBottom: 12 },
-  fullScreen: {
-    flex: 1,
-    backgroundColor: '#1B1C1E',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  headerSpacer: { width: 40 },
-  headerTitle: {
-    fontSize: 18,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFF',
-    textAlign: 'center',
-  },
-  closeBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#3A3A3A',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Main content
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-
-  // Artwork with multi-layer glow (simulates blur on iOS)
-  artworkSection: {
-    width: ARTWORK_SIZE + 80,
-    height: ARTWORK_SIZE + 80,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  artworkWrapper: {
-    width: ARTWORK_SIZE,
-    height: ARTWORK_SIZE,
-    borderRadius: 16,
-    overflow: 'hidden',
-    backgroundColor: '#2A2A2A',
-  },
-  artwork: {
-    width: ARTWORK_SIZE,
-    height: ARTWORK_SIZE,
-  },
-  artworkPlaceholder: {
-    width: ARTWORK_SIZE,
-    height: ARTWORK_SIZE,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#2A2A2A',
-  },
-
-  // Equalizer bars
-  eqDots: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 3,
-    marginBottom: 10,
-  },
-  eqBar: {
-    width: 5,
-    backgroundColor: '#FF4199',
-    borderRadius: 3,
-  },
-
-  // Station info
-  stationName: {
-    fontSize: 22,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFF',
-    textAlign: 'center',
-    marginBottom: 4,
-  },
-  songTitle: {
-    fontSize: 15,
-    color: '#999',
-    textAlign: 'center',
-    marginBottom: 32,
-  },
-
-  // Social buttons
-  socialRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 28,
-  },
-  socialBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Bottom actions
-  bottomActions: {
-    paddingHorizontal: 24,
-    paddingBottom: 8,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    height: 56,
-    backgroundColor: '#2A2A2A',
-    borderRadius: 12,
-    paddingHorizontal: 20,
-    marginBottom: 12,
-    gap: 16,
-  },
-  actionText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-  },
+// Figma share312:932,375×812. Coordinates below are relative to the44px design safe area.
+const makeStyles = (u: number) => StyleSheet.create({
+  fullScreen: { flex: 1, backgroundColor: '#1B1C1E' },
+  header: { width: 375 * u, height: 80 * u, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15 * u },
+  headerSpacer: { width: 40 * u },
+  headerTitle: { fontSize: 18 * u, lineHeight: 21 * u, fontFamily: 'Ubuntu-Bold', color: '#FFFFFF', textAlign: 'center' },
+  closeBtn: { width: 40 * u, height: 40 * u, alignItems: 'center', justifyContent: 'center' },
+  closeIcon: { width: 40 * u, height: 40 * u },
+  scrollContent: { alignItems: 'center', paddingBottom: 24 * u },
+  content: { width: 375 * u, alignItems: 'center', marginTop: 63 * u, paddingHorizontal: 15 * u },
+  artworkSection: { width: ARTWORK_SIZE * u, height: ARTWORK_SIZE * u, alignItems: 'center', justifyContent: 'center', marginBottom: 26 * u },
+  artworkWrapper: { width: ARTWORK_SIZE * u, height: ARTWORK_SIZE * u, borderRadius: 14.62 * u, overflow: 'hidden', backgroundColor: '#2A2A2A' },
+  artwork: { width: ARTWORK_SIZE * u, height: ARTWORK_SIZE * u },
+  stationInfo: { width: '100%', height: 71 * u, alignItems: 'center' },
+  equalizerSlot: { height: 28 * u, paddingTop: 3 * u, alignItems: 'center', justifyContent: 'flex-start' },
+  stationName: { fontSize: 20 * u, lineHeight: 23 * u, fontFamily: 'Ubuntu-Bold', color: '#FFFFFF', textAlign: 'center', marginBottom: 3 * u },
+  songTitle: { fontSize: 15 * u, lineHeight: 17 * u, fontFamily: 'Ubuntu-Medium', color: '#FFFFFF', textAlign: 'center' },
+  socialRow: { width: 282 * u, flexDirection: 'row', justifyContent: 'space-between', marginTop: 85 * u },
+  socialBtn: { width: 48 * u, height: 48 * u, borderRadius: 24 * u, justifyContent: 'center', alignItems: 'center' },
+  socialImage: { width: 48 * u, height: 48 * u },
+  bottomActions: { width: 282 * u, alignSelf: 'center', marginTop: 33 * u },
+  actionRow: { width: '100%', height: 56 * u, borderRadius: 10 * u, backgroundColor: '#282828', marginBottom: 10 * u },
+  linkIcon: { position: 'absolute', width: 16 * u, height: 16 * u, left: 19 * u, top: 20 * u },
+  moreIcon: { position: 'absolute', width: 24 * u, height: 6 * u, left: 12 * u, top: 25 * u },
+  actionText: { position: 'absolute', left: 56 * u, right: 12 * u, top: 18 * u, fontSize: 14 * u, lineHeight: 16 * u, fontFamily: 'Ubuntu-Bold', color: '#FFFFFF' },
+  shareError: { color: '#FF4199', textAlign: 'center', fontSize: 14 * u, marginBottom: 12 * u },
 });
 
 export default ShareModal;

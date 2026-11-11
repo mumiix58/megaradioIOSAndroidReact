@@ -1,18 +1,5 @@
-/**
- * FlowAlive Analytics Service - DISABLED
- * 
- * NOTE: FlowAlive NPM package (v0.0.32) has a bug - contains yalc reference.
- * This mock version provides no-op implementations until the package is fixed.
- * 
- * Issue: The package.json in flowalive-analytics contains:
- *   "flowalive-analytics": "file:.yalc/flowalive-analytics"
- * 
- * Once fixed by maintainer, re-enable by:
- * 1. yarn add flowalive-analytics
- * 2. Uncomment FlowAliveProvider in _layout.tsx
- * 3. Replace this file with real implementation
- */
-
+/** Compatibility bridge for existing engagement calls. Playback/screen events live in AnalyticsObserver. */
+import analyticsService from './analyticsService';
 import type { User } from '../types';
 
 export const ANALYTICS_EVENTS = {
@@ -39,37 +26,37 @@ export const ANALYTICS_EVENTS = {
   AD_REWARDED: 'ad_rewarded',
 } as const;
 
-class FlowaliveServiceMock {
+class FlowaliveServiceBridge {
   async initDevice(): Promise<void> {
-    // Mock - FlowAlive disabled
+    // Kept for API compatibility; the central observer owns lifecycle and identity.
   }
 
   async setUser(_user: User): Promise<void> {
-    // Mock - FlowAlive disabled
+    // Kept for API compatibility; the central observer owns lifecycle and identity.
   }
 
   async clearUser(): Promise<void> {
-    // Mock - FlowAlive disabled
+    // Kept for API compatibility; the central observer owns lifecycle and identity.
   }
 
   track(_event: string, _params?: Record<string, unknown>): void {
-    // Mock - FlowAlive disabled
+    // Kept for API compatibility; the central observer owns lifecycle and identity.
   }
 
   trackStationPlayed(_stationId: string, _stationName: string, _genre?: string): void {}
   trackStationPaused(_stationId: string, _stationName: string): void {}
-  trackStationFavorited(_stationId: string, _stationName: string): void {}
-  trackStationUnfavorited(_stationId: string, _stationName: string): void {}
-  trackSearch(_query: string, _resultsCount: number): void {}
-  trackGenreSelected(_genreId: string, _genreName: string): void {}
-  trackAdViewed(_adType: string): void {}
+  trackStationFavorited(id: string, name: string): void { void analyticsService.logStationFavorite(id,name,true); }
+  trackStationUnfavorited(id: string, name: string): void { void analyticsService.logStationFavorite(id,name,false); }
+  trackSearch(query: string, count: number): void { void analyticsService.logSearch(query,count); }
+  trackGenreSelected(_id: string, name: string): void { void analyticsService.logGenreBrowse(name); }
+  trackAdViewed(type: string): void { void analyticsService.logAdWatched(type); }
   trackAdRewarded(_rewardType: string, _rewardAmount: number): void {}
   trackPlaybackError(_stationId: string, _errorMessage: string): void {}
-  trackUserLogin(_method: string): void {}
-  trackUserSignup(_method: string): void {}
-  trackUserLogout(): void {}
-  trackNotificationOpened(_notificationType: string): void {}
+  trackUserLogin(method: string): void { void analyticsService.logLogin(method); }
+  trackUserSignup(method: string): void { void analyticsService.logSignUp(method); }
+  trackUserLogout(): void { void analyticsService.logEvent('logout'); }
+  trackNotificationOpened(type: string): void { void analyticsService.logEvent('notification_open',{notification_type:type}); }
 }
 
-export const flowaliveService = new FlowaliveServiceMock();
+export const flowaliveService = new FlowaliveServiceBridge();
 export default flowaliveService;

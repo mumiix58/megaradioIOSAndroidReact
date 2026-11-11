@@ -1,261 +1,145 @@
-import React from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Modal,
-  Share,
-  Alert,
-} from 'react-native';
+import {useAnalyticsOverlay} from '../hooks/useAnalyticsOverlay';
+import { MegaLoadingIndicator as ActivityIndicator } from './MegaLoadingIndicator';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Easing, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
-import * as Clipboard from 'expo-clipboard';
-import { colors, spacing, typography } from '../constants/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from 'react-i18next';
 import { useFavoritesStore } from '../store/favoritesStore';
-import { useAuthStore } from '../store/authStore';
+import { DeezerIcon } from './DeezerIcon';
 import type { Station } from '../types';
-import { resolveStationShareUrl, stationShareContent } from '../utils/stationShare';
 
 interface PlayerOptionsSheetProps {
   visible: boolean;
   onClose: () => void;
   station: Station | null;
-  onShowEqualizer?: () => void;
+  trackAvailable?: boolean;
+  unavailableMessage?: string;
+  onSpotify: () => void;
+  onYoutube: () => void;
+  onAppleMusic: () => void;
+  onSoundcloud: () => void;
+  onDeezer: () => void;
+  onShare: () => void;
+  onAirplay?: () => void;
 }
 
-export const PlayerOptionsSheet: React.FC<PlayerOptionsSheetProps> = ({
-  visible,
-  onClose,
-  station,
-  onShowEqualizer,
-}) => {
-  const { isAuthenticated } = useAuthStore();
+// Others / parts / action-sheet 417:2337, with Preview and Equalizer omitted.
+export const PlayerOptionsSheet = ({ visible, onClose, station, onSpotify, onYoutube, onAppleMusic, onSoundcloud, onDeezer, onShare, onAirplay, trackAvailable = true, unavailableMessage }: PlayerOptionsSheetProps) => {
+  const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
+  const sheetHeight = Math.min(579 + (onAirplay ? 64 : 0) + insets.bottom, height - insets.top - 24);
+  const progress = useRef(new Animated.Value(0)).current;
+  const [presented, setPresented] = useState(visible);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const pendingAction = useRef<(() => void) | null>(null);
   const { isFavorite, addFavorite, removeFavorite } = useFavoritesStore();
-  
-  const stationIsFavorite = station ? isFavorite(station._id) : false;
+  const [saving, setSaving] = useState(false);
+  const favorite = station ? isFavorite(station._id) : false;
+  const mounted = visible || presented;
+  useAnalyticsOverlay('player-options',mounted);
 
-  // Handle add/remove favorite
-  const handleFavoriteToggle = async () => {
-    if (!station) return;
-    
-    if (stationIsFavorite) {
-      await removeFavorite(station._id);
-    } else {
-      await addFavorite(station);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => subscription.remove();
+  }, []);
+  useLayoutEffect(() => {
+    if (visible) setPresented(true);
+    const animation = Animated.timing(progress, {
+      toValue: visible ? 1 : 0, duration: reduceMotion ? 0 : visible ? 300 : 220,
+      easing: visible ? Easing.out(Easing.cubic) : Easing.in(Easing.quad), useNativeDriver: true,
+    });
+    animation.start(({ finished }) => {
+      if (finished && !visible) {
+        setPresented(false);
+        const action = pendingAction.current;
+        pendingAction.current = null;
+        action?.();
+      }
+    });
+    return () => animation.stop();
+  }, [visible, progress, reduceMotion]);
+  useEffect(() => {
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') {
+      window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'more', visible: mounted }, 'http://localhost:8082');
     }
-    onClose();
-  };
-
-  // Handle copy link
-  const handleCopyLink = async () => {
-    if (!station) return;
+  }, [mounted]);
+  useEffect(() => {
+    if (!mounted || !(__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1')) return;
+    const id = progress.addListener(({ value }) => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'moreProgress', visible: value }, 'http://localhost:8082'));
+    return () => progress.removeListener(id);
+  }, [mounted, progress]);
+  const runAfterClose = (action: () => void) => { pendingAction.current = action; onClose(); };
+  const toggleFavorite = async () => {
+    if (!station || saving) return;
+    setSaving(true);
     try {
-      await Clipboard.setStringAsync(await resolveStationShareUrl(station));
+      if (favorite) await removeFavorite(station._id);
+      else await addFavorite(station);
       onClose();
-    } catch (error) {
-      Alert.alert('Paylaşım', error instanceof Error ? error.message : 'Bağlantı hazırlanamadı.');
-    }
+    } finally { setSaving(false); }
   };
-
-  // Handle native share
-  const handleShare = async () => {
-    try {
-      if (!station) return;
-      const url = await resolveStationShareUrl(station);
-      await Share.share(stationShareContent(station, url));
-    } catch (error) {
-      console.error('Share error:', error);
-      Alert.alert('Paylaşım', error instanceof Error ? error.message : 'Bağlantı hazırlanamadı.');
-    }
-    onClose();
-  };
-
-  // Handle play preview (30 seconds)
-  const handlePlayPreview = () => {
-    // This would trigger a 30 second preview
-    // For now, just close the modal
-    onClose();
-  };
-
-  // Handle equalizer
-  const handleEqualizer = () => {
-    onShowEqualizer?.();
-    onClose();
-  };
-
-  if (!station) return null;
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-      testID="player-options-modal"
-    >
-      <TouchableOpacity 
-        style={styles.overlay} 
-        activeOpacity={1} 
-        onPress={onClose}
-        testID="player-options-dismiss"
-      >
-        <View style={styles.sheet}>
-          {/* Drag Handle */}
-          <View style={styles.dragHandleContainer}>
-            <View style={styles.dragHandle} />
-          </View>
-
-          {/* Options List */}
-          <View style={styles.optionsList}>
-            {/* Add to Favorites */}
-            <TouchableOpacity 
-              style={styles.optionRow}
-              onPress={handleFavoriteToggle}
-              testID="player-options-favorite"
-            >
-              <View style={styles.optionIcon}>
-                <Ionicons 
-                  name={stationIsFavorite ? "heart" : "heart-outline"} 
-                  size={24} 
-                  color={stationIsFavorite ? "#FF4199" : "#FFFFFF"} 
-                />
-              </View>
-              <Text style={styles.optionText}>
-                {stationIsFavorite ? 'Remove from Favorites' : 'Add this radio to Favorites'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Play Preview */}
-            <TouchableOpacity 
-              style={styles.optionRow}
-              onPress={handlePlayPreview}
-              testID="player-options-preview"
-            >
-              <View style={styles.optionIcon}>
-                <Ionicons name="play" size={24} color="#FFFFFF" />
-              </View>
-              <Text style={styles.optionText}>Play Preview</Text>
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>30 Second</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Equalizer */}
-            <TouchableOpacity 
-              style={styles.optionRow}
-              onPress={handleEqualizer}
-              testID="player-options-equalizer"
-            >
-              <View style={styles.optionIcon}>
-                <Ionicons name="options" size={24} color="#FFFFFF" />
-              </View>
-              <Text style={styles.optionText}>Equalizer</Text>
-              <View style={[styles.badge, styles.badgePink]}>
-                <Text style={[styles.badgeText, styles.badgeTextPink]}>Classic</Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Divider */}
-            <View style={styles.divider} />
-
-            {/* Copy Link */}
-            <TouchableOpacity 
-              style={styles.optionRow}
-              onPress={handleCopyLink}
-              testID="player-options-copy-link"
-            >
-              <View style={styles.optionIcon}>
-                <Ionicons name="link" size={24} color="#FFFFFF" />
-              </View>
-              <Text style={styles.optionText}>Copy Link</Text>
-            </TouchableOpacity>
-
-            {/* Share */}
-            <TouchableOpacity 
-              style={styles.optionRow}
-              onPress={handleShare}
-              testID="player-options-share"
-            >
-              <View style={styles.optionIcon}>
-                <Ionicons name="share-outline" size={24} color="#FFFFFF" />
-              </View>
-              <Text style={styles.optionText}>Share...</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    </Modal>
-  );
+  if (!station || !mounted) return null;
+  return <Modal visible transparent animationType="none" onRequestClose={onClose} testID="player-options-modal">
+    <View style={styles.overlay}>
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.6)', opacity: progress }]} />
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} testID="player-options-dismiss" accessibilityRole="button" accessibilityLabel={t('close', 'Close')} />
+      <Animated.View style={[styles.sheet, { height: sheetHeight, paddingBottom: insets.bottom, transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [sheetHeight + 24, 0] }) }] }]} testID="player-options-sheet">
+        <View style={styles.handleArea}><View style={styles.handle} /></View>
+        <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+          <TouchableOpacity style={[styles.row, !trackAvailable && { opacity: 0.4 }]} accessibilityHint={!trackAvailable ? unavailableMessage : undefined} onPress={() => runAfterClose(onSpotify)} testID="player-options-spotify" accessibilityRole="button">
+            <Image source={require('../../assets/images/player-options/spotify.svg')} style={styles.socialIcon} contentFit="contain" />
+            <Text style={styles.text}>{t('search_on_spotify', 'Search on Spotify')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.row, !trackAvailable && { opacity: 0.4 }]} accessibilityHint={!trackAvailable ? unavailableMessage : undefined} onPress={() => runAfterClose(onAppleMusic)} testID="player-options-appleMusic" accessibilityRole="button" accessibilityLabel={t('search_on_apple_music', 'Search on Apple Music')}>
+            <View style={styles.icon}><Ionicons name="logo-apple" size={30} color="#FFFFFF" accessible={false} /></View>
+            <Text style={styles.text}>{t('search_on_apple_music', 'Search on Apple Music')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.row, !trackAvailable && { opacity: 0.4 }]} accessibilityHint={!trackAvailable ? unavailableMessage : undefined} onPress={() => runAfterClose(onYoutube)} testID="player-options-youtube" accessibilityRole="button">
+            <Image source={require('../../assets/images/player-options/youtube.svg')} style={styles.socialIcon} contentFit="contain" />
+            <Text style={styles.text}>{t('search_on_youtube', 'Search on YouTube')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.row, !trackAvailable && { opacity: 0.4 }]} accessibilityHint={!trackAvailable ? unavailableMessage : undefined} onPress={() => runAfterClose(onDeezer)} testID="player-options-deezer" accessibilityRole="button">
+            <View style={styles.icon}><DeezerIcon /></View>
+            <Text style={styles.text}>{t('search_on_deezer', 'Search on Deezer')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.row, !trackAvailable && { opacity: 0.4 }]} accessibilityHint={!trackAvailable ? unavailableMessage : undefined} onPress={() => runAfterClose(onSoundcloud)} testID="player-options-soundcloud" accessibilityRole="button">
+            <View style={[styles.icon, styles.soundcloudBackground]}><Image source={require('../../assets/images/player/soundcloud-white.webp')} style={styles.soundcloudIcon} contentFit="contain" accessible={false} /></View>
+            <Text style={styles.text}>{t('search_on_soundcloud', 'Search on SoundCloud')}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.row} onPress={toggleFavorite} disabled={saving} testID="player-options-favorite" accessibilityRole="button" accessibilityState={{ selected: favorite, disabled: saving }}>
+            <View style={styles.icon}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Image source={require('../../assets/images/player-options/heart.svg')} style={styles.heartIcon} contentFit="contain" tintColor={favorite ? '#FF4199' : '#FFFFFF'} />}</View>
+            <Text style={styles.text}>{favorite ? t('remove_from_favorites', 'Remove from Favorites') : t('add_this_to_favorites', 'Add This to Favorites')}</Text>
+          </TouchableOpacity>
+          {onAirplay && <TouchableOpacity style={styles.row} onPress={() => runAfterClose(onAirplay)} testID="player-options-airplay" accessibilityRole="button">
+            <View style={styles.icon}><Image source={require('../../assets/images/player/mirroring-screen.svg')} style={{ width: 24, height: 24 }} contentFit="contain" /></View>
+            <Text style={styles.text}>AirPlay</Text>
+          </TouchableOpacity>}
+          <TouchableOpacity style={styles.row} onPress={() => runAfterClose(onShare)} testID="player-options-share" accessibilityRole="button">
+            <View style={styles.icon}><Image source={require('../../assets/images/player-options/share.svg')} style={styles.shareIcon} contentFit="contain" /></View>
+            <Text style={styles.text}>{t('share', 'Share')}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </Animated.View>
+    </View>
+  </Modal>;
 };
-
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  sheet: {
-    backgroundColor: '#1A1A1A',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingBottom: 40,
-  },
-  dragHandleContainer: {
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  dragHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#555',
-    borderRadius: 2,
-  },
-  optionsList: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-  },
-  optionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  optionIcon: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#2A2A2A',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: spacing.md,
-  },
-  optionText: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-  },
-  badge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#333',
-    borderRadius: 16,
-  },
-  badgePink: {
-    backgroundColor: '#FF4199',
-  },
-  badgeText: {
-    fontSize: 13,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#888',
-  },
-  badgeTextPink: {
-    color: '#FFFFFF',
-  },
-  divider: {
-    height: 1,
-    backgroundColor: '#333',
-    marginVertical: spacing.sm,
-  },
+  overlay: { flex: 1, justifyContent: 'flex-end' },
+  sheet: { backgroundColor: '#000000', borderTopLeftRadius: 10.981, borderTopRightRadius: 10.981, overflow: 'hidden' },
+  handleArea: { height: 48, alignItems: 'center', paddingTop: 21.962 },
+  handle: { width: 54.904, height: 6.588, backgroundColor: '#676767', borderRadius: 4.392 },
+  list: { paddingHorizontal: 16.471, paddingTop: 5.257, paddingBottom: 60 },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 66.983, gap: 15.373 },
+  socialIcon: { width: 39.5309, height: 39.5309 },
+  icon: { width: 39.531, height: 39.531, borderRadius: 31.844, backgroundColor: '#262626', alignItems: 'center', justifyContent: 'center' },
+  soundcloudBackground: { backgroundColor: '#121212' },
+  soundcloudIcon: { width: 52, height: 50 },
+  heartIcon: { width: 24.1578, height: 24.1578, transform: [{ translateY: 1.0065 }] },
+  shareIcon: { width: 21.9616, height: 21.9616 },
+  text: { fontFamily: 'Ubuntu-Bold', fontSize: 15.373, lineHeight: 21.962, letterSpacing: -0.549, color: '#FFFFFF', flexShrink: 1 },
 });
-
 export default PlayerOptionsSheet;

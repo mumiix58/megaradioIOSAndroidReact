@@ -1,9 +1,10 @@
+import { isDefaultStationLogoUrl } from '../utils/stationLogoState';
 import React, { useState } from 'react';
 import { ImageSourcePropType } from 'react-native';
 import { Image as ExpoImage, ImageContentFit } from 'expo-image';
 
 // Default station logo - LOCAL asset for fallback (no network required)
-import { DEFAULT_STATION_LOGO_SOURCE, DEFAULT_STATION_LOGO_URL } from '../utils/stationLogoHelper';
+import { DEFAULT_STATION_LOGO_SOURCE } from '../utils/stationLogoHelper';
 
 interface ImageWithFallbackProps {
   uri?: string | null;
@@ -13,6 +14,7 @@ interface ImageWithFallbackProps {
   /** RN-style prop; mapped to expo-image `contentFit` for backwards compatibility. */
   resizeMode?: 'cover' | 'contain' | 'stretch' | 'center' | 'repeat';
   contentFit?: ImageContentFit;
+  fallbackContentFit?: ImageContentFit;
   [key: string]: any;
 }
 
@@ -47,12 +49,13 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
   style,
   resizeMode,
   contentFit,
+  fallbackContentFit,
   onError,
   ...props
 }) => {
   // A legacy remote placeholder is not a station image: always use our bundled
   // asset with contain, rather than downloading/cropping the site's wide logo.
-  const isPlaceholder = (value?: string | null) => !!value && value.split(/[?#]/)[0].replace(/\/$/, '') === DEFAULT_STATION_LOGO_URL;
+  const isPlaceholder = isDefaultStationLogoUrl;
   const uri = isPlaceholder(rawUri) ? null : rawUri;
   const fallbackUri = isPlaceholder(rawFallbackUri) ? undefined : rawFallbackUri;
   // 0 = primary uri, 1 = fallbackUri (remote), 2 = local fallbackSource
@@ -63,6 +66,7 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
     setStage(0);
   }, [uri, fallbackUri]);
 
+  const loadingPlaceholder=require('../../assets/images/loading/placeholder.svg');
   const fit = toContentFit(resizeMode, contentFit);
   const hasPrimary = !!(uri && uri.trim() !== '');
   const hasFallbackUri = !!(fallbackUri && fallbackUri.trim() !== '');
@@ -77,6 +81,9 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
         source={{ uri: uri as string }}
         style={style}
         contentFit={fit}
+        placeholder={props.placeholder ?? loadingPlaceholder}
+        placeholderContentFit="fill"
+        transition={props.transition ?? 120}
         cachePolicy="memory-disk"
         onError={(event) => { setStage(hasFallbackUri ? 1 : 2); onError?.(event); }}
       />
@@ -93,6 +100,9 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
         source={{ uri: fallbackUri as string }}
         style={style}
         contentFit={fit}
+        placeholder={props.placeholder ?? loadingPlaceholder}
+        placeholderContentFit="fill"
+        transition={props.transition ?? 120}
         cachePolicy="memory-disk"
         onError={(event) => { setStage(2); onError?.(event); }}
       />
@@ -101,7 +111,7 @@ export const ImageWithFallback: React.FC<ImageWithFallbackProps> = ({
 
   // Final: local fallback asset (never fails)
   return <ExpoImage {...props} key="local-fallback" recyclingKey="local-fallback"
-    source={fallbackSource} style={style} contentFit="contain" />;
+    source={fallbackSource} style={style} contentFit={fallbackContentFit || (fallbackSource === DEFAULT_STATION_LOGO_SOURCE ? 'cover' : 'contain')} />;
 };
 
 export default ImageWithFallback;

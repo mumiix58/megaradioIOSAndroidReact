@@ -46,8 +46,16 @@ export const preloadUserFavorites = async (
   loadingUsers.add(userId);
 
   try {
-    const response = await api.get(`/api/users/${userId}/favorites`);
-    const favorites = response.data?.favorites || response.data || [];
+    // Use the same in-flight request/cache as the destination profile screen.
+    const favorites = await queryClient.fetchQuery({
+      queryKey: ['userFavorites', userId],
+      queryFn: async () => {
+        const response = await api.get(`/api/users/${userId}/favorites`);
+        return response.data?.favorites || response.data || [];
+      },
+      staleTime: 5 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+    });
 
     // Store in local cache
     preloadedFavoritesCache.set(userId, {
@@ -56,8 +64,7 @@ export const preloadUserFavorites = async (
       loadedAt: now,
     });
 
-    // Also update React Query cache
-    queryClient.setQueryData(['userFavorites', userId], favorites);
+
   } catch (error) {
     console.log(`[Preload] Failed to preload favorites for ${userId}`);
   } finally {

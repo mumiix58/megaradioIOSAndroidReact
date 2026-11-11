@@ -1,0 +1,14 @@
+const fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const listeners=new Set(),timers=new Set();let state={currentStation:null,playbackState:'idle'};
+const store={getState:()=>state,subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn);}};
+const moduleResult={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/services/startDiscoveryPlayback.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,{module:moduleResult,exports:moduleResult.exports,require:()=>({usePlayerStore:store}),setTimeout:fn=>{timers.add(fn);return fn;},clearTimeout:fn=>timers.delete(fn)});
+const {startDiscoveryPlayback}=moduleResult.exports;
+const a={_id:'a'},b={_id:'b'},emit=(station,playbackState)=>{state={currentStation:station,playbackState};for(const fn of [...listeners])fn();};
+(async()=>{let done=false,starts=0;const play=startDiscoveryPlayback(a,async()=>{starts++;}).then(()=>{done=true;});await Promise.resolve();assert.equal(done,false,'resolved play request alone does not unlock sharing');emit(b,'playing');await Promise.resolve();assert.equal(done,false,'another station does not satisfy readiness');emit(a,'loading');emit(a,'playing');await play;assert.equal(done,true);assert.equal(listeners.size,0);assert.equal(timers.size,0);
+ await startDiscoveryPlayback(a,async()=>{starts++;});assert.equal(starts,1,'already playing station is not accidentally paused by a toggle');
+ emit(null,'idle');const failure=startDiscoveryPlayback(a,async()=>{emit(a,'loading');});emit(a,'error');await assert.rejects(failure,/failed/);assert.equal(listeners.size,0);
+ const cancel=new AbortController(),aborted=startDiscoveryPlayback(a,async()=>{emit(a,'loading');},cancel.signal);cancel.abort();await assert.rejects(aborted,/canceled/);assert.equal(listeners.size,0);
+ const paused=startDiscoveryPlayback(a,async()=>{emit(a,'loading');});emit(a,'paused');await assert.rejects(paused,error=>error.name==='AbortError');assert.equal(listeners.size,0,'user pause cancels readiness rather than condemning the stream');
+ let stopped=0;emit(a,'loading');const timeout=startDiscoveryPlayback(a,()=>new Promise(()=>{}),undefined,async()=>{stopped++;emit(a,'idle');});for(const fn of [...timers])fn();await assert.rejects(timeout,/did not start/);assert.equal(listeners.size,0);assert.equal(timers.size,0);assert.equal(stopped,1,'timed-out startup is stopped so it cannot begin playing later');
+ console.log('PASS actual-player readiness, station isolation, no accidental toggle, error/abort/timeout and listener cleanup');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const mod={exports:{}};const source=ts.transpileModule(fs.readFileSync('src/utils/chatInboxPreview.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+vm.runInNewContext(source,{module:mod,exports:mod.exports,Date,require:()=>({parseRadioGift:value=>{try{return JSON.parse(value).stationId?{}:null;}catch{return null;}}})});
+const {formatInboxTime,groupInboxPreview}=mod.exports,now=new Date(2026,10,10,16,26),at=(d,h=13,m=27)=>new Date(2026,10,d,h,m).toISOString();
+assert.equal(formatInboxTime(at(10),'tr','Dün',now),'13:27');assert.equal(formatInboxTime(at(9,23,59),'tr','Dün',now),'Dün');assert.equal(formatInboxTime(at(8),'tr','Dün',now),new Date(at(8)).toLocaleDateString('tr',{day:'numeric',month:'short'}));assert.equal(formatInboxTime('bad','tr','Dün',now),'');assert.equal(formatInboxTime(undefined,'tr','Dün',now),'');
+assert.equal(formatInboxTime(new Date(2025,10,8).toISOString(),'tr','Dün',now).includes('2025'),true);
+assert.equal(formatInboxTime(new Date(2026,9,25,0,15).toISOString(),'tr','Dün',new Date(2026,9,26,0,30)),'Dün','calendar day classification must not use a rolling 24-hour window');
+const t=key=>({'chat_you':'Sen','chat_radio_shared_preview':'📻 Bir radyo paylaştı','chat_deleted':'Bu mesaj silindi','group_invitation':'Grup daveti','inbox_left':'Ayrıldın','group_first_message':'İlk mesajı gönder'}[key]||key);
+const group={status:'active',lastSender:'Deniz',lastSenderId:'deniz',lastMessage:'Selam!'};
+assert.equal(JSON.stringify(groupInboxPreview(group,'me',t)),JSON.stringify({sender:'Deniz',body:'Selam!'}));
+assert.equal(groupInboxPreview({...group,lastSenderId:'me'},'me',t).sender,'Sen');assert.equal(groupInboxPreview({...group,lastMessage:JSON.stringify({stationId:'radio'})},'me',t).sender,'Deniz');assert.equal(groupInboxPreview({...group,lastMessage:JSON.stringify({stationId:'radio'})},'me',t).body,'📻 Bir radyo paylaştı');
+assert.equal(groupInboxPreview({...group,lastMessageDeleted:true,lastMessage:''},'me',t).body,'Bu mesaj silindi');assert.equal(groupInboxPreview({...group,lastMessage:''},'me',t).sender,'');assert.equal(groupInboxPreview({...group,status:'invited'},'me',t).sender,'');assert.equal(groupInboxPreview({...group,status:'left'},'me',t).body,'Ayrıldın');
+console.log('PASS local-calendar today/yesterday/older/year/invalid timestamps, sender/you, radio sender, deletion, invitation and empty/left group previews');

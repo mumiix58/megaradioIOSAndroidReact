@@ -1,233 +1,85 @@
+import {StationCountryBadge} from '../src/components/StationCountryBadge';
+import {previewSafeArea} from '../src/utils/previewSafeArea';
+import { MegaLoadingIndicator as ActivityIndicator } from '../src/components/MegaLoadingIndicator';
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
+  Pressable,
   Animated,
   Dimensions,
-  ScrollView,
   Platform,
   PanResponder,
   useWindowDimensions,
   Linking,
-} from 'react-native';
+  BackHandler,
+  AccessibilityInfo} from 'react-native';
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
 import { useAudioPlayer } from '../src/hooks/useAudioPlayer';
 import { usePlayerStore } from '../src/store/playerStore';
 import { useRecentlyPlayedStore } from '../src/store/recentlyPlayedStore';
-import { useSimilarStations, usePopularStations } from '../src/hooks/useQueries';
+import { useSimilarStations, usePopularStations, useStation, queryKeys } from '../src/hooks/useQueries';
 import { useAuthStore } from '../src/store/authStore';
 import { useFavoritesStore } from '../src/store/favoritesStore';
 import { usePremiumStore } from '../src/store/premiumStore';
-import { useResponsive } from '../src/hooks/useResponsive';
 import { CarModeScreen } from '../src/components/CarModeScreen';
 import { ShareModal } from '../src/components/ShareModal';
-import { SleepTimerModal, SleepCounterModal } from '../src/components/SleepTimerModal';
-import { GlowEffect } from '../src/components/GlowEffect';
+import { SleepTimerModal } from '../src/components/SleepTimerModal';
+import { useQueryClient } from '@tanstack/react-query';
+import { metadataNotice } from '../src/utils/metadataNotice';
+import { currentTrackText, trackSearchUrls } from '../src/utils/nowPlaying';
+import { DeezerIcon } from '../src/components/DeezerIcon';
+import { ProfilePhotoFeedback } from '../src/components/ProfilePhotoFeedback';
+import { formatVoteCount } from '../src/utils/voteCount';
+import { StationVoteButton } from '../src/components/StationVoteButton';
 import { PlayerOptionsSheet } from '../src/components/PlayerOptionsSheet';
 import { PremiumPaywall } from '../src/components/PremiumPaywall';
-import CastModal from '../src/components/CastModal';
-import { UniversalCastButton } from '../src/components/UniversalCastButton';
-import { NativeCastModal } from '../src/components/NativeCastModal';
+import { NativeCastButton } from '../src/components/NativeCastButton';
+import { useNativeCast } from '../src/contexts/NativeCastContext';
+import { isAirplayAvailable, showAirplayPicker } from '../src/services/nativeCasting';
 import { getStationLogoUrl } from '../src/utils/stationLogoHelper';
+import { usePlayerArtwork } from '../src/hooks/usePlayerArtwork';
+import { ImageWithFallback } from '../src/components/ImageWithFallback';
 import type { Station } from '../src/types';
+import { PlayerEqualizer } from '../src/components/PlayerEqualizer';
+import { PlayerErrorState } from '../src/components/PlayerErrorState';
+import {reportStationIssue} from '../src/services/stationIssueReporter';
+import { useNetworkStatus } from '../src/hooks/useNetworkStatus';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const FALLBACK_LOGO = require('../assets/megaradio-icon.png');
 const DISMISS_THRESHOLD = 150; // Minimum swipe distance to dismiss
 // Base sizes - will be scaled for tablets
-const BASE_LOGO_SIZE = 190;
 const GRID_PADDING = 16;
-const GRID_GAP = 12;
-
-// Custom Icon Components
-const ShareIcon = ({ size = 24, color = '#888888' }) => (
-  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-    <View style={{ 
-      width: size * 0.35, 
-      height: size * 0.35, 
-      backgroundColor: color, 
-      borderRadius: size,
-      position: 'absolute',
-      left: 0,
-      top: '50%',
-      marginTop: -size * 0.175,
-    }} />
-    <View style={{ 
-      width: size * 0.3, 
-      height: size * 0.3, 
-      backgroundColor: color, 
-      borderRadius: size,
-      position: 'absolute',
-      right: 0,
-      top: size * 0.1,
-    }} />
-    <View style={{ 
-      width: size * 0.3, 
-      height: size * 0.3, 
-      backgroundColor: color, 
-      borderRadius: size,
-      position: 'absolute',
-      right: 0,
-      bottom: size * 0.1,
-    }} />
-    <View style={{ 
-      width: size * 0.4, 
-      height: 2, 
-      backgroundColor: color, 
-      position: 'absolute',
-      transform: [{ rotate: '-35deg' }],
-      left: size * 0.2,
-      top: size * 0.3,
-    }} />
-    <View style={{ 
-      width: size * 0.4, 
-      height: 2, 
-      backgroundColor: color, 
-      position: 'absolute',
-      transform: [{ rotate: '35deg' }],
-      left: size * 0.2,
-      bottom: size * 0.3,
-    }} />
-  </View>
-);
-
-const LockRadioIcon = ({ size = 24, color = '#888888' }) => (
-  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-    {/* Lock shackle */}
-    <View style={{ 
-      width: size * 0.5, 
-      height: size * 0.35, 
-      borderWidth: 2.5, 
-      borderBottomWidth: 0,
-      borderColor: color, 
-      borderRadius: size * 0.25,
-      position: 'absolute',
-      top: 0,
-    }} />
-    {/* Lock body */}
-    <View style={{ 
-      width: size * 0.7, 
-      height: size * 0.5, 
-      backgroundColor: color, 
-      borderRadius: 4,
-      position: 'absolute',
-      bottom: 0,
-      justifyContent: 'center',
-      alignItems: 'center',
-    }}>
-      {/* Lock hole */}
-      <View style={{ 
-        width: size * 0.15, 
-        height: size * 0.15, 
-        backgroundColor: '#0D1B1E', 
-        borderRadius: size,
-      }} />
-    </View>
-  </View>
-);
-
-const BroadcastIcon = ({ size = 24, color = '#888888' }) => (
-  <View style={{ width: size, height: size, justifyContent: 'center', alignItems: 'center' }}>
-    {/* Outer arc */}
-    <View style={{ 
-      width: size * 0.9, 
-      height: size * 0.5, 
-      borderWidth: 2, 
-      borderBottomWidth: 0,
-      borderColor: color, 
-      borderRadius: size * 0.45,
-      position: 'absolute',
-      top: size * 0.05,
-    }} />
-    {/* Middle arc */}
-    <View style={{ 
-      width: size * 0.6, 
-      height: size * 0.35, 
-      borderWidth: 2, 
-      borderBottomWidth: 0,
-      borderColor: color, 
-      borderRadius: size * 0.3,
-      position: 'absolute',
-      top: size * 0.2,
-    }} />
-    {/* Center dot */}
-    <View style={{ 
-      width: size * 0.2, 
-      height: size * 0.2, 
-      backgroundColor: color, 
-      borderRadius: size,
-      position: 'absolute',
-      top: size * 0.4,
-    }} />
-    {/* Base */}
-    <View style={{ 
-      width: size * 0.35, 
-      height: size * 0.25, 
-      backgroundColor: color, 
-      borderTopLeftRadius: 4,
-      borderTopRightRadius: 4,
-      position: 'absolute',
-      bottom: 0,
-    }} />
-  </View>
-);
-
-// Animated Equalizer Bars component
-const EqualizerBars = React.memo(() => {
-  const bar1 = useRef(new Animated.Value(6)).current;
-  const bar2 = useRef(new Animated.Value(12)).current;
-  const bar3 = useRef(new Animated.Value(8)).current;
-
-  useEffect(() => {
-    const animate = (val: Animated.Value, min: number, max: number, dur: number) => {
-      const loop = () => {
-        Animated.sequence([
-          Animated.timing(val, { toValue: max, duration: dur, useNativeDriver: false }),
-          Animated.timing(val, { toValue: min, duration: dur * 0.8, useNativeDriver: false }),
-        ]).start(loop);
-      };
-      loop();
-    };
-    animate(bar1, 4, 16, 400);
-    animate(bar2, 6, 20, 350);
-    animate(bar3, 3, 14, 450);
-  }, []);
-
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 3, height: 20, marginBottom: 6 }}>
-      <Animated.View style={{ width: 4, backgroundColor: '#FF4199', borderRadius: 2, height: bar1 }} />
-      <Animated.View style={{ width: 4, backgroundColor: '#FF4199', borderRadius: 2, height: bar2 }} />
-      <Animated.View style={{ width: 4, backgroundColor: '#FF4199', borderRadius: 2, height: bar3 }} />
-    </View>
-  );
-});
-
-import { ImageWithFallback } from '../src/components/ImageWithFallback';
+const GRID_GAP = 24;
 
 // GridItem extracted OUTSIDE PlayerScreen to prevent unmount/remount on re-render
-const GridItem = React.memo(({
+const GridItem = React.memo(function GridItem({
   station,
   onPress,
   getLogoUrl,
   itemWidth,
+  disabled = false,
 }: {
   station: Station;
   onPress: (station: Station) => void;
   getLogoUrl: (station: Station) => string | null;
   itemWidth: number;
-}) => {
+  disabled?: boolean;
+}) {
   const stationLogo = getLogoUrl(station);
 
   return (
     <TouchableOpacity
+      disabled={disabled}
+      accessibilityState={{ disabled }}
       style={[styles.gridItem, { width: itemWidth }]}
       onPress={() => onPress(station)}
       activeOpacity={0.7}
@@ -239,14 +91,14 @@ const GridItem = React.memo(({
           testID={`player-grid-logo-${station._id}`}
           uri={stationLogo}
           style={styles.gridImage}
-          contentFit="cover"
+          contentFit="contain"
         />
       </View>
       <Text style={styles.gridStationName} numberOfLines={1}>
         {station.name}
       </Text>
       <Text style={styles.gridStationLocation} numberOfLines={1}>
-        {station.country || 'Radio'}
+        {station.country || 'Radio'}{(station.city || station.state) ? <Text style={styles.gridCity}>, {station.city || station.state}</Text> : null}
       </Text>
     </TouchableOpacity>
   );
@@ -254,29 +106,56 @@ const GridItem = React.memo(({
 
 export default function PlayerScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { isOffline } = useNetworkStatus();
+  const metadataStatus = usePlayerStore(state=>state.metadataStatus);
+  const queryClient = useQueryClient();
   const { isAuthenticated, token } = useAuthStore();
   const { isPremium, hasFeature } = usePremiumStore();
+  const [playerNotice, setPlayerNotice] = useState<{error:boolean;message:string}|null>(null);
+  const dismissPlayerNotice = useCallback(() => setPlayerNotice(null), []);
   const [showCarMode, setShowCarMode] = useState(false);
+  const [controlsLocked, setControlsLocked] = useState(false);
+  const lockState = useRef(false);
+  lockState.current = controlsLocked;
+  const { notify: showCastNotice } = useNativeCast();
+  const [lockNotice, setLockNotice] = useState<'locked' | 'unlocked' | null>(null);
+  const lockNoticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (lockNoticeTimer.current) clearTimeout(lockNoticeTimer.current); }, []);
+  const toggleControlsLock = useCallback(() => {
+    const next = !lockState.current;
+    lockState.current = next;
+    setControlsLocked(next);
+    setLockNotice(next ? 'locked' : 'unlocked');
+    if (lockNoticeTimer.current) clearTimeout(lockNoticeTimer.current);
+    lockNoticeTimer.current = setTimeout(() => { setLockNotice(null); lockNoticeTimer.current = null; }, next ? 2200 : 1400);
+    if (Platform.OS !== 'web') AccessibilityInfo.announceForAccessibility(t(next ? 'player_locked_notice' : 'player_unlocked_notice', next ? 'Locked' : 'Unlocked'));
+  }, [t]);
+  useFocusEffect(useCallback(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => lockState.current);
+    return () => subscription.remove();
+  }, []));
+  // Offline replaces the control row; release the lock so its unlock action cannot disappear.
+  useEffect(() => { if (isOffline) { lockState.current = false; setControlsLocked(false); setLockNotice(null); } }, [isOffline]);
   const [showShareModal, setShowShareModal] = useState(false);
   const [showSleepTimer, setShowSleepTimer] = useState(false);
-  const [showSleepCounter, setShowSleepCounter] = useState(false);
-  const [showCastModal, setShowCastModal] = useState(false);
-  const [showNativeCastModal, setShowNativeCastModal] = useState(false);
   const [showOptionsSheet, setShowOptionsSheet] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallMode, setPaywallMode] = useState<'premium' | 'remove_ads'>('premium');
   // Main artwork image load error → fall back to local MegaRadio logo.
   const [artworkError, setArtworkError] = useState(false);
   const sleepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const playerScrollY = useRef(new Animated.Value(0)).current;
+  const playerScrollOffset = useRef(0);
   const insets = useSafeAreaInsets();
-  
+
   // Responsive layout
-  const responsive = useResponsive();
-  const LOGO_SIZE = responsive.artworkSize;
-  const gridMetrics = responsive.getGridMetrics(GRID_PADDING);
-  const GRID_ITEM_WIDTH = gridMetrics.itemWidth;
-  
+  const { width: windowWidth } = useWindowDimensions();
+  // Figma App / station-playing 2294:8820: radio-logo is 183px on 375px.
+  // Keep its screen ratio on larger phones; the shared 190px cap shrank it.
+  const LOGO_SIZE = 183 * Math.max(1, Math.min(windowWidth / 375, 1.5));
+  const GRID_ITEM_WIDTH = (windowWidth - GRID_PADDING * 2 - GRID_GAP * 2) / 3;
+
   // Swipe to dismiss animation
   const translateY = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(1)).current;
@@ -346,7 +225,7 @@ export default function PlayerScreen() {
   ).current;
 
   const {
-    currentStation,
+    currentStation: activeStation,
     playbackState,
     nowPlaying,
     streamUrl,
@@ -356,28 +235,54 @@ export default function PlayerScreen() {
     cancelSleepTimer,
   } = usePlayerStore();
 
-  const { stations: recentStations, addStation: addRecentStation, loadFromStorage: loadRecent } = useRecentlyPlayedStore();
+  const { stations: recentStations, loadFromStorage: loadRecent } = useRecentlyPlayedStore();
 
   // Load recent stations on mount
   useEffect(() => { loadRecent(); }, []);
 
   const { playStation, togglePlayPause, stopPlayback } = useAudioPlayer();
-  
-  // Fetch data with refetchOnWindowFocus disabled to prevent flickering
-  const { data: similarData } = useSimilarStations(currentStation?._id || '', 9);
-  const { data: popularData } = usePopularStations(undefined, 12);
 
-  // Handle cast button - show native cast modal (Chromecast + AirPlay)
-  const handleCastPress = () => {
-    setShowNativeCastModal(true);
-  };
+  // Explicit browser-only visual preview uses real catalog data without changing playback.
+  const { preview, car, premium, locked, more, share, failure, sleep, empty } = useLocalSearchParams<{ empty?: string; sleep?: string; failure?: string; preview?: string; car?: string; premium?: string; locked?: string; more?: string; share?: string }>();
+  const { data: popularData } = usePopularStations(undefined, 12);
+  const previewTopInset = previewSafeArea().top;
+  const previewEnabled = Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1' && preview === '1';
+  useEffect(() => { if (__DEV__ && previewEnabled && sleep === '1') setShowSleepTimer(true); }, [previewEnabled, sleep]);
+  useEffect(() => { if (previewEnabled && car === '1') setShowCarMode(true); }, [previewEnabled, car]);
+  useEffect(() => { if (previewEnabled && premium === '1') setShowPaywall(true); }, [previewEnabled, premium]);
+  useEffect(() => { if (previewEnabled && locked === '1') setControlsLocked(true); }, [previewEnabled, locked]);
+  useEffect(() => { if (previewEnabled && more === '1') setShowOptionsSheet(true); }, [previewEnabled, more]);
+  useEffect(() => {
+    if (previewEnabled) window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'locked', visible: controlsLocked }, 'http://localhost:8082');
+  }, [previewEnabled, controlsLocked]);
+  useEffect(() => { if (previewEnabled && share === '1') setShowShareModal(true); }, [previewEnabled, share]);
+  const [previewPlaying, setPreviewPlaying] = useState(false);
+  const emptyPreview = __DEV__ && previewEnabled && empty === '1';
+  const currentStation = emptyPreview ? null : activeStation || (previewEnabled ? popularData?.stations?.find(station => station.countryCode || station.countrycode) || popularData?.stations?.[0] : null);
+  useFocusEffect(useCallback(() => {
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') {
+      const notify = (visible: boolean) => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'player', visible: visible && !!currentStation, scrollY: playerScrollOffset.current }, 'http://localhost:8082');
+      notify(true);
+      return () => notify(false);
+    }
+  }, [!!currentStation]));
+  useEffect(() => { if (!currentStation && !previewEnabled) { lockState.current = false; setControlsLocked(false); setLockNotice(null); } }, [currentStation?._id, previewEnabled]);
+  const { data: stationDetails } = useStation(currentStation?._id || '');
+  const rawVotes = stationDetails?.votes ?? currentStation?.votes;
+  const voteCount = typeof rawVotes === 'number' && Number.isFinite(rawVotes) && rawVotes >= 0 ? Math.floor(rawVotes) : null;
+  const formattedVotes = voteCount === null ? '' : formatVoteCount(voteCount, i18n.language);
+  const { data: similarData } = useSimilarStations(currentStation?._id || '', 9);
+
+
 
   // Use favoritesStore for guest/authenticated favorites
   const { isFavorite: checkIsFavorite, toggleFavorite } = useFavoritesStore();
   const [checkingFavorite, setCheckingFavorite] = useState(false);
-  
-  // Check if current station is favorited
-  const isFavorite = currentStation ? checkIsFavorite(currentStation._id) : false;
+
+  // Visual preview must not mutate account or guest favorites while verifying icons.
+  const [previewFavorite, setPreviewFavorite] = useState(false);
+  useEffect(() => setPreviewFavorite(false), [currentStation?._id]);
+  const isFavorite = previewEnabled ? previewFavorite : currentStation ? checkIsFavorite(currentStation._id) : false;
 
   const handleClose = () => {
     // Check if we can go back, otherwise navigate to tabs
@@ -390,7 +295,8 @@ export default function PlayerScreen() {
 
   const handleToggleFavorite = async () => {
     if (!currentStation) return;
-    
+    if (previewEnabled) { setPreviewFavorite(value => !value); return; }
+
     setCheckingFavorite(true);
     try {
       await toggleFavorite(currentStation);
@@ -402,13 +308,6 @@ export default function PlayerScreen() {
   };
 
   // Handle station press - ALWAYS stops current and plays new
-  // Add to recently played when a station starts playing
-  useEffect(() => {
-    if (currentStation && playbackState === 'playing') {
-      addRecentStation(currentStation);
-    }
-  }, [currentStation?._id, playbackState]);
-
   const handleStationPress = useCallback(async (station: Station) => {
     console.log('[Player] Station pressed:', station.name, 'ID:', station._id);
     // Send to remote log for debugging
@@ -426,31 +325,67 @@ export default function PlayerScreen() {
     startSleepTimer(totalMinutes, () => stopPlayback());
   }, [startSleepTimer, stopPlayback]);
 
+  // A network-induced error remains a connection retry, never a station report.
+  const offlineFailure=useRef<{id?:string;offline:boolean}>({offline:false});
+  if(offlineFailure.current.id!==currentStation?._id||['idle','loading','playing','paused'].includes(playbackState))offlineFailure.current={id:currentStation?._id,offline:false};
+  if(isOffline&&playbackState==='error')offlineFailure.current.offline=true;
+  const showOffline = isOffline || (playbackState==='error'&&offlineFailure.current.offline) || (previewEnabled && failure === 'offline');
+  useEffect(()=>{
+    if(Platform.OS==='web'&&previewEnabled){window.parent.postMessage({type:'megaradio-preview-theme',screen:'playerOffline',visible:showOffline},'http://localhost:8082');return()=>window.parent.postMessage({type:'megaradio-preview-theme',screen:'playerOffline',visible:false},'http://localhost:8082');}
+  },[showOffline,previewEnabled]);
+  const showRadioError = playbackState === 'error' || (previewEnabled && failure === 'radio');
+  const [radioReport,setRadioReport]=useState<{id:string;status:'sending'|'sent'}|null>(null);
+  const reportBusy=useRef(new Set<string>()),reportMounted=useRef(true),reportTarget=useRef(currentStation?._id);
+  reportTarget.current=currentStation?._id;
+  useEffect(()=>{reportMounted.current=true;return()=>{reportMounted.current=false;};},[]);
+  const reportStatus=radioReport&&radioReport.id===currentStation?._id?radioReport.status:'idle';
+  const handleRadioReport=async()=>{
+    if(!currentStation||!showRadioError||showOffline||reportBusy.current.has(currentStation._id)||reportStatus!=='idle')return;
+    const station={...currentStation},id=station._id;
+    reportBusy.current.add(id);setRadioReport({id,status:'sending'});
+    try{
+      // Forced visual error previews never submit a report against a real station.
+      const simulated=__DEV__&&previewEnabled&&failure==='radio';
+      const result=simulated?'preview':await reportStationIssue({station,message:usePlayerStore.getState().errorMessage,platform:Platform.OS,language:i18n.language});
+      if(reportMounted.current&&reportTarget.current===id){
+        setRadioReport({id,status:'sent'});
+        setPlayerNotice({error:false,message:t(result==='already'?'player_report_already':'player_report_thanks')});
+      }
+    }catch{
+      if(reportMounted.current&&reportTarget.current===id){setRadioReport(null);setPlayerNotice({error:true,message:t('player_report_failed')});}
+    }finally{reportBusy.current.delete(id);}
+  };
+
   const isLoading = playbackState === 'loading' || playbackState === 'buffering';
-  const isPlaying = playbackState === 'playing';
+  const isPlaying = playbackState === 'playing' || (previewEnabled && !activeStation && previewPlaying);
 
   const getLogoUrl = useCallback((station: Station) => {
     // Use centralized helper with 'large' preference for player screen
     return getStationLogoUrl(station, 'large');
   }, []);
 
-  const logoUrl = currentStation ? getLogoUrl(currentStation) : null;
+  // Slim catalog cards may omit the archived original; reuse the details query.
+  const artworkStation = currentStation && stationDetails?._id === currentStation._id
+    ? { ...currentStation, logoAssets: stationDetails.logoAssets || currentStation.logoAssets }
+    : currentStation;
+  const fallbackLogoUrl = artworkStation ? getLogoUrl(artworkStation) : null;
+  const logoUrl = usePlayerArtwork(artworkStation, fallbackLogoUrl);
 
   // Reset artwork error when the station changes so the new logo gets a fresh try.
   React.useEffect(() => {
     setArtworkError(false);
   }, [currentStation?._id, logoUrl]);
-  
+
   // Memoize stations to prevent re-renders
   const popularStations = useMemo(() => {
     return popularData?.stations || (Array.isArray(popularData) ? popularData : []);
   }, [popularData]);
-  
+
   const similarStations = useMemo(() => {
     const similar = similarData?.stations || (Array.isArray(similarData) ? similarData : []);
     return similar.filter((s: Station) => s._id !== currentStation?._id);
   }, [similarData, currentStation?._id]);
-  
+
   const displaySimilarStations = useMemo(() => {
     if (similarStations.length > 0) return similarStations;
     return popularStations.filter((s: Station) => s._id !== currentStation?._id);
@@ -466,10 +401,9 @@ export default function PlayerScreen() {
       console.log('[Player] Playing next station:', nextStation?.name);
       if (nextStation) {
         playStation(nextStation);
-        addRecentStation(nextStation);
       }
     }
-  }, [displaySimilarStations, playStation, addRecentStation]);
+  }, [displaySimilarStations, playStation]);
 
   // Play previous station from recently played
   const handlePreviousStation = useCallback(() => {
@@ -488,108 +422,88 @@ export default function PlayerScreen() {
         console.log('[Player] No previous, playing random similar:', randomStation?.name);
         if (randomStation) {
           playStation(randomStation);
-          addRecentStation(randomStation);
         }
       }
     }
-  }, [recentStations, currentStation, displaySimilarStations, playStation, addRecentStation]);
+  }, [recentStations, currentStation, displaySimilarStations, playStation]);
 
-  // Get current song name - from nowPlaying metadata
-  // API returns: { title, artist, station, genre }
-  const getCurrentSongInfo = () => {
-    // Check if we have metadata
-    if (nowPlaying) {
-      // If both artist and title exist, show "Artist - Title"
-      if (nowPlaying.artist && nowPlaying.title && nowPlaying.title !== currentStation?.name) {
-        return `${nowPlaying.artist} - ${nowPlaying.title}`;
-      }
-      // If only title exists (and it's not station name)
-      if (nowPlaying.title && nowPlaying.title !== currentStation?.name) {
-        return nowPlaying.title;
-      }
-      // If only artist exists
-      if (nowPlaying.artist) {
-        return nowPlaying.artist;
-      }
-      // Check song field as fallback
-      if (nowPlaying.song) {
-        return nowPlaying.song;
-      }
-    }
-    // Fallback to genre/country
-    if (currentStation?.genres?.[0]) {
-      return currentStation.genres[0];
-    }
-    if (currentStation?.country) {
-      return currentStation.country;
-    }
-    return t('live_radio', 'Live Radio');
-  };
+  const trackText = currentTrackText(nowPlaying, currentStation?.name || '', currentStation?.country);
+  const getCurrentSongInfo = () => trackText || t('live_radio', 'Live Radio');
 
   if (!currentStation) {
     return (
-      <View style={styles.container}>
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.emptyState}>
-            <Ionicons name="radio-outline" size={64} color="#666" />
-            <Text style={styles.emptyTitle}>No station playing</Text>
-            <Text style={styles.emptyText}>Select a station to start listening</Text>
-            <TouchableOpacity style={styles.goBackButton} onPress={handleClose}>
-              <Text style={styles.goBackButtonText}>Go Back</Text>
+      <SafeAreaView style={styles.emptyPage} testID="player-empty-state">
+        <View style={styles.emptyHeader}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('back', 'Back')} onPress={handleClose} style={styles.emptyBack}>
+            <Image source={require('../assets/images/all-stations/back.svg')} style={{ width: 24, height: 24 }} contentFit="contain" />
+          </TouchableOpacity>
+        </View>
+        <View style={styles.emptyState}>
+          <View style={styles.emptyCard}>
+            <Image source={require('../assets/images/player/broadcast.svg')} style={{ width: 48, height: 48 }} contentFit="contain" accessible={false} />
+            <Text style={styles.emptyTitle}>{t('no_station_playing', 'No station playing')}</Text>
+            <Text style={styles.emptyText}>{t('select_station_to_listen', 'Select a station to start listening')}</Text>
+            <TouchableOpacity testID="player-empty-home" accessibilityRole="button" style={styles.goBackButton} onPress={() => router.replace('/(tabs)')}>
+              <Text style={styles.goBackButtonText}>{t('nav_discover', 'Discover')}</Text>
             </TouchableOpacity>
           </View>
-        </SafeAreaView>
-      </View>
+        </View>
+      </SafeAreaView>
     );
   }
 
+  const unavailable=metadataNotice(previewEnabled&&!activeStation?'unavailable':metadataStatus,i18n.language);
+  const unavailableMessage=t(unavailable.key,unavailable.message);
+  const openTrackPlatform = async (platform: keyof ReturnType<typeof trackSearchUrls>) => {
+    const state=usePlayerStore.getState();
+    const station=state.currentStation||currentStation;
+    const track=currentTrackText(state.nowPlaying,station?.name||'',station?.country);
+    if(!track){
+      const notice=metadataNotice(previewEnabled&&!activeStation?'unavailable':state.metadataStatus,i18n.language);
+      setPlayerNotice({error:state.metadataStatus==='error',message:t(notice.key,notice.message)});return;
+    }
+    const target=trackSearchUrls(track)[platform];
+    try {
+      if(Platform.OS==='web')await Linking.openURL(target.web);
+      else {try{await Linking.openURL(target.app);}catch{await Linking.openURL(target.web);}}
+    } catch {
+      const notice=metadataNotice('error',i18n.language);
+      setPlayerNotice({error:true,message:t(notice.key,notice.message)});
+    }
+  };
+
   return (
-    <Animated.View 
+    <Animated.View
       style={[
-        styles.container, 
-        { 
+        styles.container,
+        showOffline && {backgroundColor:'#1B1C1E'},
+        {
           transform: [{ translateY }],
           opacity,
         }
       ]}
-      {...panResponder.panHandlers}
     >
+      {/* Figma SCROLLS: the glow stays attached to the artwork, beneath the fixed header. */}
+      <Animated.View testID="player-scroll-glow" pointerEvents="none" style={[styles.playerGlowLayer, { transform: [{ translateY: Animated.multiply(playerScrollY, -1) }] }]}>
+        <Image testID="player-background-glow" source={require('../assets/images/player/background-glow.svg')} style={[styles.playerBackground, { top: -172 - previewTopInset }]} contentFit="fill" />
+      </Animated.View>
+      <View pointerEvents="none" style={[styles.playerHeaderShade, { height: insets.top + 60 }]} />
       <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scrollContent,
-            { paddingBottom: 40 + insets.bottom }
-          ]}
-          showsVerticalScrollIndicator={false}
-        >
           {/* Header */}
-          <View style={styles.headerContainer}>
+          <View testID="player-fixed-header" style={styles.headerContainer} {...(controlsLocked ? {} : panResponder.panHandlers)}>
             <View style={styles.header}>
-              <TouchableOpacity style={styles.headerButton} onPress={dismissWithAnimation}>
-                <Ionicons name="chevron-down" size={28} color="#FFFFFF" />
+              <TouchableOpacity disabled={controlsLocked} style={styles.headerButton} onPress={dismissWithAnimation}>
+                <Image source={require('../assets/images/player/collapse.svg')} style={styles.figmaIcon} contentFit="contain" />
               </TouchableOpacity>
               <View style={styles.headerCenter}>
-                {hasFeature('hd_stream') && (
-                  <View style={styles.hdBadge}>
-                    <Text style={styles.hdText}>HD</Text>
-                  </View>
-                )}
+                {!showOffline&&<TouchableOpacity disabled={controlsLocked} accessibilityRole="button" accessibilityLabel={t('hd_quality', 'HD quality')} onPress={() => { if (!hasFeature('hd_stream')) { setPaywallMode('premium'); setShowPaywall(true); } else { setShowOptionsSheet(true); } }} style={styles.hdShortcut}>
+                  <Image source={require('../assets/images/player/hd.svg')} style={{ width: 26, height: 16 }} contentFit="contain" />
+                </TouchableOpacity>}
                 <Text style={styles.headerTitle} numberOfLines={1}>{currentStation.name}</Text>
               </View>
               <View style={styles.headerRight}>
-                {/* Universal Cast Button - AirPlay (iOS) + Chromecast (Android) */}
-                <UniversalCastButton
-                  size={22}
-                  color="#FFFFFF"
-                  activeColor="#4CAF50"
-                  station={currentStation}
-                  streamUrl={streamUrl || currentStation?.urlResolved || currentStation?.url_resolved || currentStation?.url || null}
-                  nowPlaying={nowPlaying}
-                  onStopLocalAudio={stopPlayback}
-                />
-                <TouchableOpacity 
-                  style={styles.headerIcon} 
+                {!showOffline&&<TouchableOpacity disabled={controlsLocked}
+                  style={styles.headerIcon}
                   onPress={() => {
                     console.log('[Player] Car Mode button pressed');
                     setShowCarMode(true);
@@ -598,98 +512,121 @@ export default function PlayerScreen() {
                   accessibilityRole="button"
                   hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
-                  <Ionicons name="car-outline" size={22} color="#FFFFFF" />
-                </TouchableOpacity>
-                <TouchableOpacity 
+                  <Image source={require('../assets/images/player/car.svg')} style={{ width: 26, height: 26 }} contentFit="contain" />
+                </TouchableOpacity>}
+                <TouchableOpacity disabled={controlsLocked}
                   style={styles.headerIcon}
                   onPress={() => setShowOptionsSheet(true)}
+                  testID="player-more-button"
+                  accessibilityRole="button"
+                  accessibilityLabel={t('more', 'More')}
                 >
-                  <Ionicons name="ellipsis-horizontal" size={22} color="#FFFFFF" />
+                  <Image source={require('../assets/images/player/more.svg')} style={{ width: 24, height: 6 }} contentFit="contain" />
                 </TouchableOpacity>
               </View>
             </View>
           </View>
 
+        {showOffline ? <View style={[styles.offlineContent,{paddingBottom:60+insets.top-insets.bottom+(previewTopInset?previewTopInset-previewSafeArea().bottom:0)}]}>
+          <PlayerErrorState offline onRetry={() => { if (activeStation) void playStation(activeStation); }} />
+        </View> : <Animated.ScrollView
+          testID="player-scroll-content"
+          scrollEventThrottle={16}
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: playerScrollY } } }], {
+            useNativeDriver: Platform.OS !== 'web',
+            listener: (event: any) => {
+              playerScrollOffset.current = event.nativeEvent.contentOffset.y;
+              if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') {
+                window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'player', visible: true, scrollY: playerScrollOffset.current }, 'http://localhost:8082');
+              }
+            },
+          })}
+          style={styles.scrollView}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: 16 + insets.bottom }
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Album Art */}
           <View style={styles.artworkContainer}>
-            <View style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
-              <GlowEffect size={LOGO_SIZE + 180} top={-90} left={-90} opacity={0.65} color="255, 65, 153" />
+            <View testID="player-artwork-slot" style={{ width: LOGO_SIZE, height: LOGO_SIZE, alignItems: 'center' }}>
+            {showRadioError ? <PlayerErrorState artworkSize={LOGO_SIZE} onReport={handleRadioReport} reportStatus={reportStatus} stationName={currentStation?.name}/> : isLoading ? <View testID="player-connecting-artwork" accessibilityRole="progressbar" accessibilityLabel={t('connecting', 'Connecting…')} style={[styles.artworkWrapper, styles.artworkConnecting, { width: LOGO_SIZE, height: LOGO_SIZE }]}>
+              <ActivityIndicator color="#FF4199" size="large" />
+            </View> : <View style={{ width: LOGO_SIZE, height: LOGO_SIZE }}>
               <View style={[styles.artworkWrapper, { width: LOGO_SIZE, height: LOGO_SIZE }]}>
-              <ImageWithFallback testID="player-station-logo" uri={logoUrl} style={styles.artwork} contentFit="contain" />
-              {/* Country Flag */}
-              {(currentStation?.countrycode || currentStation?.countryCode) && (
-                <View style={styles.countryFlagContainer}>
-                  <Image
-                    source={{ uri: `https://flagcdn.com/w40/${(currentStation.countrycode || currentStation.countryCode || '').toLowerCase()}.png` }}
-                    style={styles.countryFlag}
-                    contentFit="cover"
-                  />
-                </View>
-              )}
-            </View>
+              <ImageWithFallback testID="player-station-logo" uri={logoUrl} fallbackUri={fallbackLogoUrl || undefined} style={styles.artwork} contentFit="contain" />
+              </View>
+              <StationCountryBadge station={currentStation} disabled={controlsLocked} testID="player-country" style={{right:-20,bottom:-20}}/>
+            </View>}
             </View>
           </View>
 
           {/* Now Playing Info */}
           <View style={styles.nowPlayingSection}>
             {/* Animated Equalizer Bars */}
-            {isPlaying && <EqualizerBars />}
+            <View style={styles.equalizerSlot}><PlayerEqualizer playing={isPlaying} /></View>
             <Text style={styles.stationName}>{currentStation.name}</Text>
-            
+
             {/* Song Info - Visible to ALL users */}
-            <Text style={styles.artistName} data-testid="now-playing-song-info">{getCurrentSongInfo()}</Text>
-            
-            {/* Spotify & YouTube icons - Accessible to ALL users */}
+            <Text style={styles.artistName} testID="now-playing-song-info">{getCurrentSongInfo()}</Text>
+
+
+            {/* External song searches, available to all users when track metadata is valid. */}
             <View style={styles.socialIcons}>
-              <TouchableOpacity 
-                style={[styles.socialButton, styles.spotifyButton]}
-                onPress={() => {
-                  const songInfo = getCurrentSongInfo();
-                  const query = encodeURIComponent(songInfo || currentStation.name);
-                  Linking.openURL(`spotify://search/${query}`).catch(() => {
-                    Linking.openURL(`https://open.spotify.com/search/${query}`);
-                  });
-                }}
-                data-testid="spotify-deep-link-btn"
-              >
-                <Ionicons name="musical-notes" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.socialButton, styles.youtubeButton]}
-                onPress={() => {
-                  const songInfo = getCurrentSongInfo();
-                  const query = encodeURIComponent(songInfo || currentStation.name);
-                  Linking.openURL(`youtube://results?search_query=${query}`).catch(() => {
-                    Linking.openURL(`https://www.youtube.com/results?search_query=${query}`);
-                  });
-                }}
-                data-testid="youtube-deep-link-btn"
-              >
-                <Ionicons name="logo-youtube" size={18} color="#FFFFFF" />
-              </TouchableOpacity>
+              {([
+                { platform: 'spotify', image: require('../assets/images/player/spotify.svg'), label: t('search_on_spotify', 'Search on Spotify') },
+                { platform: 'appleMusic', image: null, label: t('search_on_apple_music', 'Search on Apple Music') },
+                { platform: 'youtube', image: require('../assets/images/player/youtube.svg'), label: t('search_on_youtube', 'Search on YouTube') },
+                { platform: 'deezer', image: null, label: t('search_on_deezer', 'Search on Deezer') },
+              ] as const).map(({ platform, image, label }) => (
+                <TouchableOpacity
+                  key={platform}
+                  style={[styles.socialButton, !trackText && { opacity: 0.4 }]}
+                  onPress={() => openTrackPlatform(platform)}
+                  disabled={controlsLocked}
+                  hitSlop={7}
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: controlsLocked }}
+                  accessibilityHint={!trackText ? unavailableMessage : undefined}
+                  accessibilityLabel={label}
+                  testID={`${platform}-deep-link-btn`}
+                >
+                  <View style={styles.socialIconSlot}>
+                    {platform === 'deezer' ? <DeezerIcon /> : platform === 'appleMusic' ? <Ionicons name="logo-apple" size={26} color="#FFFFFF" accessible={false} /> :
+                      <Image source={image} style={styles.socialLogo} contentFit="contain" accessible={false} />}
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={styles.communitySummary}>
+              {voteCount !== null && <>
+                <View style={styles.voteSummary} testID="player-vote-count">
+                  <LinearGradient colors={['transparent','#4A5053']} start={{x:0,y:0}} end={{x:1,y:0}} style={styles.voteHairline} />
+                  <StationVoteButton disabled={controlsLocked} preview={previewEnabled} countLabel={formattedVotes} fullCount={voteCount} onNotice={setPlayerNotice} key={currentStation._id} stationId={currentStation._id} onVoted={votes => {
+                    queryClient.setQueryData(queryKeys.station(currentStation._id), { ...(stationDetails || currentStation), votes });
+                    void queryClient.invalidateQueries({queryKey: queryKeys.stations});
+                  }} />
+                  <LinearGradient colors={['#4A5053','transparent']} start={{x:0,y:0}} end={{x:1,y:0}} style={styles.voteHairline} />
+                </View>
+              </>}
             </View>
           </View>
+
 
           {/* Main Controls */}
           <View style={styles.mainControls}>
             {/* Timer - different behavior based on timer state */}
-            <TouchableOpacity
+            <TouchableOpacity disabled={controlsLocked}
               style={styles.controlButton}
               onPress={() => {
-                if (sleepTimerActive) {
-                  setShowSleepCounter(true);
-                } else {
-                  setShowSleepTimer(true);
-                }
+                setShowSleepTimer(true);
               }}
-              data-testid="player-sleep-timer-btn"
+              testID="player-sleep-timer-btn"
+              accessibilityRole="button" accessibilityLabel={t('sleep_timer', 'Sleep Timer')}
             >
               <View>
-                <Ionicons
-                  name="time-outline"
-                  size={28}
-                  color={sleepTimerActive ? '#FFFFFF' : '#888888'}
-                />
+                <Image source={require('../assets/images/player/timer.svg')} style={styles.figmaIcon} contentFit="contain" />
                 {sleepTimerActive && (
                   <View style={styles.timerOnBadge}>
                     <Text style={styles.timerOnText}>ON</Text>
@@ -697,51 +634,60 @@ export default function PlayerScreen() {
                 )}
               </View>
             </TouchableOpacity>
-            
+
             {/* Previous */}
-            <TouchableOpacity 
+            <TouchableOpacity disabled={controlsLocked}
               style={styles.skipButton}
+              testID="player-previous-btn" accessibilityRole="button" accessibilityLabel={t('previous', 'Previous')}
               onPress={handlePreviousStation}
             >
-              <Ionicons name="chevron-back" size={32} color="#FFFFFF" />
+              <Image source={require('../assets/images/player/previous.svg')} style={styles.skipIcon} contentFit="contain" />
             </TouchableOpacity>
-            
+
             {/* Play/Pause */}
             <TouchableOpacity
               style={styles.playPauseButton}
               onPress={() => {
                 console.log('[Player] Play/Pause pressed, playbackState:', playbackState);
-                togglePlayPause();
+                if (previewEnabled && !activeStation) setPreviewPlaying(value => !value);
+                else if (showRadioError && activeStation) void playStation(activeStation);
+                else togglePlayPause();
               }}
-              disabled={isLoading}
+              disabled={controlsLocked || (isLoading)}
+              accessibilityRole="button"
+              accessibilityLabel={isPlaying ? t('pause', 'Pause') : t('play', 'Play')}
+              testID="player-toggle-play"
             >
               {isLoading ? (
                 <ActivityIndicator size="large" color="#FFFFFF" />
               ) : isPlaying ? (
-                <Ionicons name="pause" size={40} color="#FFFFFF" />
+                <Image source={require('../assets/images/player/pause.svg')} style={styles.mainPlaybackIcon} contentFit="contain" />
               ) : (
-                <Ionicons name="play" size={40} color="#FFFFFF" style={{ marginLeft: 4 }} />
+                <Image source={require('../assets/images/player/play.svg')} style={styles.mainPlaybackIcon} contentFit="contain" />
               )}
             </TouchableOpacity>
-            
+
             {/* Next */}
-            <TouchableOpacity 
+            <TouchableOpacity disabled={controlsLocked}
               style={styles.skipButton}
+              testID="player-next-btn" accessibilityRole="button" accessibilityLabel={t('next', 'Next')}
               onPress={handleNextStation}
             >
-              <Ionicons name="chevron-forward" size={32} color="#FFFFFF" />
+              <Image source={require('../assets/images/player/next.svg')} style={styles.skipIcon} contentFit="contain" />
             </TouchableOpacity>
-            
+
             {/* Heart */}
             <TouchableOpacity
               style={styles.controlButton}
+              testID="player-favorite-btn" accessibilityRole="button" accessibilityLabel={isFavorite ? t('remove_from_favorites', 'Remove from favorites') : t('add_to_favorites', 'Add to favorites')} accessibilityState={{ selected: isFavorite }}
               onPress={handleToggleFavorite}
-              disabled={checkingFavorite}
+              disabled={controlsLocked || (checkingFavorite)}
             >
-              <Ionicons 
-                name={isFavorite ? 'heart' : 'heart-outline'} 
-                size={28} 
-                color={isFavorite ? '#FF4757' : '#888888'} 
+              <Image
+                source={isFavorite ? require('../assets/images/player/heart-filled.svg') : require('../assets/images/player/heart.svg')}
+                style={styles.figmaIcon}
+                tintColor={isFavorite ? '#FF4199' : undefined}
+                contentFit="contain"
               />
             </TouchableOpacity>
           </View>
@@ -749,49 +695,37 @@ export default function PlayerScreen() {
           {/* Secondary Controls */}
           <View style={styles.secondaryControls}>
             <View style={styles.leftSecondaryControls}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={toggleControlsLock} testID="player-lock-toggle" accessibilityRole="button" accessibilityLabel={controlsLocked ? t('unlock_screen', 'Unlock screen') : t('lock_screen', 'Lock screen')} accessibilityState={{ selected: controlsLocked }}>
+                <Image source={controlsLocked ? require('../assets/images/player/locked-pink.svg') : require('../assets/images/player/unlock.svg')} style={styles.figmaIcon} contentFit="contain" accessible={false} />
+              </TouchableOpacity>
+              <NativeCastButton disabled={controlsLocked} />
+            </View>
               {/* Share */}
-              <TouchableOpacity
+              <TouchableOpacity disabled={controlsLocked}
                 style={styles.secondaryButton}
                 onPress={() => setShowShareModal(true)}
-                data-testid="player-share-btn"
+                testID="player-share-btn"
+                accessibilityRole="button"
+                accessibilityLabel={t('share', 'Share')}
               >
-                <Image 
-                  source={require('../assets/icons/share-icon.png')} 
-                  style={{ width: 24, height: 24, tintColor: '#888888' }} 
+                <Image
+                  source={require('../assets/images/player/share.svg')}
+                  style={styles.figmaIcon}
                   contentFit="contain"
                 />
               </TouchableOpacity>
-              {/* Cast/Airplay */}
-              <TouchableOpacity 
-                style={styles.secondaryButton}
-                onPress={handleCastPress}
-              >
-                <Image 
-                  source={require('../assets/icons/airplay-icon.png')} 
-                  style={{ width: 24, height: 24, tintColor: '#888888' }} 
-                  contentFit="contain"
-                />
-              </TouchableOpacity>
-            </View>
+
           </View>
 
-          {/* Go Premium Banner - only for free users */}
-          {!isPremium && (
-            <TouchableOpacity 
-              style={styles.premiumBanner}
-              onPress={() => { setPaywallMode('premium'); setShowPaywall(true); }}
-              data-testid="go-premium-banner"
-            >
-              <View style={styles.premiumBannerLeft}>
-                <Ionicons name="diamond" size={20} color="#FFD700" />
-                <View>
-                  <Text style={styles.premiumBannerTitle}>{t('go_premium', 'Go Premium')}</Text>
-                  <Text style={styles.premiumBannerSubtitle}>{t('unlock_hd_no_ads', 'HD quality, no ads & more')}</Text>
-                </View>
+          {!isPremium && <TouchableOpacity disabled={controlsLocked} style={styles.premiumBanner} onPress={() => { setPaywallMode('premium'); setShowPaywall(true); }} activeOpacity={0.85} testID="player-premium-banner" accessibilityRole="button" accessibilityLabel="MegaRadio Premium">
+            <LinearGradient colors={['#5C27F4', '#9F3FFF']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={styles.premiumGradient}>
+              <Image source={require('../assets/images/home/premium.svg')} style={styles.premiumIcon} contentFit="contain" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.premiumTitle}>MegaRadio Premium</Text>
+                <Text style={styles.premiumSubtitle}>{t('home_premium_subtitle', 'Unlock amazing features')}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.5)" />
-            </TouchableOpacity>
-          )}
+            </LinearGradient>
+          </TouchableOpacity>}
 
           {/* Recently Played Section */}
           {recentStations.length > 0 && (
@@ -805,6 +739,7 @@ export default function PlayerScreen() {
                   key={`recent-${station._id}-${index}`}
                   station={station}
                   onPress={handleStationPress}
+                  disabled={controlsLocked}
                   getLogoUrl={getLogoUrl}
                   itemWidth={GRID_ITEM_WIDTH}
                 />
@@ -824,17 +759,37 @@ export default function PlayerScreen() {
                   key={`similar-${station._id}-${index}`}
                   station={station}
                   onPress={handleStationPress}
+                  disabled={controlsLocked}
                   getLogoUrl={getLogoUrl}
                   itemWidth={GRID_ITEM_WIDTH}
                 />
               ))}
             </View>
           </View>
-        </ScrollView>
+
+
+        </Animated.ScrollView>}
       </View>
-      
+
+      {lockNotice === 'locked' && <Pressable testID="player-lock-overlay" accessibilityRole="button"
+        accessibilityLabel={t('close', 'Close')} onPress={() => {
+          if (lockNoticeTimer.current) clearTimeout(lockNoticeTimer.current);
+          lockNoticeTimer.current = null;
+          setLockNotice(null);
+        }} style={styles.lockOverlay}>
+        <View testID="player-lock-dialog" style={styles.lockDialog}>
+          <Image source={require('../assets/images/player/locked-pink.svg')} style={styles.lockDialogIcon} contentFit="contain" accessible={false} />
+          <Text style={styles.lockDialogTitle} accessibilityLiveRegion="polite">{t('screen_locked', 'Screen Locked!')}</Text>
+          <Text style={styles.lockDialogHint}>{t('screen_unlock_hint', 'To unlock click on the icon')}</Text>
+        </View>
+      </Pressable>}
+      {lockNotice === 'unlocked' && <View pointerEvents="none" style={[styles.lockNotice, { bottom: insets.bottom + 26 }]} testID="player-lock-notice">
+        <Text style={styles.lockNoticeText} accessibilityLiveRegion="polite">{t('player_unlocked_notice', 'Unlocked')}</Text>
+      </View>}
       {/* Car Mode Modal */}
       <CarModeScreen
+        onOpenPremium={() => { setShowCarMode(false); setPaywallMode('premium'); setShowPaywall(true); }}
+        previewStation={previewEnabled && !activeStation ? currentStation : undefined}
         visible={showCarMode}
         onClose={() => setShowCarMode(false)}
         stations={displaySimilarStations.length > 0 ? displaySimilarStations : popularStations}
@@ -843,6 +798,7 @@ export default function PlayerScreen() {
       {/* Share Modal */}
       <ShareModal
         visible={showShareModal}
+        playing={isPlaying}
         onClose={() => setShowShareModal(false)}
         station={currentStation}
         nowPlayingTitle={getCurrentSongInfo()}
@@ -857,31 +813,16 @@ export default function PlayerScreen() {
         isTimerActive={sleepTimerActive}
         remainingSeconds={sleepTimerRemaining}
         onCancel={cancelSleepTimer}
-      />
-
-      {/* Sleep Counter Modal (when timer is active) */}
-      <SleepCounterModal
-        visible={showSleepCounter}
-        onClose={() => setShowSleepCounter(false)}
-        remainingSeconds={sleepTimerRemaining}
-        onStop={cancelSleepTimer}
-      />
-      
-      {/* Cast Modal (MegaRadio API-based - login required) */}
-      <CastModal
-        visible={showCastModal}
-        onClose={() => setShowCastModal(false)}
-        currentStation={currentStation}
-      />
-
-      {/* Native Cast Modal (Chromecast + AirPlay) */}
-      <NativeCastModal
-        visible={showNativeCastModal}
-        onClose={() => setShowNativeCastModal(false)}
-        station={currentStation}
-        streamUrl={streamUrl || currentStation?.urlResolved || currentStation?.url_resolved || currentStation?.url || null}
-        nowPlaying={nowPlaying}
-        onStopLocalAudio={stopPlayback}
+        stationName={currentStation.name}
+        logoUrl={logoUrl}
+        fallbackLogoUrl={fallbackLogoUrl || undefined}
+        trackTitle={trackText ? nowPlaying?.title || trackText : t('live_radio', 'Live Radio')}
+        trackArtist={trackText ? nowPlaying?.artist || currentStation.name : currentStation.name}
+        playing={isPlaying}
+        favorite={isFavorite}
+        onFavorite={handleToggleFavorite}
+        onMore={() => setShowOptionsSheet(true)}
+        previewTopInset={previewTopInset}
       />
 
       {/* Player Options Sheet */}
@@ -889,7 +830,18 @@ export default function PlayerScreen() {
         visible={showOptionsSheet}
         onClose={() => setShowOptionsSheet(false)}
         station={currentStation}
+        trackAvailable={!!trackText}
+        unavailableMessage={unavailableMessage}
+        onSpotify={() => openTrackPlatform('spotify')}
+        onYoutube={() => openTrackPlatform('youtube')}
+        onAppleMusic={() => openTrackPlatform('appleMusic')}
+        onSoundcloud={() => openTrackPlatform('soundcloud')}
+        onDeezer={() => openTrackPlatform('deezer')}
+        onAirplay={isAirplayAvailable ? () => { void showAirplayPicker().catch(() => showCastNotice(t('cast_connection_failed', 'Could not connect. Please try again.'))); } : undefined}
+        onShare={() => setShowShareModal(true)}
       />
+
+      {playerNotice && <ProfilePhotoFeedback notice={playerNotice} onDismiss={dismissPlayerNotice} />}
 
       {/* Premium Paywall */}
       <PremiumPaywall
@@ -902,9 +854,31 @@ export default function PlayerScreen() {
 }
 
 const styles = StyleSheet.create({
+  // Figma screen-looked2293:8640:302×170,radius6,black fill/#292929 border.
+  lockOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center', zIndex: 30 },
+  lockDialog: { width: 302, maxWidth: '90%', minHeight: 170, borderRadius: 6, borderWidth: 1, borderColor: '#292929', backgroundColor: '#000000', paddingHorizontal: 20, paddingVertical: 30, alignItems: 'center', justifyContent: 'center' },
+  lockDialogIcon: { width: 24, height: 24, marginBottom: 24 },
+  lockDialogTitle: { color: '#FFFFFF', fontFamily: 'Ubuntu-Bold', fontSize: 20, lineHeight: 23, textAlign: 'center' },
+  lockDialogHint: { color: '#FFFFFF', fontFamily: 'Ubuntu-Medium', fontSize: 14, lineHeight: 18, marginTop: 10, textAlign: 'center' },
+  lockNotice: { position: 'absolute', alignSelf: 'center', maxWidth: '90%', paddingHorizontal: 20, paddingVertical: 12, borderRadius: 22, backgroundColor: '#282828' },
+  lockNoticeText: { color: '#FFFFFF', fontFamily: 'Ubuntu-Medium', fontSize: 14, lineHeight: 18, textAlign: 'center' },
+  playerGlowLayer: { ...StyleSheet.absoluteFillObject, overflow: 'hidden' },
+  playerBackground: { position: 'absolute', left: -234, width: 844, height: 844 },
+  playerHeaderShade: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.135)' },
+  mainPlaybackIcon: { width: 42, height: 42 },
+  skipIcon: { width: 30, height: 30 },
+  premiumBanner: { height: 54, borderRadius: 5, overflow: 'hidden', marginHorizontal: 16, marginBottom: 24 },
+  premiumGradient: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, gap: 12 },
+  premiumIcon: { width: 30, height: 30 },
+  premiumTitle: { fontFamily: 'Ubuntu-Bold', fontSize: 14, lineHeight: 19, color: '#FFFFFF' },
+  premiumSubtitle: { fontFamily: 'Ubuntu-Medium', fontSize: 12, lineHeight: 16, color: '#FFFFFF' },
+  figmaIcon: { width: 24, height: 24 },
+  socialLogo: { width: 30, height: 30 },
+  equalizerSlot: { height: 26, alignItems: 'center' },
+  gridCity: { fontFamily: 'Ubuntu-Regular' },
   container: {
     flex: 1,
-    backgroundColor: '#0D1B1E',
+    backgroundColor: '#131313',
   },
   safeArea: {
     flex: 1,
@@ -913,14 +887,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    paddingBottom: 40,
+    paddingBottom: 16,
   },
 
   // Header
   headerContainer: {
     width: '100%',
     height: 60,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'transparent',
   },
   header: {
     flex: 1,
@@ -938,24 +912,29 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    justifyContent: 'flex-start',
+    gap: 6,
+    minWidth: 0,
+    paddingLeft: 8,
   },
+  hdShortcut: { minHeight: 44, justifyContent: 'center' },
   hdBadge: {
-    backgroundColor: '#FFD700',
+    backgroundColor: '#FF9945',
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   hdText: {
-    fontSize: 10,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#000000',
-  },
-  headerTitle: {
-    fontSize: 16,
+    fontSize: 7,
+    lineHeight: 10,
     fontFamily: 'Ubuntu-Medium',
     color: '#FFFFFF',
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: 'Ubuntu-Bold',
+    color: '#FFFFFF',
+    flexShrink: 1,
   },
   headerRight: {
     flexDirection: 'row',
@@ -969,14 +948,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
+  offlineContent: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingBottom: 60 },
   // Artwork
   artworkContainer: {
     alignItems: 'center',
-    marginTop: 20,
-    marginBottom: 16,
+    marginTop: 43,
+    marginBottom: 30,
   },
+  artworkConnecting: { alignItems: 'center', justifyContent: 'center' },
   artworkWrapper: {
-    borderRadius: 16,
+    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#1E1E1E',
     position: 'relative',
@@ -992,14 +973,14 @@ const styles = StyleSheet.create({
   },
   countryFlagContainer: {
     position: 'absolute',
-    bottom: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    bottom: -12,
+    right: -12,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     overflow: 'hidden',
     backgroundColor: '#FFFFFF',
-    borderWidth: 2,
+    borderWidth: 0,
     borderColor: '#FFFFFF',
   },
   countryFlag: {
@@ -1010,7 +991,7 @@ const styles = StyleSheet.create({
   // Now Playing
   nowPlayingSection: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 6,
     paddingHorizontal: 20,
   },
   animatedDots: {
@@ -1027,18 +1008,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF4D8D',
   },
   stationName: {
-    fontSize: 28,
+    fontSize: 18,
     fontFamily: 'Ubuntu-Bold',
     color: '#FFFFFF',
-    marginBottom: 4,
+    marginBottom: 6,
     textAlign: 'center',
   },
   artistName: {
-    fontSize: 16,
-    color: '#888888',
-    marginBottom: 16,
+    fontSize: 14,
+    color: '#FFFFFF',
+    marginBottom: 24,
     textAlign: 'center',
+    fontFamily: 'Ubuntu-Medium',
   },
+  communitySummary: { alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', marginTop: 24 },
+  voteSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, minHeight: 44, width: 230, maxWidth: '100%', marginBottom: 18 },
+  voteHairline: { flex: 1, height: 1, opacity: 0.65 },
   // Premium-gated song info
   lockedSongInfo: {
     alignItems: 'center',
@@ -1085,98 +1070,68 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.08)',
   },
   // Go Premium Banner
-  premiumBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginBottom: 24,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,65,153,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,65,153,0.2)',
-  },
-  premiumBannerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  premiumBannerTitle: {
-    fontSize: 15,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFD700',
-  },
-  premiumBannerSubtitle: {
-    fontSize: 12,
-    fontFamily: 'Ubuntu-Regular',
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 1,
-  },
   socialIcons: {
     flexDirection: 'row',
     gap: 16,
-  },
-  socialButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
     alignItems: 'center',
   },
-  spotifyButton: {
-    backgroundColor: '#1DB954',
+  socialButton: {
+    width: 30,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  youtubeButton: {
-    backgroundColor: '#FF0000',
-  },
+  socialIconSlot: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
 
   // Main Controls
   mainControls: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 20,
+    paddingHorizontal: 16,
+    marginBottom: 22,
+    maxWidth: 375,
+    width: '100%',
+    alignSelf: 'center',
   },
   controlButton: {
-    width: 56,
-    height: 56,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
   timerOnBadge: {
     position: 'absolute',
-    bottom: -4,
-    right: -8,
-    backgroundColor: '#4CD964',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
+    bottom: -3,
+    right: -4,
+    backgroundColor: '#87CD56',
+    paddingHorizontal: 2,
+    paddingVertical: 0,
+    borderRadius: 3,
   },
   timerOnText: {
-    fontSize: 10,
-    fontFamily: 'Ubuntu-Bold',
+    fontSize: 7,
+    lineHeight: 10,
+    fontFamily: 'Ubuntu-Medium',
     color: '#FFFFFF',
   },
   skipButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2A2A2A',
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#242424',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 8,
+    marginHorizontal: 0,
   },
   playPauseButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#3A3A3A',
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#2F2F2F',
     justifyContent: 'center',
     alignItems: 'center',
-    marginHorizontal: 12,
+    marginHorizontal: 0,
   },
 
   // Secondary Controls
@@ -1184,12 +1139,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    marginBottom: 32,
+    paddingHorizontal: 16,
+    marginBottom: 30,
   },
   leftSecondaryControls: {
     flexDirection: 'row',
-    gap: 24,
+    gap: 8,
+    alignItems: 'center',
   },
   secondaryButton: {
     width: 44,
@@ -1197,36 +1153,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  recButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  recDotOuter: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: '#FF6B6B',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  recDotInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#FF6B6B',
-  },
-  recText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-  },
 
   // Sections
   section: {
     paddingHorizontal: GRID_PADDING,
-    marginBottom: 24,
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
@@ -1242,10 +1173,10 @@ const styles = StyleSheet.create({
 
   // Grid Items - sizes are set dynamically in the component
   gridItem: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   gridImageWrapper: {
-    borderRadius: 12,
+    borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#1E1E1E',
     marginBottom: 8,
@@ -1266,38 +1197,19 @@ const styles = StyleSheet.create({
   },
   gridStationLocation: {
     fontSize: 12,
-    color: '#888888',
+    color: '#B8B9BF',
     marginTop: 2,
+    fontFamily: 'Ubuntu-Bold',
   },
 
-  // Empty State
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  emptyTitle: {
-    fontSize: 24,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFFFFF',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#888888',
-    marginBottom: 24,
-  },
-  goBackButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 24,
-  },
-  goBackButtonText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-  },
+  // Same surface, typography and recovery treatment as SharedLinkState.
+  emptyPage: { flex: 1, backgroundColor: '#1B1C1E' },
+  emptyHeader: { height: 78, paddingHorizontal: 5, justifyContent: 'center' },
+  emptyBack: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  emptyState: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, paddingBottom: 78 },
+  emptyCard: { width: '100%', maxWidth: 344, backgroundColor: '#000000', borderColor: '#292929', borderWidth: 1, borderRadius: 6, paddingHorizontal: 24, paddingVertical: 32, alignItems: 'center' },
+  emptyTitle: { fontFamily: 'Ubuntu-Bold', fontSize: 20, lineHeight: 25, color: '#FFFFFF', marginTop: 24, textAlign: 'center' },
+  emptyText: { fontFamily: 'Ubuntu-Medium', fontSize: 15, lineHeight: 21, color: '#B7B7BF', marginTop: 12, textAlign: 'center' },
+  goBackButton: { backgroundColor: '#FF3494', minHeight: 44, paddingHorizontal: 24, justifyContent: 'center', borderRadius: 6, marginTop: 28 },
+  goBackButtonText: { fontFamily: 'Ubuntu-Bold', fontSize: 15, color: '#FFFFFF' },
 });

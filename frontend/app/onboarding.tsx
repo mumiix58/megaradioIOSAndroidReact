@@ -1,43 +1,39 @@
+import {useIsFocused} from '@react-navigation/native';
+import {useAnalyticsOverlay} from '../src/hooks/useAnalyticsOverlay';
+import { MegaLoadingIndicator as ActivityIndicator } from '../src/components/MegaLoadingIndicator';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   Image,
   TouchableOpacity,
   Platform,
-  ActivityIndicator,
-} from 'react-native';
+  Animated,
+  Easing} from 'react-native';
+import { Image as SvgImage } from 'expo-image';
+import * as Haptics from 'expo-haptics';
+import { useReducedMotion } from 'react-native-reanimated';
 import { StatusBar } from 'expo-status-bar';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Asset } from 'expo-asset';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  interpolate,
-  Extrapolation,
-} from 'react-native-reanimated';
 
-const { width, height } = Dimensions.get('window');
+
 
 // Assets
-const GIRL_IMAGE = require('../assets/images/onboarding/girl.png');
-const BOY_SCREEN2_IMAGE = require('../assets/images/onboarding/boy-screen2.png');
-const BOY_SCREEN3_IMAGE = require('../assets/images/onboarding/boy-screen3.png');
-const NEXT_BUTTON = require('../assets/images/onboarding/next-button.png');
+const GIRL_IMAGE = require('../assets/images/onboarding/figma/photo-1.png');
+const BOY_SCREEN2_IMAGE = require('../assets/images/onboarding/figma/photo-2.png');
+const BOY_SCREEN3_IMAGE = require('../assets/images/onboarding/figma/photo-3.png');
 
 // Preload all onboarding images at module load
 const preloadImages = async () => {
   try {
-    await Asset.loadAsync([GIRL_IMAGE, BOY_SCREEN2_IMAGE, BOY_SCREEN3_IMAGE, NEXT_BUTTON]);
+    await Asset.loadAsync([GIRL_IMAGE, BOY_SCREEN2_IMAGE, BOY_SCREEN3_IMAGE]);
     console.log('[Onboarding] All images preloaded');
   } catch (e) {
     console.log('[Onboarding] Image preload error:', e);
@@ -98,14 +94,53 @@ const storage = {
 };
 
 export default function OnboardingScreen() {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const params = useLocalSearchParams<{ preview?: string; step?: string }>();
+  const flowPreview = __DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1' && params.preview === '1';
+  const [currentIndex, setCurrentIndex] = useState(() => {
+    const step = flowPreview ? Number(params.step) : 1;
+    return Number.isInteger(step) && step >= 1 && step <= 3 ? step - 1 : 0;
+  });
+  const reduceMotion = useReducedMotion();
   const [isChecking, setIsChecking] = useState(true);
-  const currentItem = ONBOARDING_DATA[currentIndex];
+ const analyticsFocused=useIsFocused();
+  useAnalyticsOverlay('onboarding-'+(currentIndex+1),analyticsFocused&&!isChecking);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const transitioning = useRef(false);
+  const slideX = useRef(new Animated.Value(-currentIndex * 375)).current;
+  const arrowX = useRef(new Animated.Value(0)).current;
+  const arrowFlight = useRef<Animated.CompositeAnimation | null>(null);
+  const nextPending = useRef(false);
+  const pressAnimation = useRef<Animated.CompositeAnimation | null>(null);
+  const transition = useRef<Animated.CompositeAnimation | null>(null);
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  // Figma uses a 375×812 full-bleed artboard, including system safe areas.
+  const scale = width / 375;
+  const layoutHeight = height / scale;
+  const compact = Math.min(1, layoutHeight / 812);
+  const artboardStyle = { width: 375, height: layoutHeight, left: (width - 375) / 2,
+    top: (height - layoutHeight) / 2, transform: [{ scale }] };
+  const skipTop = Math.max(59 * compact, (insets.top + 10) / scale);
+
   
+  useEffect(() => {
+    if (Platform.OS !== 'web' || process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY !== '1') return;
+    const send = (visible: boolean) => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'startup', visible }, 'http://localhost:8082');
+    send(true);
+    return () => send(false);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY !== '1') return;
+    window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'startupDark', visible: currentIndex !== 1 }, 'http://localhost:8082');
+    return () => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'startupDark', visible: false }, 'http://localhost:8082');
+  }, [currentIndex]);
+  useEffect(() => () => { transition.current?.stop(); pressAnimation.current?.stop(); arrowFlight.current?.stop(); }, []);
+
   // Check if onboarding is already complete - redirect if so
   useEffect(() => {
     const checkStatus = async () => {
+      if (flowPreview) { setIsChecking(false); return; }
       try {
         const complete = await checkOnboardingComplete();
         console.log('[Onboarding] Checking status:', complete);
@@ -128,36 +163,55 @@ export default function OnboardingScreen() {
     return () => clearTimeout(timeout);
   }, []);
   
-  // Glow animation for next button
-  const glowScale = useSharedValue(1);
-  
-  useEffect(() => {
-    glowScale.value = withRepeat(
-      withSequence(
-        withTiming(1.15, { duration: 1200 }),
-        withTiming(1, { duration: 1200 })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const glowAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: glowScale.value }],
-    opacity: interpolate(glowScale.value, [1, 1.15], [0.6, 0.9], Extrapolation.CLAMP),
-  }));
-
   const animateToNext = (newIndex: number) => {
-    // Animasyon olmadan direkt geçiş
+    if (transitioning.current) return;
+    if (reduceMotion) { slideX.setValue(-newIndex * 375); setCurrentIndex(newIndex); return; }
+    transitioning.current = true;
+    setIsTransitioning(true);
     setCurrentIndex(newIndex);
+    // A single pre-mounted strip prevents image/child replacement flashes.
+    transition.current = Animated.timing(slideX, { toValue: -newIndex * 375, duration: 300,
+      easing: Easing.inOut(Easing.ease), useNativeDriver: true });
+    transition.current.start(() => { transitioning.current = false; setIsTransitioning(false); });
+  };
+
+  const pressIn = () => {
+    if (transitioning.current || nextPending.current) return;
+    pressAnimation.current?.stop();
+    if (!reduceMotion) {
+      // Only the arrow anticipates the gesture; the pink circle stays fixed.
+      pressAnimation.current = Animated.timing(arrowX, { toValue: -3, duration: 75,
+        easing: Easing.out(Easing.quad), useNativeDriver: true });
+      pressAnimation.current.start();
+    }
+    if (Platform.OS !== 'web') void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  };
+  const pressOut = () => {
+    if (nextPending.current) return;
+    pressAnimation.current?.stop();
+    pressAnimation.current = Animated.timing(arrowX, { toValue: 0, duration: reduceMotion ? 0 : 100,
+      easing: Easing.out(Easing.quad), useNativeDriver: true });
+    pressAnimation.current.start();
   };
 
   const handleNext = async () => {
-    if (currentIndex < ONBOARDING_DATA.length - 1) {
+    if (transitioning.current || nextPending.current) return;
+    if (currentIndex === ONBOARDING_DATA.length - 1) { await completeOnboarding(); return; }
+    if (reduceMotion) { animateToNext(currentIndex + 1); return; }
+    nextPending.current = true;
+    setIsTransitioning(true);
+    pressAnimation.current?.stop();
+    arrowFlight.current = Animated.timing(arrowX, { toValue: 44, duration: 110,
+      easing: Easing.in(Easing.quad), useNativeDriver: true });
+    arrowFlight.current.start(({ finished }) => {
+      if (!finished) return;
+      arrowX.setValue(-30);
       animateToNext(currentIndex + 1);
-    } else {
-      await completeOnboarding();
-    }
+      arrowFlight.current = Animated.timing(arrowX, { toValue: 0, duration: 220,
+        easing: Easing.out(Easing.cubic), useNativeDriver: true });
+      arrowFlight.current.start();
+      nextPending.current = false;
+    });
   };
 
   const handleSkip = async () => {
@@ -165,6 +219,7 @@ export default function OnboardingScreen() {
   };
 
   const completeOnboarding = async () => {
+    if (flowPreview) { router.replace('/auth-options'); return; }
     try {
       await storage.setItem(ONBOARDING_COMPLETE_KEY, 'true');
     } catch (error) {
@@ -183,83 +238,66 @@ export default function OnboardingScreen() {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      
-      {/* Full screen background image - no animation */}
-      <View style={styles.imageContainer}>
-        <Image 
-          source={currentItem.image} 
-          style={styles.backgroundImage} 
-          resizeMode="cover" 
-        />
-      </View>
-      
-      {/* Skip button - positioned at top right with safe area */}
-      <TouchableOpacity
-        style={[styles.skipButton, { top: insets.top + 10 }]}
-        onPress={handleSkip}
-        activeOpacity={0.7}
-        data-testid="onboarding-skip-btn"
-      >
-        <Text style={styles.skipText}>Skip</Text>
-      </TouchableOpacity>
-
-      {/* Gradient overlay at bottom */}
-      <LinearGradient
-        colors={['rgba(0, 0, 0, 0)', '#000000']}
-        locations={[0, 0.2942]}
-        style={styles.gradientOverlay}
-      >
-        {/* Content section - no animation */}
-        <View style={[styles.contentSection, { paddingBottom: insets.bottom + 20 }]}>
-          {/* Title */}
-          <Text style={styles.title}>{currentItem.title}</Text>
-          
-          {/* Subtitle */}
-          <Text style={styles.subtitle}>{currentItem.subtitle}</Text>
-          
-          {/* Pagination Dots */}
-          <View style={styles.dotsContainer}>
-            {ONBOARDING_DATA.map((_, i) => (
-              <Animated.View
-                key={i}
-                style={[
-                  styles.dot,
-                  i === currentIndex ? styles.dotActive : styles.dotInactive,
-                ]}
-              />
-            ))}
-          </View>
-
-          {/* Button */}
-          <View style={styles.buttonWrapper}>
-            {currentItem.isLast ? (
-              <TouchableOpacity
-                style={styles.getStartedButton}
-                onPress={handleNext}
-                activeOpacity={0.8}
-                data-testid="onboarding-getstarted-btn"
-              >
-                <Text style={styles.getStartedText}>Get Started</Text>
-              </TouchableOpacity>
-            ) : (
-              <>
-                <Animated.View style={[styles.buttonGlow, glowAnimatedStyle]} />
-                <TouchableOpacity
-                  style={styles.nextButton}
-                  onPress={handleNext}
-                  activeOpacity={0.8}
-                  data-testid="onboarding-next-btn"
-                >
-                  <Image source={NEXT_BUTTON} style={styles.nextButtonImage} resizeMode="contain" />
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+  const renderPage = (index: number) => {
+    const item = ONBOARDING_DATA[index];
+    const active = index === currentIndex;
+    return <View style={styles.page} accessibilityElementsHidden={!active} importantForAccessibility={active ? 'auto' : 'no-hide-descendants'} aria-hidden={!active} pointerEvents={active ? 'auto' : 'none'}>
+        <Image source={item.image}
+          style={[styles.backgroundImage, { height: index === 0 ? 752 : 812 }]}
+          resizeMode="stretch" accessible={false} />
+        <LinearGradient pointerEvents="none"
+          colors={['rgba(0,0,0,0)', '#000000']}
+          locations={[0, 0.2942]} style={[styles.gradientOverlay, { top: 348 * compact, height: layoutHeight - 348 * compact }]} />
+        <TouchableOpacity style={[styles.skipButton, { top: skipTop }]}
+          onPress={handleSkip} disabled={!active || isTransitioning} activeOpacity={0.7} accessibilityRole="button"
+          accessibilityLabel="Skip onboarding" testID={active ? "onboarding-skip-btn" : undefined}>
+          <Text style={styles.skipText}>Skip</Text>
+        </TouchableOpacity>
+        <Text accessibilityRole="header" style={[styles.title, { top: 496 * compact }]}>{item.title}</Text>
+        <Text style={[styles.subtitle, { top: 557 * compact }]}>{item.subtitle}</Text>
+        <View style={[styles.dotsContainer, { top: 604 * compact }]} accessibilityLabel={`Page ${index + 1} of 3`}>
+          {ONBOARDING_DATA.map((item, i) => (
+            <View key={item.id} style={i === index ? styles.dotActive : styles.dotInactive} />
+          ))}
         </View>
-      </LinearGradient>
+        <View style={[styles.buttonWrapper, { top: 680 * compact }]}>
+          <View pointerEvents="none" style={styles.buttonGlow} />
+          {item.isLast ? (
+            <TouchableOpacity style={styles.getStartedButton} onPress={handleNext} disabled={!active || isTransitioning}
+              onPressIn={pressIn} onPressOut={pressOut} activeOpacity={1} accessibilityRole="button" testID={active ? "onboarding-getstarted-btn" : undefined}>
+              <Text style={styles.getStartedText}>Get Started</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={styles.nextButton} onPress={handleNext} disabled={!active || isTransitioning}
+              onPressIn={pressIn} onPressOut={pressOut} activeOpacity={1} accessibilityRole="button" accessibilityLabel="Next"
+              testID={active ? "onboarding-next-btn" : undefined}>
+              <Animated.View pointerEvents="none" testID={active ? 'onboarding-next-arrow' : undefined}
+                style={{ transform: [{ translateX: arrowX }], opacity: arrowX.interpolate({
+                  inputRange: [-40, -30, 0, 28, 44], outputRange: [0, 0, 1, 0, 0], extrapolate: 'clamp' }) }}>
+                <SvgImage source={require('../assets/images/onboarding/figma/next-arrow.svg')}
+                  style={styles.nextArrow} contentFit="contain" accessible={false} />
+              </Animated.View>
+            </TouchableOpacity>
+          )}
+        </View>
+    </View>;
+  };
+
+  return (
+    <View style={styles.container} testID="onboarding-screen">
+      <StatusBar style={currentIndex === 1 ? 'light' : 'dark'} translucent backgroundColor="transparent" />
+      <View style={[styles.artboard, artboardStyle]}>
+        <Animated.View style={{ width: 375 * ONBOARDING_DATA.length, height: layoutHeight,
+          flexDirection: 'row', transform: [{ translateX: slideX }] }}>
+          {ONBOARDING_DATA.map((item, index) => <View key={item.id}
+            style={{ width: 375, height: layoutHeight }} pointerEvents={index === currentIndex ? 'auto' : 'none'}
+            accessibilityElementsHidden={index !== currentIndex}
+            importantForAccessibility={index === currentIndex ? 'auto' : 'no-hide-descendants'}
+            aria-hidden={index !== currentIndex}>
+            {renderPage(index)}
+          </View>)}
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -289,126 +327,30 @@ export const resetOnboarding = async (): Promise<void> => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000000',
-  },
-  imageContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-  },
-  backgroundImage: {
-    width: '100%',
-    height: '100%',
-  },
-  skipButton: {
-    position: 'absolute',
-    // top is set dynamically via inline style with safe area insets
-    right: 20,
-    backgroundColor: 'rgba(80, 80, 80, 0.8)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    zIndex: 10,
-  },
-  skipText: {
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-    fontSize: 16,
-  },
-  gradientOverlay: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: '55%',
-    justifyContent: 'flex-end',
-  },
-  contentSection: {
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    // paddingBottom is set dynamically via inline style with safe area insets
-  },
-  title: {
-    fontFamily: 'Ubuntu-Bold',
-    fontSize: 36,
-    color: '#FF1493',
-    marginBottom: 12,
-    textAlign: 'center',
-    lineHeight: 36,
-  },
-  subtitle: {
-    fontFamily: 'Ubuntu-Medium',
-    fontSize: 15,
-    color: '#FFFFFF',
-    textAlign: 'center',
-    marginBottom: 30,
-    lineHeight: 15,
-  },
-  dotsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 40,
-    gap: 8,
-  },
-  dot: {
-    borderRadius: 4,
-  },
-  dotActive: {
-    width: 24,
-    height: 8,
-    backgroundColor: '#FF1493',
-    borderRadius: 4,
-  },
-  dotInactive: {
-    width: 8,
-    height: 8,
-    backgroundColor: '#4A4A4A',
-    borderRadius: 4,
-  },
-  buttonWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  buttonGlow: {
-    position: 'absolute',
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: '#FF1493',
-    shadowColor: '#FF1493',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 25,
-    elevation: 20,
-  },
-  nextButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FF1493',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-  },
-  nextButtonImage: {
-    width: 70,
-    height: 70,
-  },
-  getStartedButton: {
-    backgroundColor: '#FF1493',
-    paddingHorizontal: 60,
-    paddingVertical: 18,
-    borderRadius: 30,
-  },
-  getStartedText: {
-    fontFamily: 'Ubuntu-Bold',
-    color: '#000000',
-    fontSize: 18,
-  },
+  container: { flex: 1, backgroundColor: '#000000', overflow: 'hidden' },
+  artboard: { position: 'absolute', backgroundColor: '#000000', overflow: 'hidden' },
+  page: { ...StyleSheet.absoluteFillObject, backgroundColor: '#000000' },
+  backgroundImage: { position: 'absolute', top: 0, left: 0, width: 375 },
+  gradientOverlay: { position: 'absolute', top: 348, left: 0, width: 375, height: 464 },
+  skipButton: { position: 'absolute', left: 286, width: 59, height: 35,
+    backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 5, alignItems: 'center', justifyContent: 'center' },
+  skipText: { fontFamily: 'Ubuntu-Medium', color: '#FFFFFF', fontSize: 15, lineHeight: 17 },
+  title: { position: 'absolute', top: 496, left: 0, width: 375, height: 43,
+    fontFamily: 'Ubuntu-Bold', fontSize: 36, lineHeight: 43, color: '#FF4199', textAlign: 'center', includeFontPadding: false },
+  subtitle: { position: 'absolute', top: 557, left: 20, width: 335,
+    fontFamily: 'Ubuntu-Medium', fontSize: 15, lineHeight: 17, color: '#FFFFFF', textAlign: 'center', includeFontPadding: false },
+  dotsContainer: { position: 'absolute', top: 604, left: 167, height: 6,
+    flexDirection: 'row', alignItems: 'center', gap: 5 },
+  dotActive: { width: 19, height: 6, borderRadius: 20, backgroundColor: '#FF4199' },
+  dotInactive: { width: 6, height: 6, borderRadius: 20, backgroundColor: '#4A4A4A' },
+  buttonWrapper: { position: 'absolute', top: 680, left: 0, width: 375, height: 58,
+    alignItems: 'center', justifyContent: 'center' },
+  buttonGlow: { position: 'absolute', width: 58, height: 58, borderRadius: 30,
+    backgroundColor: '#FF4199', shadowColor: '#FF4199', shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5, shadowRadius: 25, elevation: 0 },
+  nextButton: { width: 58, height: 58, borderRadius: 30, backgroundColor: '#FF4199', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  nextArrow: { width: 34, height: 34 },
+  getStartedButton: { width: 196, height: 58, borderRadius: 30, backgroundColor: '#FF4199',
+    alignItems: 'center', justifyContent: 'center' },
+  getStartedText: { fontFamily: 'Ubuntu-Medium', color: '#FFFFFF', fontSize: 15, lineHeight: 17 },
 });

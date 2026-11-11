@@ -29,6 +29,7 @@ const GOOGLE_IOS_CLIENT_ID = '957628580421-664s6dft9n8kp91futrnpsugd4fcsonn.apps
 let GoogleSignin: any = null;
 let statusCodes: any = null;
 let googleConfigured = false;
+let googleSignInPending = false;
 
 const getGoogleSignin = () => {
   if (!GoogleSignin && Platform.OS !== 'web') {
@@ -72,6 +73,8 @@ export const socialAuthService = {
    * Returns idToken → send to backend POST /api/auth/google for verification
    */
   async signInWithGoogle(): Promise<SocialAuthResponse> {
+    if (googleSignInPending) return { success: false, error: 'Sign-in already in progress' };
+    googleSignInPending = true;
     try {
       console.log('[SocialAuth] Starting native Google Sign-In...');
 
@@ -165,7 +168,15 @@ export const socialAuthService = {
       }
 
       return { success: false, error: error.message || 'Google Sign-In failed' };
+    } finally {
+      googleSignInPending = false;
     }
+  },
+
+  /** Clear the SDK account on app logout; this does not revoke Google consent. */
+  async signOutGoogle(): Promise<void> {
+    const gs = getGoogleSignin();
+    if (gs) await gs.signOut();
   },
 
   /**

@@ -1,3 +1,4 @@
+import { sortFavoriteStations } from '../utils/favoriteOrdering';
 import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform, NativeModules } from 'react-native';
@@ -469,58 +470,14 @@ export const useFavoritesStore = create<FavoritesState>((set, get) => ({
       set({ customOrder: orderedIds });
     } catch (error) {
       console.error('Error updating custom order:', error);
+      throw error;
     }
   },
 
   getSortedFavorites: () => {
     const { favorites, customOrder, sortOption } = get();
     
-    switch (sortOption) {
-      case 'newest':
-        // Sort by addedAt if available, otherwise keep original order (newest first)
-        return [...favorites].sort((a, b) => {
-          const dateA = (a as any).addedAt || (a as any).createdAt || '';
-          const dateB = (b as any).addedAt || (b as any).createdAt || '';
-          if (!dateA && !dateB) return 0; // Keep original order
-          if (!dateA) return 1;
-          if (!dateB) return -1;
-          return dateB.localeCompare(dateA);
-        });
-      
-      case 'oldest':
-        return [...favorites].sort((a, b) => {
-          const dateA = (a as any).addedAt || (a as any).createdAt || '';
-          const dateB = (b as any).addedAt || (b as any).createdAt || '';
-          if (!dateA && !dateB) return 0; // Keep original order
-          if (!dateA) return 1;
-          if (!dateB) return -1;
-          return dateA.localeCompare(dateB);
-        });
-      
-      case 'az':
-        return [...favorites].sort((a, b) => 
-          (a.name || '').toLowerCase().localeCompare((b.name || '').toLowerCase())
-        );
-      
-      case 'za':
-        return [...favorites].sort((a, b) => 
-          (b.name || '').toLowerCase().localeCompare((a.name || '').toLowerCase())
-        );
-      
-      case 'custom':
-        return [...favorites].sort((a, b) => {
-          const indexA = customOrder.indexOf(a._id);
-          const indexB = customOrder.indexOf(b._id);
-          
-          if (indexA === -1) return 1;
-          if (indexB === -1) return -1;
-          
-          return indexA - indexB;
-        });
-      
-      default:
-        return favorites;
-    }
+    return sortFavoriteStations(favorites, customOrder, sortOption);
   },
 
   // Load favorites from local storage only (for CarPlay/Android Auto)
