@@ -58,7 +58,7 @@ function fixture({platform='ios',storeTimeoutMs}={}) {
     const exports={};modules.set(file,exports);
     const source=fs.readFileSync(file,'utf8');
     const output=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,esModuleInterop:true,jsx:ts.JsxEmit.ReactJSX}}).outputText;
-    vm.runInNewContext(output,{exports,console:quiet,URL,AbortController,Date,Promise,
+    vm.runInNewContext(output,{exports,__DEV__:false,console:quiet,URL,AbortController,Date,Promise,
       setTimeout:storeTimeoutMs ? (fn,ms)=>setTimeout(fn,ms>=10000?storeTimeoutMs:ms) : setTimeout,clearTimeout,Buffer,
       require(name){if(name in mocks)return mocks[name];if(name.startsWith('.'))return load(path.resolve(path.dirname(file),name));throw Error('Unmocked import: '+name);},
     },{filename:file});
@@ -200,11 +200,11 @@ test('disk keys distinguish filters, limits and endpoints and old data refetches
   const observer=new QueryObserver(client,{...options,gcTime:0,initialData:{stations:[]},initialDataUpdatedAt:Date.now()-120000,queryFn:async()=>{fetched++;return{stations:[]};}});
   const unsubscribe=observer.subscribe(()=>{});await new Promise(r=>setImmediate(r));assert.equal(fetched,1);unsubscribe();client.clear();
 });
-test('notification toggle patches flat booleans and restores previous categories',async()=>{
+test('push master preference preserves topic flags',async()=>{
   const f=fixture();let settings={favorites:true,nowPlaying:false,newStations:true,recommendations:false};
-  f.network(async c=>{if(c.method==='patch')settings=JSON.parse(c.data);return{data:{notificationSettings:settings}};});
+  f.network(async c=>{if(c.method==='patch')settings={...settings,...JSON.parse(c.data)};return{data:{notificationSettings:settings}};});
   const service=f.load('src/services/notificationSettingsService.ts').notificationSettingsService;
-  await service.setEnabled(false);assert.equal(Object.values(settings).some(Boolean),false);
+  await service.setEnabled(false);assert.equal(settings.pushEnabled,false);assert.equal(settings.favorites,true);
   await service.setEnabled(true);assert.equal(settings.favorites,true);assert.equal(settings.nowPlaying,false);assert.equal(settings.newStations,true);
 });
 test('all 14 localized station/user/genre route families map to native screens',()=>{
@@ -369,7 +369,7 @@ test('a late favorites GET cannot erase a favorite added meanwhile',async()=>{
   await store.getState().addFavorite({_id:'new',name:'New'});gate.resolve({data:[]});await loading;assert.equal(store.getState().isFavorite('new'),true);
 });
 test('superseded search is cancelled and shared lookup lists are reused',async()=>{
-  const f=fixture(),gate=deferred();f.network(async c=>c.params?.search==='old'?gate.promise:{data:c.url.includes('stations')?{stations:[{_id:'new'}]}:[]});
+  const f=fixture(),gate=deferred();f.network(async c=>c.params?.search==='old'?gate.promise:{data:c.url.includes('stations')?{stations:[{_id:'new',name:'New'}]}:[]});
   const search=f.load('src/services/searchService.ts').searchCatalog;const oldController=new AbortController();
   const old=search('old',oldController.signal);await new Promise(r=>setImmediate(r));oldController.abort();
   const latest=await search('new',new AbortController().signal);gate.resolve({data:{stations:[{_id:'old'}]}});

@@ -1,53 +1,84 @@
-import React, { useState, useCallback, useEffect, lazy, Suspense } from 'react';
+import {useAnalyticsOverlay} from '../../src/hooks/useAnalyticsOverlay';
+import { MegaLoadingIndicator as ActivityIndicator } from '../../src/components/MegaLoadingIndicator';
+import {useProfilePhotoCoach} from '../../src/hooks/useProfilePhotoCoach';
+import {ProfilePhotoCoach} from '../../src/components/ProfilePhotoCoach';
+import {ProfilePhotoFeedback} from '../../src/components/ProfilePhotoFeedback';
+import {ProfilePhotoActions} from '../../src/components/ProfilePhotoActions';
+import {profilePhotoFile} from '../../src/utils/profilePhoto';
+import type {ContextMenuAnchor} from '../../src/components/chat/ChatContextMenu';
+import {useQuery} from '@tanstack/react-query';
+import {chatService} from '../../src/services/chatService';
+import {groupChatService} from '../../src/services/groupChatService';
+import {usePushPreferences} from '../../src/hooks/usePushPreferences';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Switch,
   Modal,
   TextInput,
   Alert,
   Linking,
-  FlatList,
-  ActivityIndicator,
   Platform,
-  Share,
-} from 'react-native';
+  Pressable,
+  Keyboard,
+  KeyboardAvoidingView,
+  useWindowDimensions} from 'react-native';
 import { Image } from 'expo-image';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons, FontAwesome5 } from '@expo/vector-icons';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../../src/store/authStore';
 import { useLocationStore } from '../../src/store/locationStore';
 import { useLanguageStore } from '../../src/store/languageStore';
-import { usePlayerStore } from '../../src/store/playerStore';
 import { AvatarWithFallback } from '../../src/components/AvatarWithFallback';
 // RewardedAdButton - platform-specific import (only on native)
 const RewardedAdButton = Platform.OS !== 'web' 
   ? require('../../src/components/RewardedAdButton.native').RewardedAdButton
   : () => null;
-const AdPrivacyOptions = Platform.OS !== 'web'
-  ? require('../../src/components/AdPrivacyOptions.native').AdPrivacyOptions
-  : () => null;
 import api from '../../src/services/api';
 import userService from '../../src/services/userService';
-import { profileShareContent } from '../../src/utils/profileShare';
+import { PLAY_AT_LOGIN_KEY, DEFAULT_PLAY_AT_LOGIN, normalizePlayAtLogin } from '../../src/utils/playAtLogin';
+import { ProfileShareSheet } from '../../src/components/ProfileShareSheet';
 import API_ENDPOINTS from '../../src/constants/api';
+import { ConnectionsScreen } from '../../src/components/ConnectionsScreen';
+import type { ConnectionUser } from '../../src/utils/connections';
+import { AccountSettingsScreen } from '../../src/components/AccountSettingsScreen';
 import { LogoutModal } from '../../src/components/LogoutModal';
 import { usePremiumStore } from '../../src/store/premiumStore';
 import { PremiumPaywall } from '../../src/components/PremiumPaywall';
+import { RateUsModal } from '../../src/components/RateUsModal';
 import { rateUsService } from '../../src/services/rateUsService';
 
-import { useSongHistoryStore } from '../../src/store/songHistoryStore';
+/**
+ * Social proof counter — slowly grows over time so the number
+ * feels alive without requiring a backend endpoint.
+ * Base: 4,800 on 2026-01-01, +6 per day.
+ */
+const getLovedByCount = (): string => {
+  const base = 4800;
+  const startDate = new Date(2026, 0, 1).getTime();
+  const daysSince = Math.max(0, Math.floor((Date.now() - startDate) / (1000 * 60 * 60 * 24)));
+  const count = base + daysSince * 6;
+  return count.toLocaleString('en-US');
+};
 import appService, { AppInfo } from '../../src/services/appService';
 
 // Language display names
+function ProfileSwitch({ value, onValueChange, disabled = false, label }: { value: boolean; onValueChange: (value: boolean) => void; disabled?: boolean; label: string }) {
+  return <TouchableOpacity accessibilityRole="switch" accessibilityLabel={label} accessibilityState={{ checked: value, disabled }} aria-checked={value} aria-disabled={disabled} disabled={disabled} onPress={event=>{event.stopPropagation();onValueChange(!value);}} style={{ minHeight: 44, justifyContent: 'center', opacity: disabled ? 0.5 : 1 }}>
+    <View style={{ width: 48, height: 26, borderRadius: 20, backgroundColor: value ? '#FF4199' : '#333333', padding: 2 }}>
+      <View style={{ width: 22, height: 22, borderRadius: 11, backgroundColor: '#FFFFFF', alignSelf: value ? 'flex-end' : 'flex-start' }} />
+    </View>
+  </TouchableOpacity>;
+}
+
 const LANGUAGE_NAMES: Record<string, string> = {
   en: 'English',
   tr: 'Türkçe',
@@ -65,137 +96,109 @@ const LANGUAGE_NAMES: Record<string, string> = {
   ar: 'العربية',
 };
 
-// Country type for rich format
-interface CountryData {
-  name: string;
-  nativeName: string;
-  code: string;
-  flag: string;
-  flagUrl: string;
-  stationCount: number;
-}
-
 export default function ProfileScreen() {
+  useFocusEffect(useCallback(() => {
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') {
+      const notify = (visible: boolean) => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'profile', visible }, 'http://localhost:8082');
+      notify(true); return () => notify(false);
+    }
+  }, []));
   const router = useRouter();
   const { t } = useTranslation();
-  const { user, logout } = useAuthStore();
-  const { country, setCountryManual } = useLocationStore();
-  const { currentLanguage, languageVersion } = useLanguageStore();
-  const { isMiniPlayerVisible } = usePlayerStore();
-  const insets = useSafeAreaInsets();
-  
-  // Calculate bottom padding for mini-player and tab bar
-  const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 85 : 65;
-  const MINI_PLAYER_HEIGHT = 70;
-  const bottomPadding = isMiniPlayerVisible 
-    ? TAB_BAR_HEIGHT + MINI_PLAYER_HEIGHT + insets.bottom + 20
-    : TAB_BAR_HEIGHT + insets.bottom + 20;
+  const { user, isAuthenticated, logout } = useAuthStore();
+  const [profileFocused,setProfileFocused]=useState(false);
+  useFocusEffect(useCallback(()=>{setProfileFocused(true);return()=>setProfileFocused(false);},[]));
+  const messageOwner=user?._id||user?.id||'';
+  const messageQueryEnabled=profileFocused&&isAuthenticated&&!!messageOwner;
+  const unreadMessages=useQuery({queryKey:['chat-unread',messageOwner],queryFn:chatService.unread,enabled:messageQueryEnabled,staleTime:15000,refetchInterval:messageQueryEnabled?30000:false});
+  const unreadGroups=useQuery({queryKey:['chat-groups',messageOwner],queryFn:groupChatService.list,enabled:messageQueryEnabled,staleTime:15000,refetchInterval:messageQueryEnabled?30000:false});
+  const unreadMessageCount=(unreadMessages.data||0)+(unreadGroups.data||[]).reduce((sum,group)=>sum+(group.unreadCount||0),0);
 
-  const [notifications, setNotifications] = useState(false);
-  const [notificationsLoading, setNotificationsLoading] = useState(true);
-  useEffect(() => {
-    let active = true;
-    setNotifications(false);
-    setNotificationsLoading(true);
-    if (!user?._id || Platform.OS === 'web') { setNotificationsLoading(false); return; }
-    import('../../src/services/pushNotificationService').then(async ({ default: service }) => {
-      const enabled = await service.isNotificationsEnabled();
-      if (active) setNotifications(enabled);
-    }).catch(() => {}).finally(() => { if (active) setNotificationsLoading(false); });
-    return () => { active = false; };
-  }, [user?._id]);
-  const handleNotificationsToggle = async (enabled: boolean) => {
-    if (!user?._id) { router.push('/auth-options'); return; }
-    const token = useAuthStore.getState().token;
-    setNotificationsLoading(true);
-    try {
-      const service = (await import('../../src/services/pushNotificationService')).default;
-      await service.setNotificationsEnabled(enabled);
-      if (useAuthStore.getState().token === token) setNotifications(enabled);
-    } catch {
-      if (useAuthStore.getState().token === token) Alert.alert(t('error', 'Error'), t('notification_settings_failed', 'Notification preferences could not be saved. Please try again.'));
-    } finally { if (useAuthStore.getState().token === token) setNotificationsLoading(false); }
-  };
+  const { country, countryCode } = useLocationStore();
+  const { currentLanguage, languageVersion } = useLanguageStore();
+  // The tab dock already reserves the player, tab bar and bottom safe area.
+  const bottomPadding=16;
+
+  const previewParams = useLocalSearchParams<{ connections?: string; connectionsFrom?: string; previewConnections?: string; previewRemoveAds?: string; previewAccount?: string; previewAccountResult?: string; previewEditor?: string; previewDeleteAccount?: string; previewProfileShare?: string; previewLogout?: string; previewNotifications?:string; previewRateUs?:string; previewAvatarCoach?:string; previewAvatarFeedback?:string; previewAvatarLoading?:string }>();
+  const [profileNotice,setProfileNotice]=useState<{error:boolean;message:string}|null>(null);
+  const pushNotice=useCallback((error:boolean,key:string)=>setProfileNotice({error,message:t(key)}),[t]);
+  const pushPreferences=usePushPreferences(user?._id||user?.id,isAuthenticated,pushNotice,__DEV__&&Platform.OS==='web'&&process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY==='1'&&previewParams.previewNotifications==='1');
   const [privateProfile, setPrivateProfile] = useState(false);
   const [privateProfileLoading, setPrivateProfileLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState<'main' | 'account' | 'country'>('main');
+  const [currentPage, setCurrentPage] = useState<'main' | 'account' | 'followers' | 'following'>('main');
 
-  // Account modals
-  const [showNameModal, setShowNameModal] = useState(false);
-  const [showEmailModal, setShowEmailModal] = useState(false);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showVerificationPopup, setShowVerificationPopup] = useState(false);
-  const [showPasswordChanged, setShowPasswordChanged] = useState(false);
+  const [showRateUs, setShowRateUs] = useState(false);
 
-  const [nameValue, setNameValue] = useState(user?.name || 'Guest');
-  const [emailValue, setEmailValue] = useState(user?.email || '');
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [showCurrentPw, setShowCurrentPw] = useState(false);
-  const [showNewPw, setShowNewPw] = useState(false);
-  const [showConfirmPw, setShowConfirmPw] = useState(false);
-
-  // Country picker
-  const [countries, setCountries] = useState<CountryData[]>([]);
-  const [countriesLoading, setCountriesLoading] = useState(false);
-  const [countrySearch, setCountrySearch] = useState('');
-  
   // Logout modal
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Delete Account
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  useAnalyticsOverlay('delete-account',showDeleteModal);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Premium
   const [showPremiumPaywall, setShowPremiumPaywall] = useState(false);
-  const [showRemoveAdsPaywall, setShowRemoveAdsPaywall] = useState(false);
-  const { isPremium, isRemoveAds, plan } = usePremiumStore();
-  useFocusEffect(useCallback(() => {
-    if (user?._id) {
-      void import('../../src/services/iapService').then(({ iapService }) => iapService.syncSubscriptionFromBackend()).catch(() => {});
+
+  const connectionPreviewEnabled = __DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1' && previewParams.previewConnections === '1';
+  const [previewConnections, setPreviewConnections] = useState<{ ownerId: string; lists: Record<'followers' | 'following', ConnectionUser[]> } | null>(null);
+  const connectionOwner = user?._id || user?.id;
+  useEffect(() => {
+    setPreviewConnections(connectionPreviewEnabled && connectionOwner ? { ownerId: connectionOwner, lists: require('../../src/fixtures/connections').createConnectionPreview() } : null);
+  }, [connectionPreviewEnabled, connectionOwner]);
+  const previewLists = previewConnections?.ownerId === connectionOwner ? previewConnections?.lists : undefined;
+  useEffect(() => {
+    if (previewParams.connections === 'followers' || previewParams.connections === 'following') setCurrentPage(previewParams.connections);
+  }, [previewParams.connections]);
+  const closeConnections = useCallback(() => {
+    setCurrentPage('main');
+    router.setParams({ connections: undefined, connectionsFrom: undefined });
+    if (previewParams.connectionsFrom === 'statistics') {
+      router.replace('/statistics');
     }
-  }, [user?._id]));
-  const manageSubscription = async () => {
-    try {
-      const { iapService } = await import('../../src/services/iapService');
-      await iapService.manageSubscriptions();
-    } catch (error: any) { Alert.alert(t('error', 'Error'), error.message); }
+  }, [router, previewParams.connectionsFrom]);
+  useEffect(() => { if (__DEV__ && Platform.OS === 'web' && previewParams.previewAccount === '1') setCurrentPage('account'); }, [previewParams.previewAccount]);
+  useEffect(() => { if (__DEV__ && Platform.OS === 'web' && previewParams.previewDeleteAccount === '1') setShowDeleteModal(true); }, [previewParams.previewDeleteAccount]);
+  useEffect(() => { if (__DEV__ && Platform.OS === 'web' && previewParams.previewLogout === '1') setShowLogoutModal(true); }, [previewParams.previewLogout]);
+  useEffect(() => { if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY==='1' && previewParams.previewRateUs==='1') setShowRateUs(true); },[previewParams.previewRateUs]);
+  useEffect(() => {
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') {
+      window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'deleteModal', visible: showDeleteModal }, 'http://localhost:8082');
+      return () => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'deleteModal', visible: false }, 'http://localhost:8082');
+    }
+  }, [showDeleteModal]);
+  const closeDeleteModal = () => {
+    if (deleteLoading) return;
+    Keyboard.dismiss(); setShowDeleteModal(false); setDeleteConfirmText('');
   };
-  const songHistoryEntries = useSongHistoryStore((s) => s.entries);
+  const [showRemoveAdsPaywall, setShowRemoveAdsPaywall] = useState(__DEV__ && Platform.OS === 'web' && previewParams.previewRemoveAds === '1');
+  const { isPremium, isRemoveAds, plan, loadPremiumStatus } = usePremiumStore();
   
   // Avatar upload
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [localAvatar, setLocalAvatar] = useState<string | null>(null);
-  const [sharingProfile, setSharingProfile] = useState(false);
-  const shareProfile = async () => {
-    if (!user || sharingProfile) return;
-    const owner = user._id || user.id;
-    setSharingProfile(true);
-    try {
-      const { title, message } = await profileShareContent(user);
-      const current = useAuthStore.getState().user;
-      if ((current?._id || current?.id) !== owner) return;
-      await Share.share({ title, message });
-    } catch (error) {
-      Alert.alert(t('share', 'Share'), error instanceof Error ? error.message : 'Profil paylaşılamadı.');
-    } finally { setSharingProfile(false); }
-  };
+  const avatarRef=useRef<View>(null),profileRootRef=useRef<View>(null),avatarPickOwner=useRef<string|null>(null),pickAfterDismiss=useRef(false);
+  const [avatarMenu,setAvatarMenu]=useState(false),[avatarMenuAnchor,setAvatarMenuAnchor]=useState<ContextMenuAnchor|null>(null),[avatarCoachAnchor,setAvatarCoachAnchor]=useState<ContextMenuAnchor|null>(null);
+  const coachWindow=useWindowDimensions();
+  const avatarCoach=useProfilePhotoCoach(messageOwner,profileFocused&&currentPage==='main'&&!!user&&!avatarUploading&&!avatarMenu&&!profileNotice,__DEV__&&Platform.OS==='web'&&previewParams.previewAvatarCoach==='1');
+  const measureAvatar=useCallback(()=>{avatarRef.current?.measureInWindow((x,y,width,height)=>{if(width>0&&height>0)setAvatarCoachAnchor({x,y,width,height});});},[]);
+  useEffect(()=>{if(avatarCoach.shown){const frame=requestAnimationFrame(measureAvatar);return()=>cancelAnimationFrame(frame);}},[avatarCoach.shown,coachWindow.width,coachWindow.height,measureAvatar]);
+
+  const [showProfileShare, setShowProfileShare] = useState(false);
+  const shareProfile = () => { if (user) setShowProfileShare(true); };
+  useEffect(() => { if (__DEV__ && Platform.OS === 'web' && previewParams.previewProfileShare === '1') setShowProfileShare(true); }, [previewParams.previewProfileShare]);
 
   // App info from API
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null);
 
   // Play at login setting
-  const [playAtLoginSetting, setPlayAtLoginSetting] = useState<string>('last_played');
+  const [playAtLoginSetting, setPlayAtLoginSetting] = useState<string>(DEFAULT_PLAY_AT_LOGIN);
 
-  const userName = user?.name || user?.fullName || nameValue || 'Guest';
+  const userName = user?.name || user?.fullName || 'Guest';
   const userEmail = user?.email || 'guest@megaradio.com';
   
   // Debug log for avatar issue
-  console.log('[Profile] User object:', JSON.stringify(user, null, 2));
-  console.log('[Profile] Avatar fields - profilePhoto:', user?.profilePhoto, 'avatar:', user?.avatar);
   
   // Build full avatar URL if relative, with proper empty string check
   const rawAvatar = user?.profilePhoto || user?.avatar;
@@ -207,16 +210,14 @@ export default function ProfileScreen() {
       ? rawAvatar 
       : `https://themegaradio.com${rawAvatar}`;
   }
-  console.log('[Profile] Final userAvatar:', userAvatar);
   
   // Use real followers/following count from user data
   // Login response may not include these - fetch from API
   const [followersCount, setFollowersCount] = useState(user?.followersCount || 0);
   const [followsCount, setFollowsCount] = useState(user?.followingCount || 0);
   useEffect(() => {
-    setNameValue(user?.name || user?.fullName || 'Guest');
-    setEmailValue(user?.email || '');
-    setLocalAvatar(null);
+    setLocalAvatar(null);setAvatarMenu(false);setProfileNotice(null);setAvatarUploading(false);avatarPickOwner.current=null;pickAfterDismiss.current=false;
+    setPrivateProfileLoading(false);
     setPrivateProfile(user?.isPublicProfile === false);
     setFollowersCount(user?.followersCount || 0);
     setFollowsCount(user?.followingCount || 0);
@@ -242,17 +243,6 @@ export default function ProfileScreen() {
     return () => { active = false; };
   }, [user?._id, user?.id]);
 
-  // Fetch countries from API with rich format (includes flags)
-  useEffect(() => {
-    if (currentPage === 'country' && countries.length === 0) {
-      setCountriesLoading(true);
-      api.get(`${API_ENDPOINTS.countries}?format=rich`)
-        .then(res => setCountries(res.data || []))
-        .catch(() => {})
-        .finally(() => setCountriesLoading(false));
-    }
-  }, [currentPage]);
-
   // Sync private profile status from user data
   useEffect(() => {
     if (user) {
@@ -269,57 +259,47 @@ export default function ProfileScreen() {
     });
   }, []);
 
-  // Load play at login setting
-  useEffect(() => {
-    const loadPlayAtLogin = async () => {
-      try {
-        const stored = await AsyncStorage.getItem('play_at_login_setting');
-        if (stored) {
-          setPlayAtLoginSetting(stored);
-        }
-      } catch (e) {
-        console.log('Failed to load play at login setting:', e);
-      }
+  // Keep the summary current on return and across open web previews.
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    const refreshSetting = () => {
+      void AsyncStorage.getItem(PLAY_AT_LOGIN_KEY).then(value => {
+        if (active) setPlayAtLoginSetting(normalizePlayAtLogin(value));
+      }).catch(() => {});
     };
-    loadPlayAtLogin();
-  }, []);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === PLAY_AT_LOGIN_KEY || event.key === null) refreshSetting();
+    };
+    refreshSetting();
+    if (Platform.OS === 'web') window.addEventListener('storage', onStorage);
+    return () => {
+      active = false;
+      if (Platform.OS === 'web') window.removeEventListener('storage', onStorage);
+    };
+  }, []));
 
-  // Handle private profile toggle
+  // A success notice reflects the server result, never only the optimistic switch.
   const handlePrivateProfileToggle = async (value: boolean) => {
-    if (!user) return;
-    
+    if(!user||privateProfileLoading)return;
+    const owner=user._id||user.id;
+    const isCurrentOwner=()=>{const current=useAuthStore.getState().user;return (current?._id||current?.id)===owner;};
     setPrivateProfileLoading(true);
-    const previousValue = privateProfile;
-    
-    // Optimistic update
-    setPrivateProfile(value);
-    
-    try {
-      // API expects isPublicProfile (inverse of privateProfile)
-      await api.put('/api/auth/profile', {
-        isPublicProfile: !value
-      });
-      
-      // Update user in auth store
-      const { updateUser } = useAuthStore.getState();
-      if (updateUser) {
-        updateUser({ ...user, isPublicProfile: !value });
+    const previousValue=privateProfile;
+    setPrivateProfile(value);setProfileNotice(null);
+    try{
+      await api.put('/api/auth/profile',{isPublicProfile:!value});
+      if(!isCurrentOwner())return;
+      const {user:current,updateUser}=useAuthStore.getState();
+      if(current&&updateUser)updateUser({...current,isPublicProfile:!value});
+      setProfileNotice({error:false,message:t(value?'profile_now_private':'profile_now_public_short')});
+    }catch(error){
+      console.error('Failed to update profile privacy:',error);
+      if(isCurrentOwner()){
+        setPrivateProfile(previousValue);
+        setProfileNotice({error:true,message:t('profile_privacy_update_failed')});
       }
-    } catch (error) {
-      console.error('Failed to update profile privacy:', error);
-      // Revert on error
-      setPrivateProfile(previousValue);
-    } finally {
-      setPrivateProfileLoading(false);
-    }
+    }finally{if(isCurrentOwner())setPrivateProfileLoading(false);}
   };
-
-  const filteredCountries = countrySearch
-    ? countries.filter(c => 
-        c.name.toLowerCase().includes(countrySearch.toLowerCase()) ||
-        c.nativeName.toLowerCase().includes(countrySearch.toLowerCase())
-      )
-    : countries;
 
   const handleLogout = async () => {
     setShowLogoutModal(false);
@@ -339,7 +319,7 @@ export default function ProfileScreen() {
       setShowDeleteModal(false);
       setDeleteConfirmText('');
       await logout();
-      router.replace('/(tabs)/discover');
+      router.replace('/(tabs)');
     } catch (error: any) {
       const msg = error?.response?.data?.message || t('delete_account_error', 'Could not delete account. Please try again.');
       Alert.alert(t('error', 'Error'), msg);
@@ -348,282 +328,69 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleEmailSend = () => {
-    setShowEmailModal(false);
-    setShowVerificationPopup(true);
-    setTimeout(() => setShowVerificationPopup(false), 3000);
-  };
-
-  const handlePasswordDone = () => {
-    if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
-      return;
+  const dismissProfileNotice=useCallback(()=>setProfileNotice(null),[]);
+  useEffect(()=>{
+    if(__DEV__&&Platform.OS==='web'&&process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY==='1'&&previewParams.previewAvatarFeedback){
+      const kind=previewParams.previewAvatarFeedback;
+      const error=kind==='error'||kind==='privacy-error';
+      const key=kind==='push-off'?'push_now_disabled_short':kind==='private'?'profile_now_private':kind==='public'?'profile_now_public_short':kind==='privacy-error'?'profile_privacy_update_failed':error?'avatar_upload_failed':'avatar_updated';
+      setProfileNotice({error,message:t(key)});
     }
-    setShowPasswordModal(false);
-    setShowPasswordChanged(true);
-    setTimeout(() => setShowPasswordChanged(false), 3000);
-    setCurrentPassword(''); setNewPassword(''); setConfirmPassword('');
-  };
+  },[previewParams.previewAvatarFeedback,t]);
+  const avatarFeedback=(error:boolean,message:string)=>{
+    setProfileNotice({error,message});
 
-  const handleCountrySelect = (countryData: CountryData) => {
-    setCountryManual(countryData.name);
-    setCurrentPage('main');
   };
-
-  // Avatar upload handler
-  const handleAvatarUpload = async () => {
-    // If user has an avatar, show options (change/delete)
-    if (hasValidAvatar || localAvatar) {
-      Alert.alert(
-        t('avatar', 'Profile Photo'),
-        t('avatar_options', 'What would you like to do?'),
-        [
-          { text: t('change_photo', 'Change Photo'), onPress: pickAndUploadAvatar },
-          { text: t('remove_photo', 'Remove Photo'), style: 'destructive', onPress: handleAvatarDelete },
-          { text: t('cancel', 'Cancel'), style: 'cancel' },
-        ]
-      );
-    } else {
-      await pickAndUploadAvatar();
-    }
+  const handleAvatarUpload=()=>{
+    if(avatarUploading||avatarPickOwner.current)return;avatarCoach.dismiss();setProfileNotice(null);
+    if(hasValidAvatar||localAvatar){avatarRef.current?.measureInWindow((x,y,width,height)=>{if(width&&height){setAvatarMenuAnchor({x,y,width,height});setAvatarMenu(true);}});}
+    else void pickAndUploadAvatar();
   };
-
-  // Pick image and upload
-  const pickAndUploadAvatar = async () => {
-    try {
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (!permissionResult.granted) {
-        Alert.alert(t('permission_required', 'Permission Required'), t('photo_library_permission', 'Please allow access to your photo library to upload an avatar.'));
-        return;
+  const pickAndUploadAvatar=async()=>{
+    const owner=user?._id||user?.id;if(!owner||avatarPickOwner.current)return;
+    avatarPickOwner.current=owner;setProfileNotice(null);
+    const currentOwner=()=>{const current=useAuthStore.getState().user;return (current?._id||current?.id)===owner;};
+    try{
+      // Web file inputs must open in the user's click, without a native permission round trip.
+      if(Platform.OS!=='web'){
+        const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if(!permission.granted){if(currentOwner())avatarFeedback(true,t('photo_library_permission'));return;}
       }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (result.canceled || !result.assets?.[0]) return;
-
-      const asset = result.assets[0];
-      setAvatarUploading(true);
-      setLocalAvatar(asset.uri);
-
-      const formData = new FormData();
-      const fileName = asset.uri.split('/').pop() || 'avatar.jpg';
-      const match = /\.(\w+)$/.exec(fileName);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
-      
-      formData.append('avatar', {
-        uri: asset.uri,
-        name: fileName,
-        type,
-      } as any);
-
-      const response = await userService.uploadAvatar(formData);
-
-      if (response?.avatar || response?.success) {
-        const newAvatarUrl = response.avatar;
-        const { updateUser } = useAuthStore.getState();
-        if (updateUser && user) {
-          updateUser({ ...user, avatar: newAvatarUrl, profilePhoto: newAvatarUrl });
-        }
-        Alert.alert(t('success', 'Success'), t('avatar_updated', 'Avatar updated successfully!'));
-      }
-    } catch (error: any) {
-      console.error('Avatar upload error:', error);
-      setLocalAvatar(null);
-      const msg = error.response?.data?.error || error.response?.data?.message || t('avatar_upload_failed', 'Failed to upload avatar. Please try again.');
-      Alert.alert(t('error', 'Error'), msg);
-    } finally {
-      setAvatarUploading(false);
-    }
+      const result=await ImagePicker.launchImageLibraryAsync({mediaTypes:['images'],allowsEditing:true,aspect:[1,1],quality:.8});
+      if(result.canceled||!result.assets?.[0]||!currentOwner())return;
+      const asset=result.assets[0],file=profilePhotoFile(asset);
+      setAvatarUploading(true);setLocalAvatar(asset.uri);
+      const formData=new FormData();
+      if(Platform.OS==='web')formData.append('avatar',asset.file||await (await fetch(asset.uri)).blob(),file.name);
+      else formData.append('avatar',{uri:asset.uri,name:file.name,type:file.type} as any);
+      if(!currentOwner())return;
+      const response=await userService.uploadAvatar(formData);
+      if(response?.success!==true||typeof response.avatar!=='string'||!response.avatar)throw Error('avatar_upload_failed');
+      const current=useAuthStore.getState().user;
+      if(currentOwner()&&current){await useAuthStore.getState().updateUser({...current,avatar:response.avatar,profilePhoto:response.avatar});setLocalAvatar(null);avatarFeedback(false,t('avatar_updated'));}
+    }catch(error:any){
+      if(currentOwner()){setLocalAvatar(null);const key=['avatar_file_size','avatar_file_type'].includes(error?.message)?error.message:'avatar_upload_failed';avatarFeedback(true,t(key));}
+    }finally{if(avatarPickOwner.current===owner){avatarPickOwner.current=null;if(currentOwner())setAvatarUploading(false);}}
+  };
+  const changeAvatar=()=>{
+    setAvatarMenu(false);
+    if(Platform.OS==='ios')pickAfterDismiss.current=true;
+    else void pickAndUploadAvatar();
+  };
+  const handleAvatarDelete=async()=>{
+    const owner=user?._id||user?.id;if(!owner||avatarUploading||avatarPickOwner.current)return;
+    avatarPickOwner.current=owner;setAvatarUploading(true);
+    try{
+      const response=await userService.deleteAvatar();if(response?.success!==true)throw Error('Delete failed');
+      const current=useAuthStore.getState().user;
+      if(current&&(current._id||current.id)===owner){await useAuthStore.getState().updateUser({...current,avatar:null,profilePhoto:null});setLocalAvatar(null);setAvatarMenu(false);avatarFeedback(false,t('avatar_removed'));}
+    }catch{const current=useAuthStore.getState().user;if((current?._id||current?.id)===owner){setAvatarMenu(false);avatarFeedback(true,t('avatar_delete_failed'));}}
+    finally{if(avatarPickOwner.current===owner){avatarPickOwner.current=null;setAvatarUploading(false);}}
   };
 
-  // Avatar delete handler
-  const handleAvatarDelete = async () => {
-    try {
-      setAvatarUploading(true);
-      await userService.deleteAvatar();
-      
-      setLocalAvatar(null);
-      const { updateUser } = useAuthStore.getState();
-      if (updateUser && user) {
-        updateUser({ ...user, avatar: null, profilePhoto: null });
-      }
-      Alert.alert(t('success', 'Success'), t('avatar_removed', 'Avatar removed.'));
-    } catch (error: any) {
-      console.error('Avatar delete error:', error);
-      Alert.alert(t('error', 'Error'), t('avatar_delete_failed', 'Failed to remove avatar.'));
-    } finally {
-      setAvatarUploading(false);
-    }
-  };
+  if (currentPage === 'followers' || currentPage === 'following') return <ConnectionsScreen key={`${connectionOwner}:${currentPage}`} kind={currentPage} onBack={closeConnections} previewRows={connectionPreviewEnabled ? previewLists?.[currentPage] || [] : undefined} onPreviewRemove={id => setPreviewConnections(previous => previous && ({ ...previous, lists: { ...previous.lists, [currentPage]: previous.lists[currentPage].filter(item => item._id !== id) } }))} onCountChange={currentPage === 'followers' ? setFollowersCount : setFollowsCount} />;
 
-  // ── COUNTRY PICKER ──
-  if (currentPage === 'country') {
-    return (
-      <SafeAreaView style={s.container} edges={['top']}>
-        <View style={s.subHeader}>
-          <TouchableOpacity onPress={() => setCurrentPage('main')}>
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={s.subTitle}>{t('country', 'Country')}</Text>
-          <View style={{ width: 24 }} />
-        </View>
-
-        {/* Search */}
-        <View style={s.searchBar}>
-          <TextInput
-            style={s.searchInput}
-            placeholder={t('search_country', 'Search Country')}
-            placeholderTextColor="#999"
-            value={countrySearch}
-            onChangeText={setCountrySearch}
-          />
-          <Ionicons name="search" size={20} color="#999" />
-        </View>
-
-        {countriesLoading ? (
-          <ActivityIndicator size="large" color="#FF4199" style={{ marginTop: 40 }} />
-        ) : (
-          <FlatList
-            data={filteredCountries}
-            keyExtractor={(item) => item.code}
-            renderItem={({ item }) => {
-              const isSelected = item.name === country || item.nativeName === country;
-              return (
-                <TouchableOpacity
-                  style={[s.countryRow, isSelected && s.countryRowActive]}
-                  onPress={() => handleCountrySelect(item)}
-                >
-                  {item.flagUrl ? (
-                    <Image
-                      source={{ uri: item.flagUrl }}
-                      style={s.flagImage}
-                      contentFit="cover"
-                    />
-                  ) : (
-                    <Text style={s.flagEmoji}>{item.flag}</Text>
-                  )}
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.countryName}>{item.name}</Text>
-                    {item.nativeName !== item.name && (
-                      <Text style={s.countryNative}>{item.nativeName}</Text>
-                    )}
-                  </View>
-                  <Text style={s.stationCount}>{item.stationCount}</Text>
-                  <View style={[s.radioCircle, isSelected && s.radioCircleActive]}>
-                    {isSelected && <View style={s.radioCircleFill} />}
-                  </View>
-                </TouchableOpacity>
-              );
-            }}
-          />
-        )}
-      </SafeAreaView>
-    );
-  }
-
-  // ── ACCOUNT SCREEN ──
-  if (currentPage === 'account') {
-    return (
-      <SafeAreaView style={s.container} edges={['top']}>
-        <View style={s.subHeader}>
-          <TouchableOpacity onPress={() => setCurrentPage('main')}>
-            <Ionicons name="chevron-back" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <Text style={s.subTitle}>{t('account', 'Account')}</Text>
-          <View style={{ width: 24 }} />
-        </View>
-        <View style={{ paddingTop: 8 }}>
-          <TouchableOpacity style={s.accountRow} onPress={() => setShowNameModal(true)}>
-            <View><Text style={s.aLabel}>{t('name', 'Name')}</Text><Text style={s.aValue}>{nameValue}</Text></View>
-            <Ionicons name="chevron-forward" size={20} color="#666" />
-          </TouchableOpacity>
-          <View style={s.divider} />
-          <TouchableOpacity style={s.accountRow} onPress={() => setShowEmailModal(true)}>
-            <View><Text style={s.aLabel}>{t('email', 'Email')}</Text><Text style={s.aValue}>{userEmail}</Text></View>
-            <Ionicons name="chevron-forward" size={20} color="#666" />
-          </TouchableOpacity>
-          <View style={s.divider} />
-          <TouchableOpacity style={s.accountRow} onPress={() => setShowPasswordModal(true)}>
-            <Text style={s.aLabel}>{t('password', 'Password')}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#666" />
-          </TouchableOpacity>
-        </View>
-
-        {/* Name Modal */}
-        <Modal visible={showNameModal} transparent animationType="fade">
-          <View style={s.mOverlay}><View style={s.mBox}>
-            <Text style={s.mTitle}>{t('change_name', 'Change your name')}</Text>
-            <View style={s.mInputRow}>
-              <TextInput style={s.mInput} value={nameValue} onChangeText={setNameValue} placeholder={t('name', 'Name')} placeholderTextColor="#666" autoFocus />
-              {nameValue.length > 0 && <TouchableOpacity onPress={() => setNameValue('')}><Ionicons name="close-circle" size={20} color="#999" /></TouchableOpacity>}
-            </View>
-            <View style={s.mActions}>
-              <TouchableOpacity onPress={() => setShowNameModal(false)}><Text style={s.mCancel}>{t('cancel', 'Cancel')}</Text></TouchableOpacity>
-              <TouchableOpacity style={s.mPinkBtn} onPress={() => setShowNameModal(false)}><Text style={s.mPinkText}>{t('done', 'Done')}</Text></TouchableOpacity>
-            </View>
-          </View></View>
-        </Modal>
-
-        {/* Email Modal */}
-        <Modal visible={showEmailModal} transparent animationType="fade">
-          <View style={s.mOverlay}><View style={s.mBox}>
-            <Text style={s.mTitle}>{t('change_email', 'Change your email')}</Text>
-            <View style={s.mInputRow}>
-              <TextInput style={s.mInput} value={emailValue} onChangeText={setEmailValue} placeholder={t('email', 'Email')} placeholderTextColor="#666" keyboardType="email-address" autoFocus />
-            </View>
-            <View style={s.mActions}>
-              <TouchableOpacity onPress={() => setShowEmailModal(false)}><Text style={s.mCancel}>{t('cancel', 'Cancel')}</Text></TouchableOpacity>
-              <TouchableOpacity style={s.mPinkBtn} onPress={handleEmailSend}><Text style={s.mPinkText}>{t('save', 'Save')}</Text></TouchableOpacity>
-            </View>
-          </View></View>
-        </Modal>
-
-        {/* Verification Popup */}
-        <Modal visible={showVerificationPopup} transparent animationType="fade">
-          <View style={s.mOverlay}><View style={s.mBox}>
-            <View style={s.checkCircle}><Ionicons name="checkmark" size={32} color="#FF4199" /></View>
-            <Text style={s.mTitle}>{t('verification_sent', 'We sent you a verification mail!')}</Text>
-            <Text style={s.mSub}>{t('check_mail', 'Please check your mail')}</Text>
-          </View></View>
-        </Modal>
-
-        {/* Password Modal */}
-        <Modal visible={showPasswordModal} transparent animationType="fade">
-          <View style={s.mOverlay}><View style={s.mBox}>
-            <Text style={s.mTitle}>{t('change_password', 'Change your password')}</Text>
-            {[
-              { val: currentPassword, set: setCurrentPassword, show: showCurrentPw, toggle: () => setShowCurrentPw(!showCurrentPw), ph: t('current_password', 'Current password') },
-              { val: newPassword, set: setNewPassword, show: showNewPw, toggle: () => setShowNewPw(!showNewPw), ph: t('new_password', 'New password') },
-              { val: confirmPassword, set: setConfirmPassword, show: showConfirmPw, toggle: () => setShowConfirmPw(!showConfirmPw), ph: t('confirm_password', 'Confirm new password') },
-            ].map((f, i) => (
-              <View key={i} style={s.pwRow}>
-                <TextInput style={s.pwInput} value={f.val} onChangeText={f.set} placeholder={f.ph} placeholderTextColor="#666" secureTextEntry={!f.show} />
-                <TouchableOpacity onPress={f.toggle}><Ionicons name={f.show ? 'eye' : 'eye-off'} size={20} color="#999" /></TouchableOpacity>
-              </View>
-            ))}
-            <View style={s.mActions}>
-              <TouchableOpacity onPress={() => setShowPasswordModal(false)}><Text style={s.mCancel}>{t('cancel', 'Cancel')}</Text></TouchableOpacity>
-              <TouchableOpacity style={s.mPinkBtn} onPress={handlePasswordDone}><Text style={s.mPinkText}>{t('done', 'Done')}</Text></TouchableOpacity>
-            </View>
-          </View></View>
-        </Modal>
-
-        {/* Password Changed */}
-        <Modal visible={showPasswordChanged} transparent animationType="fade">
-          <View style={s.mOverlay}><View style={s.mBox}>
-            <View style={s.checkCircle}><Ionicons name="checkmark" size={32} color="#FF4199" /></View>
-            <Text style={s.mTitle}>{t('password_changed', 'Your password was changed!')}</Text>
-          </View></View>
-        </Modal>
-      </SafeAreaView>
-    );
-  }
+  if (currentPage === 'account') return <AccountSettingsScreen previewResult={__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1' && ['error','password'].includes(previewParams.previewAccountResult || '') ? previewParams.previewAccountResult as 'error' | 'password' : undefined} onBack={() => setCurrentPage('main')} initialEditor={__DEV__ && Platform.OS === 'web' && ['name', 'email', 'password'].includes(previewParams.previewEditor || '') ? previewParams.previewEditor as 'name' | 'email' | 'password' : null} />;
 
   // ── MAIN PROFILE ──
   // If not authenticated, show Guest User Settings
@@ -672,7 +439,7 @@ export default function ProfileScreen() {
             <View style={s.divider} />
             
             {/* Remove Ads */}
-            {!isPremium && !isRemoveAds && (
+            {!isRemoveAds && (
               <>
                 <TouchableOpacity
                   style={s.row}
@@ -683,9 +450,7 @@ export default function ProfileScreen() {
                     <Ionicons name="ban-outline" size={20} color="#FF4199" />
                     <Text style={s.rowTitle}>{t('remove_ads', 'Remove Ads')}</Text>
                   </View>
-                  <Text style={{ fontSize: 13, color: '#888', fontFamily: 'Ubuntu-Regular', marginRight: 8 }}>
-                    {t('see_store_prices', 'View local prices')}
-                  </Text>
+                  <Text testID="profile-remove-ads-price" style={{fontSize:13,color:'#B9B9C1',fontFamily:'Ubuntu-Regular',marginRight:8}}>{t('from_price','€5.99/yr')}</Text>
                   <Ionicons name="chevron-forward" size={20} color="#666" />
                 </TouchableOpacity>
                 <View style={s.divider} />
@@ -698,7 +463,6 @@ export default function ProfileScreen() {
           {/* Settings Section */}
           <View style={s.section}>
             <Text style={s.sectionLabel}>{t('settings', 'Settings')}</Text>
-            <AdPrivacyOptions />
 
             {/* Account - Redirects to Login */}
             <TouchableOpacity 
@@ -728,7 +492,7 @@ export default function ProfileScreen() {
             {/* Country Picker */}
             <TouchableOpacity 
               style={s.row} 
-              onPress={() => setCurrentPage('country')}
+              onPress={() => router.push('/station-country')}
               data-testid="guest-country-btn"
             >
               <Ionicons name="location-outline" size={22} color="#FFF" style={s.rowIcon} />
@@ -760,13 +524,13 @@ export default function ProfileScreen() {
 
             <TouchableOpacity
               style={s.row}
-              onPress={() => { void rateUsService.openStoreReview(); }}
+              onPress={() => setShowRateUs(true)}
               data-testid="profile-rate-us-btn"
             >
               <Ionicons name="star-outline" size={22} color="#FFF" style={s.rowIcon} />
               <View style={{ flex: 1 }}>
                 <Text style={s.rowText}>{t('rate_us', 'Rate Us')}</Text>
-                <Text style={s.rowSubtext}>{t('rate_us_invite', 'Share your experience')}</Text>
+                <Text style={s.rowSubtext}>{t('rate_us_sub', { defaultValue: 'Loved by {{count}}+ users', count: Number(getLovedByCount().replace(/,/g, '')) })}</Text>
               </View>
               <Ionicons name="chevron-forward" size={20} color="#666" />
             </TouchableOpacity>
@@ -804,7 +568,6 @@ export default function ProfileScreen() {
         
         {/* Premium Paywall (guest) */}
         <PremiumPaywall
-          source="profile"
           visible={showPremiumPaywall}
           onClose={() => setShowPremiumPaywall(false)}
           mode="premium"
@@ -812,136 +575,174 @@ export default function ProfileScreen() {
         
         {/* Remove Ads Paywall (guest) */}
         <PremiumPaywall
-          source="profile"
           visible={showRemoveAdsPaywall}
           onClose={() => setShowRemoveAdsPaywall(false)}
           mode="remove_ads"
+        />
+
+        {/* Rate Us Modal (guest) */}
+        <RateUsModal
+          visible={showRateUs}
+          onClose={() => {
+            setShowRateUs(false);
+            if(!(__DEV__&&Platform.OS==='web'&&previewParams.previewRateUs==='1'))rateUsService.markDismissed().catch(() => {});
+          }}
+          onRated={() => {
+            rateUsService.markRated().catch(() => {});
+          }}
         />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={s.container} edges={['top']}>
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: bottomPadding }}
-      >
+    <SafeAreaView ref={profileRootRef} onLayout={measureAvatar} style={p.container} edges={['top']}>
         {/* Header */}
-        <View style={s.header}>
-          <View style={s.avatarRow}>
-            <TouchableOpacity 
-              style={s.avatar}
+        <View style={p.header}>
+          <View style={p.avatarRow}>
+            <TouchableOpacity
+              ref={avatarRef} onLayout={measureAvatar} hitSlop={6}
+              style={p.avatar}
+              accessibilityRole="button" accessibilityLabel={t('avatar', 'Profile Photo')}
               onPress={handleAvatarUpload}
               disabled={avatarUploading}
-              data-testid="profile-avatar-btn"
+              testID="profile-avatar-btn"
             >
-              {avatarUploading ? (
-                <ActivityIndicator size="small" color="#FF4199" />
-              ) : localAvatar ? (
-                <Image 
-                  source={{ uri: localAvatar }} 
-                  style={s.avatarImage}
+              {localAvatar ? (
+                <Image
+                  source={{ uri: localAvatar }}
+                  style={p.avatarImage}
                   onError={() => console.log('[Profile Avatar] Local preview failed to load')}
                 />
               ) : (
-                <AvatarWithFallback 
-                  uri={rawAvatar} 
-                  size={56} 
+                <AvatarWithFallback
+                  uri={rawAvatar}
+                  size={40}
                 />
               )}
+              {(avatarUploading||(__DEV__&&Platform.OS==='web'&&process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY==='1'&&previewParams.previewAvatarLoading==='1'))&&<View testID="profile-avatar-loading" pointerEvents="none" style={p.avatarLoading}><ActivityIndicator size={20} color="#FFFFFF" style={{width:20,height:20}}/></View>}
               {/* Camera badge */}
-              <View style={s.cameraBadge}>
-                <Ionicons name="camera" size={12} color="#FFF" />
+              <View style={p.cameraBadge}>
+                <Image source={require('../../assets/images/profile/edit.svg')} style={{ width: 14, height: 14 }} contentFit="contain" />
               </View>
             </TouchableOpacity>
-            <View style={{ flex: 1 }}>
-              <Text style={s.userName}>{userName}</Text>
-              <View style={s.statsRow}>
-                <TouchableOpacity 
-                  style={s.statTouchable}
-                  onPress={() => router.push('/followers')} 
-                  data-testid="profile-followers-btn"
+            <View style={p.identity}>
+              <Text style={p.userName} numberOfLines={1}>{userName}</Text>
+              <View style={p.statsRow}>
+                <TouchableOpacity
+                  style={p.statTouchable} hitSlop={{ top: 15, bottom: 15, left: 0, right: 0 }}
+                  accessibilityRole="button" accessibilityLabel={t('followers', 'Followers')} onPress={() => setCurrentPage('followers')}
+                  testID="profile-followers-btn"
                 >
-                  <Text style={s.statNumber}>{followersCount}</Text>
-                  <Text style={s.statLabel}>{t('followers', 'Followers')}</Text>
+                  <View style={p.statPair}><Text style={p.statLabel}>{t('followers', 'Followers')}</Text><Text style={p.statNumber}>{previewLists ? previewLists.followers.length : followersCount}</Text></View>
                 </TouchableOpacity>
-                <View style={s.statDivider} />
-                <TouchableOpacity 
-                  style={s.statTouchable}
-                  onPress={() => router.push('/follows')} 
-                  data-testid="profile-follows-btn"
+                <View style={p.statDivider} />
+                <TouchableOpacity
+                  style={p.statTouchable} hitSlop={{ top: 15, bottom: 15, left: 0, right: 0 }}
+                  accessibilityRole="button" accessibilityLabel={t('follows', 'Follows')} onPress={() => setCurrentPage('following')}
+                  testID="profile-follows-btn"
                 >
-                  <Text style={s.statNumber}>{followsCount}</Text>
-                  <Text style={s.statLabel}>{t('follows', 'Follows')}</Text>
+                  <View style={p.statPair}><Text style={p.statLabel}>{t('follows', 'Follows')}</Text><Text style={p.statNumber}>{previewLists ? previewLists.following.length : followsCount}</Text></View>
                 </TouchableOpacity>
               </View>
             </View>
-            <TouchableOpacity testID="profile-share-button" onPress={shareProfile} disabled={sharingProfile}
-              accessibilityLabel={t('share_profile', 'Share profile')} style={s.shareButton}>
-              {sharingProfile ? <ActivityIndicator testID="profile-share-loading" color="#FFF" /> : <Ionicons name="share-outline" size={22} color="#FFF" />}
+            <TouchableOpacity testID="profile-share-button" accessibilityRole="button" onPress={shareProfile}
+              accessibilityLabel={t('share_profile', 'Share profile')} style={p.shareButton}>
+              <Image source={require('../../assets/images/player/share.svg')} style={{ width: 24, height: 24 }} contentFit="contain" accessible={false} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Premium Section - EN ÜSTTE */}
-        <View style={s.section}>
-          <Text style={s.sectionLabel}>{t('premium', 'Premium')}</Text>
-          
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        testID="profile-scroll-content"
+        contentContainerStyle={{ paddingBottom: bottomPadding }}
+      >
+
+        <View style={{ marginBottom: isPremium ? 0 : 12 }}>
           {/* Go Premium Button */}
           {!isPremium && (
-            <TouchableOpacity
-              style={[s.row, { backgroundColor: 'rgba(255,215,0,0.06)' }]}
-              onPress={() => setShowPremiumPaywall(true)}
-              data-testid="go-premium-btn"
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
-                <Ionicons name="diamond" size={20} color="#FFD700" />
-                <View>
-                  <Text style={[s.rowTitle, { color: '#FFD700' }]}>{t('go_premium', 'Go Premium')}</Text>
-                  <Text style={{ fontSize: 12, color: '#999', fontFamily: 'Ubuntu-Regular' }}>
-                    {t('unlock_features', 'Unlock all features')}
-                  </Text>
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#FFD700" />
+            <TouchableOpacity style={p.premiumBanner} onPress={() => setShowPremiumPaywall(true)} accessibilityRole="button" accessibilityLabel={t('go_premium', 'Go Premium')} testID="go-premium-btn">
+              <LinearGradient colors={['#5C27F4', '#9F3FFF']} start={{ x: 0, y: 0.5 }} end={{ x: 1, y: 0.5 }} style={p.premiumGradient}>
+                <View style={p.crownBox}><FontAwesome5 name="crown" size={30} color="#FFD146" /></View>
+                <View style={{ flex: 1 }}><Text style={p.premiumTitle}>{t('go_premium', 'Go Premium')}</Text><Text style={p.premiumSubtitle}>{t('home_premium_subtitle', 'Unlock amazing features')}</Text></View>
+              </LinearGradient>
             </TouchableOpacity>
           )}
-          {(isPremium || isRemoveAds) && (
-            <View style={[s.row, { backgroundColor: 'rgba(255,215,0,0.06)' }]}>
+        </View>
+
+        {/* Settings */}
+        <Text style={p.sectionLabel}>{t('settings', 'Settings')}</Text>
+        {[
+          {
+            title: t('play_at_login', 'Play at Login'),
+            sub: playAtLoginSetting === 'last_played' ? t('last_played', 'Last Played')
+               : playAtLoginSetting === 'random' ? t('random', 'Random')
+               : playAtLoginSetting === 'favorite' ? t('favorite', 'Favorite')
+               : t('off', 'Off'),
+            onPress: () => router.push('/play-at-login')
+          },
+          { title: t('chat_messages'), messages: true, onPress: () => router.push('/messages') },
+          { countryFlag: true, title: t('country', 'Country'), sub: country || t('not_set', 'Not set'), onPress: () => router.push('/station-country') },
+          { title: t('language', 'Language'), sub: LANGUAGE_NAMES[currentLanguage] || currentLanguage, onPress: () => router.push('/languages' as any) },
+          { title: t('statistics', 'Statistics'), onPress: () => router.push('/statistics') },
+          { title: t('account', 'Account'), onPress: () => setCurrentPage('account') },
+        ].map((item, i) => (
+          <React.Fragment key={i}>
+            <TouchableOpacity style={p.row} onPress={item.onPress} accessibilityRole="button" accessibilityLabel={item.title} testID={item.messages?'profile-messages':`profile-setting-${i}`} >
+              <View>
+                <Text style={p.rowTitle}>{item.title}</Text>
+                {item.sub && <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>
+                  {item.countryFlag && countryCode && <Image source={{ uri: `https://flagcdn.com/w80/${countryCode.toLowerCase()}.png` }} style={{ width: 16, height: 11, borderRadius: 2 }} contentFit="cover" />}
+                  <Text style={[p.rowSub, { marginTop: 0 }]}>{item.sub}</Text>
+                </View>}
+              </View>
+              <View style={{flexDirection:'row',alignItems:'center',gap:12}}>{item.messages&&unreadMessageCount>0&&<View testID="profile-messages-unread" style={{minWidth:22,height:22,paddingHorizontal:6,borderRadius:11,backgroundColor:'#FF4199',alignItems:'center',justifyContent:'center'}}><Text style={{fontFamily:'Ubuntu-Bold',fontSize:11,color:'#FFF'}}>{unreadMessageCount>99?'99+':unreadMessageCount}</Text></View>}<Image source={require('../../assets/images/profile/arrow-left.svg')} style={{ width: 24, height: 24, transform: [{ rotate: '180deg' }] }} tintColor="#FFFFFF" contentFit="contain" /></View>
+            </TouchableOpacity>
+            <View style={p.dividerBackground}><View style={p.divider} /></View>
+          </React.Fragment>
+        ))}
+
+        <Pressable testID="profile-notification-row" accessible={false} style={p.row} disabled={pushPreferences.saving||!pushPreferences.ready} onPress={()=>void pushPreferences.toggle(!pushPreferences.enabled)}>
+          <View style={{flex:1,paddingRight:12}}><Text style={p.rowTitle}>{t('notifications_setting','Notifications')}</Text>{pushPreferences.needsSettings&&<TouchableOpacity testID="push-system-settings" accessibilityRole="button" onPress={event=>{event.stopPropagation();if(pushPreferences.canRequestPermission)void pushPreferences.toggle(true);else if(Platform.OS!=='web')void Linking.openSettings().catch(()=>pushNotice(true,'push_permission_required'));}} style={{minHeight:32,justifyContent:'center'}}><Text style={{color:'#FF4199',fontFamily:'Ubuntu-Medium',fontSize:12}}>{t(pushPreferences.canRequestPermission?'push_allow_permission':'push_open_settings')}</Text></TouchableOpacity>}</View>
+          <ProfileSwitch value={pushPreferences.enabled} disabled={pushPreferences.saving || !pushPreferences.ready} onValueChange={pushPreferences.toggle} label={t('notifications_setting', 'Notifications')} />
+        </Pressable>
+        <View style={p.dividerBackground}><View style={p.divider} /></View>
+        <View style={p.row}>
+          <Text style={p.rowTitle}>{t('private_profile', 'Private Profile')}</Text>
+          <ProfileSwitch value={privateProfile} onValueChange={handlePrivateProfileToggle} disabled={privateProfileLoading} label={t('private_profile', 'Private Profile')} />
+        </View>
+
+        {/* Subscription settings */}
+        <View style={p.section}>
+
+          {isPremium && (
+            <View style={[p.row, { backgroundColor: 'rgba(255,215,0,0.06)' }]}>
               <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
                 <Ionicons name="diamond" size={20} color="#FFD700" />
-                <Text style={[s.rowTitle, { color: '#FFD700' }]}>{isPremium ? t('premium_active', 'Premium Active') : t('ad_free_active', 'Ad-free Active')}</Text>
+                <Text style={[p.rowTitle, { color: '#FFD700' }]}>Premium Active</Text>
               </View>
               <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
             </View>
           )}
-          {(isPremium || isRemoveAds) && plan !== 'premium_lifetime' && Platform.OS !== 'web' && (
-            <TouchableOpacity style={s.row} onPress={manageSubscription} testID="manage-subscription-btn">
-              <Text style={[s.rowTitle, { flex: 1 }]}>{t('manage_subscription', 'Manage subscription')}</Text>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
-            </TouchableOpacity>
-          )}
-          <View style={s.divider} />
+          <View style={p.dividerBackground}><View style={p.divider} /></View>
 
           {/* Remove Ads (only for non-premium, non-removeAds users) */}
-          {!isPremium && !isRemoveAds && (
+          {!isRemoveAds && (
             <>
               <TouchableOpacity
-                style={s.row}
+                style={p.row}
                 onPress={() => setShowRemoveAdsPaywall(true)}
-                data-testid="remove-ads-btn"
+                testID="remove-ads-btn"
               >
                 <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
                   <Ionicons name="ban-outline" size={20} color="#FF4199" />
-                  <Text style={s.rowTitle}>{t('remove_ads', 'Remove Ads')}</Text>
+                  <Text style={p.rowTitle}>{t('remove_ads', 'Remove Ads')}</Text>
                 </View>
-                <Text style={{ fontSize: 13, color: '#888', fontFamily: 'Ubuntu-Regular', marginRight: 8 }}>
-                  {t('see_store_prices', 'View local prices')}
-                </Text>
-                <Ionicons name="chevron-forward" size={20} color="#666" />
+                <Text testID="profile-remove-ads-price" style={{fontSize:13,color:'#B9B9C1',fontFamily:'Ubuntu-Regular',marginRight:8}}>{t('from_price','€5.99/yr')}</Text>
+                <Image source={require('../../assets/images/profile/arrow-left.svg')} style={{ width: 24, height: 24, transform: [{ rotate: '180deg' }] }} tintColor="#FFFFFF" contentFit="contain" />
               </TouchableOpacity>
-              <View style={s.divider} />
+              <View style={p.dividerBackground}><View style={p.divider} /></View>
             </>
           )}
 
@@ -949,137 +750,81 @@ export default function ProfileScreen() {
           {!isPremium && !isRemoveAds && (
             <>
               <RewardedAdButton />
-              <View style={s.divider} />
+              <View style={p.dividerBackground}><View style={p.divider} /></View>
             </>
           )}
 
-          {/* Song History */}
-          <TouchableOpacity
-            style={s.row}
-            onPress={() => router.push('/song-history' as any)}
-            data-testid="song-history-btn"
-          >
-            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, gap: 10 }}>
-              <Ionicons name="time-outline" size={20} color="#FFF" />
-              <Text style={s.rowTitle}>{t('song_history', 'Song History')}</Text>
-            </View>
-            {songHistoryEntries.length > 0 && (
-              <Text style={{ fontSize: 13, color: '#888', fontFamily: 'Ubuntu-Regular', marginRight: 8 }}>
-                {songHistoryEntries.length}
-              </Text>
-            )}
-            <Ionicons name="chevron-forward" size={20} color="#666" />
-          </TouchableOpacity>
-        </View>
 
-        {/* Settings */}
-        <Text style={s.sectionLabel}>{t('settings', 'Settings')}</Text>
-        <AdPrivacyOptions />
-        {[
-          { 
-            title: t('play_at_login', 'Play at Login'), 
-            sub: playAtLoginSetting === 'last_played' ? t('last_played', 'Last Played') 
-               : playAtLoginSetting === 'random' ? t('random', 'Random')
-               : playAtLoginSetting === 'favorite' ? t('favorite', 'Favorite')
-               : t('off', 'Off'),
-            onPress: () => router.push('/play-at-login') 
-          },
-          { title: t('country', 'Country'), sub: country || t('not_set', 'Not set'), onPress: () => setCurrentPage('country') },
-          { title: t('language', 'Language'), sub: LANGUAGE_NAMES[currentLanguage] || currentLanguage, onPress: () => router.push('/languages' as any) },
-          { title: t('statistics', 'Statistics'), onPress: () => router.push('/statistics') },
-          { title: t('account', 'Account'), onPress: () => setCurrentPage('account') },
-        ].map((item, i) => (
-          <React.Fragment key={i}>
-            <TouchableOpacity style={s.row} onPress={item.onPress}>
-              <View>
-                <Text style={s.rowTitle}>{item.title}</Text>
-                {item.sub && <Text style={s.rowSub}>{item.sub}</Text>}
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#666" />
-            </TouchableOpacity>
-            <View style={s.divider} />
-          </React.Fragment>
-        ))}
-
-        <View style={s.row}>
-          <Text style={s.rowTitle}>{t('notifications_setting', 'Notifications')}</Text>
-          <Switch value={notifications} onValueChange={handleNotificationsToggle} disabled={notificationsLoading || Platform.OS === 'web'} trackColor={{ false: '#333', true: '#FF4199' }} thumbColor="#FFF" />
-        </View>
-        <View style={s.divider} />
-        <View style={s.row}>
-          <Text style={s.rowTitle}>{t('private_profile', 'Private Profile')}</Text>
-          <Switch 
-            value={privateProfile} 
-            onValueChange={handlePrivateProfileToggle} 
-            trackColor={{ false: '#333', true: '#FF4199' }} 
-            thumbColor="#FFF"
-            disabled={privateProfileLoading}
-          />
         </View>
 
         {/* About */}
-        <Text style={s.sectionLabel}>{t('about', 'About')}</Text>
+        <Text style={p.sectionLabel}>{t('about', 'About')}</Text>
+        <TouchableOpacity style={p.row} onPress={() => router.push({ pathname: '/static-page', params: { type: 'about' } } as any)}>
+          <Text style={p.rowTitle}>{t('about_us', 'About Us')}</Text>
+          <Image source={require('../../assets/images/profile/arrow-left.svg')} style={{ width: 24, height: 24, transform: [{ rotate: '180deg' }] }} tintColor="#FFFFFF" contentFit="contain" />
+        </TouchableOpacity>
+        <View style={p.dividerBackground}><View style={p.divider} /></View>
+        <TouchableOpacity style={p.row} onPress={() => router.push({ pathname: '/static-page', params: { type: 'privacy' } } as any)}>
+          <Text style={p.rowTitle}>{t('privacy_policy', 'Privacy Policy')}</Text>
+          <Image source={require('../../assets/images/profile/arrow-left.svg')} style={{ width: 24, height: 24, transform: [{ rotate: '180deg' }] }} tintColor="#FFFFFF" contentFit="contain" />
+        </TouchableOpacity>
+        <View style={p.dividerBackground}><View style={p.divider} /></View>
+        <TouchableOpacity style={p.row} onPress={() => router.push({ pathname: '/static-page', params: { type: 'terms' } } as any)}>
+          <Text style={p.rowTitle}>{t('terms_conditions', 'Terms and Conditions')}</Text>
+          <Image source={require('../../assets/images/profile/arrow-left.svg')} style={{ width: 24, height: 24, transform: [{ rotate: '180deg' }] }} tintColor="#FFFFFF" contentFit="contain" />
+        </TouchableOpacity>
+
         <TouchableOpacity
-          style={s.row}
-          onPress={() => { void rateUsService.openStoreReview(); }}
-          data-testid="profile-rate-us-btn-guest"
+          style={p.rateCard}
+          onPress={() => setShowRateUs(true)}
+          testID="profile-rate-us-btn-guest"
         >
-          <View style={{ flex: 1 }}>
-            <Text style={s.rowTitle}>{t('rate_us', 'Rate Us')}</Text>
-            <Text style={s.rowSubtext}>{t('rate_us_invite', 'Share your experience')}</Text>
+          <Text style={p.rateEmoji}>😍</Text>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={p.rowTitle}>{t('rate_us', 'Rate Us')}</Text>
+            <Text style={p.rowSubtext}>{t('rate_us_sub', { defaultValue: 'Loved by {{count}}+ users', count: Number(getLovedByCount().replace(/,/g, '')) })}</Text>
           </View>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-        <View style={s.divider} />
-        <TouchableOpacity style={s.row} onPress={() => router.push({ pathname: '/static-page', params: { type: 'about' } } as any)}>
-          <Text style={s.rowTitle}>{t('about_us', 'About Us')}</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-        <View style={s.divider} />
-        <TouchableOpacity style={s.row} onPress={() => router.push({ pathname: '/static-page', params: { type: 'privacy' } } as any)}>
-          <Text style={s.rowTitle}>{t('privacy_policy', 'Privacy Policy')}</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-        <View style={s.divider} />
-        <TouchableOpacity style={s.row} onPress={() => router.push({ pathname: '/static-page', params: { type: 'terms' } } as any)}>
-          <Text style={s.rowTitle}>{t('terms_conditions', 'Terms and Conditions')}</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
         </TouchableOpacity>
 
         {/* Social */}
-        <Text style={[s.sectionLabel, { textAlign: 'center', backgroundColor: 'transparent' }]}>{t('social_media', 'Social Media')}</Text>
-        <View style={s.socialRow}>
+        <Text style={[p.sectionLabel, { textAlign: 'center', backgroundColor: 'transparent' }]}>{t('social_media', 'Social Media')}</Text>
+        <View style={p.socialRow}>
           {[
-            { name: 'facebook-f' as const, bg: '#3b5998', url: appInfo?.social?.facebook },
-            { name: 'instagram' as const, bg: '#C13584', url: appInfo?.social?.instagram },
-            { name: 'twitter' as const, bg: '#1DA1F2', url: appInfo?.social?.twitter },
+            { name: 'facebook-f' as const, image: require('../../assets/images/profile/facebook.svg'), url: appInfo?.social?.facebook },
+            { name: 'instagram' as const, image: require('../../assets/images/profile/instagram.svg'), url: appInfo?.social?.instagram },
+            { name: 'twitter' as const, image: require('../../assets/images/profile/twitter.svg'), url: appInfo?.social?.twitter },
           ].map((soc) => (
-            <TouchableOpacity 
-              key={soc.name} 
-              style={[s.socialBtn, { backgroundColor: soc.bg }]}
+            <TouchableOpacity
+              key={soc.name}
+              style={p.socialBtn}
               onPress={() => soc.url && Linking.openURL(soc.url)}
             >
-              <FontAwesome5 name={soc.name} size={22} color="#FFF" />
+              <Image source={soc.image} style={{ width: 48, height: 48 }} contentFit="contain" />
             </TouchableOpacity>
           ))}
         </View>
 
         {/* Logout */}
-        <TouchableOpacity style={s.logoutBtn} onPress={() => setShowLogoutModal(true)} data-testid="profile-logout-btn">
-          <Text style={s.logoutText}>{t('log_out', 'Log Out')}</Text>
+        <TouchableOpacity style={p.logoutBtn} accessibilityRole="button" onPress={() => setShowLogoutModal(true)} testID="profile-logout-btn">
+          <Text style={p.logoutText}>{t('log_out', 'Log Out')}</Text>
         </TouchableOpacity>
 
         {/* Delete Account */}
-        <TouchableOpacity 
-          style={s.deleteAccountBtn} 
-          onPress={() => setShowDeleteModal(true)} 
-          data-testid="delete-account-btn"
+        <TouchableOpacity
+          style={s.deleteAccountBtn}
+          onPress={() => setShowDeleteModal(true)}
+          testID="delete-account-btn"
         >
           <Ionicons name="trash-outline" size={16} color="#FF3B30" />
           <Text style={s.deleteAccountText}>{t('delete_account', 'Delete Account')}</Text>
         </TouchableOpacity>
       </ScrollView>
-      
+
+      {profileNotice&&<ProfilePhotoFeedback notice={profileNotice} onDismiss={dismissProfileNotice}/>}
+      {avatarCoach.shown&&avatarCoachAnchor&&<ProfilePhotoCoach anchor={avatarCoachAnchor} privateProfile={privateProfile} hasPhoto={!!hasValidAvatar} avatarUri={localAvatar||rawAvatar} onUpload={()=>{avatarCoach.dismiss();void pickAndUploadAvatar();}} onClose={avatarCoach.dismiss}/>}
+      <ProfilePhotoActions visible={avatarMenu} anchor={avatarMenuAnchor} busy={avatarUploading} onClose={()=>{if(!avatarUploading)setAvatarMenu(false);}} onChange={changeAvatar} onRemove={handleAvatarDelete} onDismiss={()=>{if(pickAfterDismiss.current){pickAfterDismiss.current=false;void pickAndUploadAvatar();}}}/>
+      <ProfileShareSheet visible={showProfileShare} onClose={() => setShowProfileShare(false)} />
+
       {/* Logout Modal */}
       <LogoutModal
         visible={showLogoutModal}
@@ -1088,11 +833,13 @@ export default function ProfileScreen() {
       />
 
       {/* Delete Account Modal */}
-      <Modal visible={showDeleteModal} transparent animationType="fade">
-        <View style={s.deleteOverlay}>
-          <View style={s.deleteContainer}>
-            <Ionicons name="warning" size={40} color="#FF3B30" style={{ alignSelf: 'center', marginBottom: 12 }} />
-            <Text style={s.deleteTitle}>{t('delete_account_title', 'Delete Account')}</Text>
+      <Modal visible={showDeleteModal} transparent animationType="fade" onRequestClose={closeDeleteModal} statusBarTranslucent navigationBarTranslucent>
+        <KeyboardAvoidingView style={s.deleteOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <ScrollView contentContainerStyle={s.deleteModalContent} keyboardShouldPersistTaps="handled" bounces={false}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={closeDeleteModal} disabled={deleteLoading} accessible={false} testID="delete-modal-backdrop" />
+          <View style={s.deleteContainer} accessibilityViewIsModal>
+            <View style={s.deleteHeading}><Ionicons name="trash-outline" size={24} color="#FF3B30" />
+            <Text style={s.deleteTitle}>{t('delete_account_title', 'Delete Account')}</Text></View>
             <Text style={s.deleteDesc}>
               {t('delete_account_warning', 'This action is permanent and cannot be undone. All your data, favorites, listening history, and active subscriptions will be lost.')}
             </Text>
@@ -1106,13 +853,19 @@ export default function ProfileScreen() {
               value={deleteConfirmText}
               onChangeText={setDeleteConfirmText}
               autoCapitalize="none"
-              data-testid="delete-confirm-input"
+              testID="delete-confirm-input"
+              accessibilityLabel={t('type_delete_confirm', 'Type "delete" to confirm:')}
+              autoCorrect={false}
+              editable={!deleteLoading}
+              keyboardAppearance="dark"
             />
             <View style={s.deleteButtonRow}>
               <TouchableOpacity 
                 style={s.deleteCancelBtn} 
-                onPress={() => { setShowDeleteModal(false); setDeleteConfirmText(''); }}
-                data-testid="delete-cancel-btn"
+                onPress={closeDeleteModal}
+                disabled={deleteLoading}
+                accessibilityRole="button"
+                testID="delete-cancel-btn"
               >
                 <Text style={s.deleteCancelText}>{t('cancel', 'Cancel')}</Text>
               </TouchableOpacity>
@@ -1120,22 +873,24 @@ export default function ProfileScreen() {
                 style={[s.deleteConfirmBtn, deleteConfirmText.toLowerCase() !== 'delete' && { opacity: 0.4 }]}
                 onPress={handleDeleteAccount}
                 disabled={deleteConfirmText.toLowerCase() !== 'delete' || deleteLoading}
-                data-testid="delete-confirm-btn"
+                testID="delete-confirm-btn"
+                accessibilityRole="button"
+                accessibilityState={{ disabled: deleteConfirmText.toLowerCase() !== 'delete' || deleteLoading }}
               >
-                {deleteLoading ? (
+                <View style={s.deleteDangerPill}>{deleteLoading ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : (
                   <Text style={s.deleteConfirmText}>{t('delete_permanently', 'Delete Permanently')}</Text>
-                )}
+                )}</View>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Premium Paywall */}
       <PremiumPaywall
-          source="profile"
         visible={showPremiumPaywall}
         onClose={() => setShowPremiumPaywall(false)}
         mode="premium"
@@ -1143,10 +898,21 @@ export default function ProfileScreen() {
 
       {/* Remove Ads Paywall */}
       <PremiumPaywall
-          source="profile"
         visible={showRemoveAdsPaywall}
         onClose={() => setShowRemoveAdsPaywall(false)}
         mode="remove_ads"
+      />
+
+      {/* Rate Us Modal */}
+      <RateUsModal
+        visible={showRateUs}
+        onClose={() => {
+          setShowRateUs(false);
+          rateUsService.markDismissed().catch(() => {});
+        }}
+        onRated={() => {
+          rateUsService.markRated().catch(() => {});
+        }}
       />
     </SafeAreaView>
   );
@@ -1234,15 +1000,58 @@ const s = StyleSheet.create({
   // Delete Account
   deleteAccountBtn: { flexDirection: 'row', alignSelf: 'center', alignItems: 'center', gap: 6, marginTop: 20, marginBottom: 20, paddingHorizontal: 20, paddingVertical: 10 },
   deleteAccountText: { fontSize: 14, fontFamily: 'Ubuntu-Regular', color: '#FF3B30' },
-  deleteOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 },
-  deleteContainer: { width: '100%', backgroundColor: '#1B1C1E', borderRadius: 16, padding: 24 },
-  deleteTitle: { fontSize: 20, fontFamily: 'Ubuntu-Bold', color: '#FF3B30', textAlign: 'center', marginBottom: 8 },
-  deleteDesc: { fontSize: 14, fontFamily: 'Ubuntu-Regular', color: '#AAA', textAlign: 'center', lineHeight: 20, marginBottom: 20 },
-  deleteConfirmLabel: { fontSize: 14, fontFamily: 'Ubuntu-Medium', color: '#FFF', marginBottom: 8 },
-  deleteInput: { backgroundColor: '#2A2A2A', borderRadius: 10, paddingHorizontal: 16, height: 44, fontSize: 16, fontFamily: 'Ubuntu-Regular', color: '#FFF', marginBottom: 20 },
-  deleteButtonRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
-  deleteCancelBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#333', alignItems: 'center' },
-  deleteCancelText: { fontSize: 15, fontFamily: 'Ubuntu-Medium', color: '#FFF' },
-  deleteConfirmBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#FF3B30', alignItems: 'center' },
-  deleteConfirmText: { fontSize: 15, fontFamily: 'Ubuntu-Bold', color: '#FFF' },
+  deleteOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  deleteModalContent: { flexGrow: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 24 },
+  deleteContainer: { width: 302, maxWidth: '100%', backgroundColor: '#000000', borderRadius: 6, borderWidth: 1, borderColor: '#292929', paddingHorizontal: 18, paddingTop: 28, paddingBottom: 24 },
+  deleteHeading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+  deleteTitle: { flex: 1, fontSize: 15, lineHeight: 20, fontFamily: 'Ubuntu-Medium', color: '#FFFFFF' },
+  deleteDesc: { fontSize: 13, fontFamily: 'Ubuntu-Regular', color: '#AAAAAA', lineHeight: 19, marginBottom: 22 },
+  deleteConfirmLabel: { fontSize: 13, lineHeight: 18, fontFamily: 'Ubuntu-Medium', color: '#FFFFFF', marginBottom: 11 },
+  deleteInput: { backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 0, height: 45, fontSize: 15, fontFamily: 'Ubuntu-Medium', color: '#5B5B5B', marginBottom: 24, outlineWidth: 0, outlineStyle: 'solid' },
+  deleteButtonRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 12 },
+  deleteCancelBtn: { minWidth: 68, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  deleteCancelText: { fontSize: 13, lineHeight: 16, fontFamily: 'Ubuntu-Medium', color: '#FFFFFF' },
+  deleteConfirmBtn: { flexShrink: 1, minHeight: 44, justifyContent: 'center' },
+  deleteDangerPill: { minHeight: 30, borderRadius: 10, backgroundColor: '#FF3B30', paddingHorizontal: 12, paddingVertical: 6, alignItems: 'center', justifyContent: 'center' },
+  deleteConfirmText: { fontSize: 13, lineHeight: 16, fontFamily: 'Ubuntu-Medium', color: '#FFFFFF', textAlign: 'center' },
+});
+
+
+// Final Figma profile-logged-in / 1:5890. Existing extra actions use the same row system.
+const p = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#1B1C1E' },
+  header: { height: 86, paddingHorizontal: 15, paddingTop: 24, paddingBottom: 22, backgroundColor: '#1B1C1E' },
+  avatarRow: { height: 40, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  identity: { flex: 1, minWidth: 0, alignSelf: 'flex-end' },
+  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#333333', position: 'relative' },
+  avatarImage: { width: 40, height: 40, borderRadius: 20 },
+  avatarLoading: { position:'absolute',inset:0,width:40,height:40,borderRadius:20,backgroundColor:'#00000080',alignItems:'center',justifyContent:'center' },
+  cameraBadge: { position: 'absolute', top: 30, left: 28, width: 14, height: 14, alignItems: 'center', justifyContent: 'center' },
+  userName: { fontFamily: 'Ubuntu-Bold', fontSize: 15, lineHeight: 17, color: '#FFFFFF' },
+  statsRow: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 6 },
+  statPair: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statTouchable: { height: 14, justifyContent: 'center' },
+  statLabel: { fontFamily: 'Ubuntu-Regular', fontSize: 12, lineHeight: 14, color: '#9C9C9C' },
+  statNumber: { fontFamily: 'Ubuntu-Medium', fontSize: 12, lineHeight: 14, color: '#FFFFFF' },
+  statDivider: { display: 'none' },
+  shareButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  sectionLabel: { fontFamily: 'Ubuntu-Medium', fontSize: 18, lineHeight: 21, color: '#FFFFFF', paddingHorizontal: 25, paddingTop: 10, paddingBottom: 20, backgroundColor: '#1B1C1E' },
+  section: { marginBottom: 0 },
+  row: { minHeight: 84, paddingHorizontal: 25, paddingVertical: 20, backgroundColor: '#262626', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  rowTitle: { fontFamily: 'Ubuntu-Medium', fontSize: 15, lineHeight: 18, color: '#FFFFFF' },
+  rowSub: { fontFamily: 'Ubuntu-Regular', fontSize: 13, lineHeight: 16, color: '#A6A6AA', marginTop: 8 },
+  rowSubtext: { fontFamily: 'Ubuntu-Regular', fontSize: 12, lineHeight: 16, color: '#A6A6AA', marginTop: 4 },
+  dividerBackground: { height: 0.97, backgroundColor: '#262626' },
+  divider: { height: 0.97, backgroundColor: '#1A1A1A', marginHorizontal: 25 },
+  premiumBanner: { height: 84, overflow: 'hidden' },
+  premiumGradient: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 25, gap: 15 },
+  crownBox: { width: 50, height: 50, borderRadius: 5, backgroundColor: 'rgba(35,13,95,0.45)', justifyContent: 'center', alignItems: 'center' },
+  premiumTitle: { fontFamily: 'Ubuntu-Bold', fontSize: 18, lineHeight: 24, color: '#FFFFFF' },
+  premiumSubtitle: { fontFamily: 'Ubuntu-Medium', fontSize: 13, lineHeight: 18, color: '#FFFFFF' },
+  rateCard: { marginTop: 24, minHeight: 107, backgroundColor: '#262626', alignItems: 'center', justifyContent: 'center', gap: 12, padding: 16 },
+  rateEmoji: { fontSize: 24 },
+  socialRow: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginTop: 2, marginBottom: 40 },
+  socialBtn: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  logoutBtn: { height: 45, alignSelf: 'center', paddingHorizontal: 21, borderRadius: 25, backgroundColor: '#454545', justifyContent: 'center' },
+  logoutText: { fontFamily: 'Ubuntu-Bold', fontSize: 14, color: '#FFFFFF' },
 });

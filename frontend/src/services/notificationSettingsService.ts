@@ -10,27 +10,7 @@ export const notificationSettingsService = {
     if (!settings || Object.keys(defaults).some(key => typeof settings[key] !== 'boolean')) throw new Error('Invalid notification preferences');
     return settings;
   },
-  async enabled(): Promise<boolean> {
-    const scope = captureAccount();
-    if (!scope.token) return false;
-    const settings = await this.get();
-    return isAccountCurrent(scope) && Object.values(settings).some(Boolean);
-  },
-  async setEnabled(enabled: boolean): Promise<void> {
-    const scope = captureAccount();
-    if (!scope.token) throw new Error('Sign in to change notification preferences.');
-    const current = await this.get();
-    if (!isAccountCurrent(scope)) throw new Error('Account changed');
-    const key = accountKey('notification_preferences', scope);
-    let settings = current;
-    if (!enabled) {
-      if (Object.values(current).some(Boolean)) await AsyncStorage.setItem(key, JSON.stringify(current));
-      settings = { favorites: false, nowPlaying: false, newStations: false, recommendations: false };
-    } else if (!Object.values(current).some(Boolean)) {
-      const previous = await AsyncStorage.getItem(key);
-      settings = previous ? JSON.parse(previous) : defaults;
-    }
-    if (!isAccountCurrent(scope)) throw new Error('Account changed');
-    await api.patch('/api/user/notification-settings', settings);
-  },
+  async enabled():Promise<boolean>{const scope=captureAccount();if(!scope.token||!scope.ownerId)return false;const {getPushPreference}=await import('./notificationPreferences');return await getPushPreference(scope.ownerId)&&isAccountCurrent(scope);},
+  async setEnabled(enabled:boolean):Promise<void>{const scope=captureAccount();if(!scope.token||!scope.ownerId)throw new Error('Sign in to change notification preferences.');const {savePushPreference}=await import('./notificationPreferences');await savePushPreference(scope.ownerId,enabled);if(!isAccountCurrent(scope))throw new Error('Account changed');},
+
 };

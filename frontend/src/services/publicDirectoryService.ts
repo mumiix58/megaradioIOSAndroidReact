@@ -13,8 +13,8 @@ export function normalizeDirectory(data: any): PublicDirectoryUser[] {
   return [...new Map<string, PublicDirectoryUser>(list.filter(user => user?._id && user.isPublicProfile !== false)
     .map(user => [user._id, { ...user, name: user.name || user.fullName || 'User' }])).values()];
 }
-export async function fetchDirectoryPage(page: number): Promise<DirectoryPage> {
-  const { data } = await api.get(API_ENDPOINTS.publicProfiles, { params: { page, limit: DIRECTORY_PAGE_SIZE } });
+export async function fetchDirectoryPage(page: number,signal?:AbortSignal): Promise<DirectoryPage> {
+  const { data } = await api.get(API_ENDPOINTS.publicProfiles, { params: { page, limit: DIRECTORY_PAGE_SIZE },signal,timeout:8000 });
   const raw = Array.isArray(data) ? data : data?.data || data?.users || [];
   return { users: normalizeDirectory(data), page, rawCount: Array.isArray(raw) ? raw.length : 0 };
 }

@@ -156,6 +156,9 @@ export class RateUsService {
     }
   }
 
+  // A manual prompt records an attempt, never an assumed submitted rating.
+  async markDismissed():Promise<void>{await AsyncStorage.setItem(KEYS.lastRequest,String(Date.now()));}
+  async markRated():Promise<void>{await AsyncStorage.setItem(KEYS.lastRequest,String(Date.now()));}
   async reset(): Promise<void> {
     await AsyncStorage.multiRemove(Object.values(KEYS));
     this.listeningMs = 0;

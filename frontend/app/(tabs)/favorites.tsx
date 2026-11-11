@@ -1,933 +1,107 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  FlatList,
-  Modal,
-  Animated,
-  PanResponder,
-  Dimensions,
-  Keyboard,
-  useWindowDimensions,
-} from 'react-native';
-import { ImageWithFallback } from '../../src/components/ImageWithFallback';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useMegaSearchFocus } from '../../src/hooks/useMegaSearchFocus';
+import {MegaLoadingState} from '../../src/components/MegaLoadingState';
+import { rankStationSearch } from '../../src/utils/stationSearch';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, FlatList, ScrollView, Keyboard, Platform} from 'react-native';
+import { Image } from 'expo-image';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useTranslation } from 'react-i18next';
-import { useFavoritesStore, SortOption, ViewMode } from '../../src/store/favoritesStore';
+import { FavoriteCategories } from '../../src/components/FavoriteCategories';
+import { ImageWithFallback } from '../../src/components/ImageWithFallback';
+import { SortBottomSheet } from '../../src/components/SortBottomSheet';
+import { FavoriteOrderPanel } from '../../src/components/FavoriteOrderPanel';
+import { useFavoritesStore, SortOption } from '../../src/store/favoritesStore';
 import { useAudioPlayer } from '../../src/hooks/useAudioPlayer';
 import { usePlayerStore } from '../../src/store/playerStore';
 import { useAuthStore } from '../../src/store/authStore';
 import { useResponsive } from '../../src/hooks/useResponsive';
-import { getStationLogoUrl, DEFAULT_STATION_LOGO_URL } from '../../src/utils/stationLogoHelper';
+import { getStationLogoUrl } from '../../src/utils/stationLogoHelper';
 import type { Station } from '../../src/types';
 
-const FALLBACK_LOGO = DEFAULT_STATION_LOGO_URL;
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
-
-const getLogoUrl = (station: Station): string => {
-  return getStationLogoUrl(station) || FALLBACK_LOGO;
-};
-
 export default function FavoritesScreen() {
-  const router = useRouter();
-  const { t } = useTranslation();
-  
-  // Responsive layout
-  const responsive = useResponsive();
-  const gridMetrics = responsive.getGridMetrics();
-  
-  // Store
-  const {
-    favorites,
-    isLoaded,
-    isLoading,
-    loadFavorites,
-    removeFavorite,
-    sortOption,
-    viewMode,
-    setSortOption,
-    setViewMode,
-    getSortedFavorites,
-    updateCustomOrder,
-  } = useFavoritesStore();
-
-  // Auth state - including isAuthLoaded flag to wait for storage hydration
-  const { isAuthenticated, user, isAuthLoaded } = useAuthStore();
-
-  // Player
-  const { playStation } = useAudioPlayer();
-  const { currentStation, playbackState } = usePlayerStore();
-
-  // Local state
-  const [isSearchActive, setIsSearchActive] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSortModal, setShowSortModal] = useState(false);
-  const [isReordering, setIsReordering] = useState(false);
-  const [reorderedList, setReorderedList] = useState<Station[]>([]);
-  
-  // Animation for bottom sheet
-  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-
-  // Load favorites ONLY after auth is fully loaded from storage
-  useEffect(() => {
-    // Wait until auth is loaded from secure storage
-    if (!isAuthLoaded) {
-      console.log('[Favorites] Waiting for auth to load from storage...');
-      return;
-    }
-    
-    const { token, isAuthenticated: authStatus } = useAuthStore.getState();
-    console.log('[Favorites] Auth loaded! isAuthenticated:', authStatus, 'token:', token ? token.substring(0, 15) + '...' : 'NULL');
-    
-    // Now safe to load favorites - auth state is fully hydrated
-    loadFavorites();
-  }, [isAuthLoaded, isAuthenticated, user?._id]);
-
-  // Get sorted favorites
-  const sortedFavorites = getSortedFavorites();
-
-  // Helper to get genre display
-const getGenreDisplay = (station: Station): string => {
-  if (station.genres && station.genres.length > 0) {
-    return station.genres[0];
-  }
-  return 'Radio';
-};
-
-// Filter by search
-  const filteredFavorites = searchQuery
-    ? sortedFavorites.filter(
-        (s) =>
-          s.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          getGenreDisplay(s).toLowerCase().includes(searchQuery.toLowerCase())
-      )
-    : sortedFavorites;
-
-  const handleStationPress = (station: Station) => {
-    if (!isReordering) {
-      playStation(station);
-    }
-  };
-
-  const handleRemoveFavorite = (stationId: string) => {
-    removeFavorite(stationId);
-  };
-
-  const isStationPlaying = (station: Station) => {
-    return currentStation?._id === station._id && playbackState === 'playing';
-  };
-
-  // Search handlers
-  const handleSearchActivate = () => {
-    setIsSearchActive(true);
-  };
-
-  const handleSearchCancel = () => {
-    setIsSearchActive(false);
-    setSearchQuery('');
-    Keyboard.dismiss();
-  };
-
-  const handleSearchClear = () => {
-    setSearchQuery('');
-  };
-
-  // Sort modal handlers
-  const openSortModal = () => {
-    setShowSortModal(true);
-    Animated.spring(slideAnim, {
-      toValue: 0,
-      useNativeDriver: true,
-      damping: 20,
-    }).start();
-  };
-
-  const closeSortModal = () => {
-    Animated.timing(slideAnim, {
-      toValue: SCREEN_HEIGHT,
-      duration: 250,
-      useNativeDriver: true,
-    }).start(() => setShowSortModal(false));
-  };
-
-  const handleSortSelect = (option: SortOption) => {
-    setSortOption(option);
-    if (option === 'custom') {
-      // Enter reorder mode
-      setReorderedList([...getSortedFavorites()]);
-      setIsReordering(true);
-    }
-    closeSortModal();
-  };
-
-  const handleViewModeSelect = (mode: ViewMode) => {
-    setViewMode(mode);
-  };
-
-  // Reorder handlers
-  const handleReorderCancel = () => {
-    setIsReordering(false);
-    setReorderedList([]);
-  };
-
-  const handleReorderSave = async () => {
-    const newOrder = reorderedList.map((s) => s._id);
-    await updateCustomOrder(newOrder);
-    setIsReordering(false);
-    setReorderedList([]);
-  };
-
-  const moveItem = (fromIndex: number, toIndex: number) => {
-    const newList = [...reorderedList];
-    const [removed] = newList.splice(fromIndex, 1);
-    newList.splice(toIndex, 0, removed);
-    setReorderedList(newList);
-  };
-
-  // Sort options
+  const router = useRouter(); const insets = useSafeAreaInsets(); const { t } = useTranslation(); const responsive = useResponsive();
+  const params = useLocalSearchParams<{ previewFavorites?: string; previewSearch?: string; previewSort?: string }>();
+  const preview = __DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1';
+  const previewEmpty = preview && params.previewFavorites === 'empty';
+  const previewDemo = preview && params.previewFavorites === 'demo';
+  const { favorites, isLoaded, isLoading, error, loadFavorites, removeFavorite, sortOption, viewMode, setSortOption, setViewMode, getSortedFavorites, updateCustomOrder } = useFavoritesStore();
+  const { isAuthLoaded, isAuthenticated, user } = useAuthStore();
+  const owner = user?._id || user?.id;
+  const { playStation: playRadio } = useAudioPlayer();
+  const playStation = (station: Station) => playRadio(station, { kind: 'favorites' });
+  const currentStation = usePlayerStore(state => state.currentStation);
+  const searchFocus = useMegaSearchFocus();
+  const [isSearchActive, setIsSearchActive] = useState(preview && params.previewSearch === '1');
+  const [query, setQuery] = useState('');
+  const [sheet, setSheet] = useState<'sort' | 'custom' | null>(preview && params.previewSort === '1' ? 'sort' : null);
+  const [draft, setDraft] = useState<Station[]>([]);
+  const [previewRemoved, setPreviewRemoved] = useState<string[]>([]);
+  const previewOrder = useRef<string[] | null>(null);
+  useEffect(() => { if (isAuthLoaded) void loadFavorites(); }, [isAuthLoaded, isAuthenticated, owner]);
+  useEffect(() => { setQuery(''); setSheet(preview && params.previewSort === '1' ? 'sort' : null); setPreviewRemoved([]); previewOrder.current = null; }, [owner]);
+  const sorted = previewEmpty ? [] : getSortedFavorites().filter(item => !previewDemo || !previewRemoved.includes(item._id));
+  if (previewDemo && sortOption === 'custom' && previewOrder.current) sorted.sort((a, b) => previewOrder.current!.indexOf(a._id) - previewOrder.current!.indexOf(b._id));
+  const darkHeader = !isSearchActive && sorted.length > 0;
+  useFocusEffect(useCallback(() => {
+    if (preview) window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'favoritesHeader', visible: darkHeader }, 'http://localhost:8082');
+    return () => { if (preview) window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'favoritesHeader', visible: false }, 'http://localhost:8082'); };
+  }, [preview, darkHeader]));
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const genre = (station: Station) => station.genres?.[0] || 'Radio';
+  const filtered = normalizedQuery ? rankStationSearch(sorted, query, sorted.length) : sorted;
+  const closeSearch = () => { setIsSearchActive(false); setQuery(''); Keyboard.dismiss(); };
   const sortOptions: { key: SortOption; label: string }[] = [
-    { key: 'newest', label: t('sort_newest_first', 'Newest first') },
-    { key: 'oldest', label: t('sort_oldest_first', 'Oldest first') },
-    { key: 'az', label: t('sort_az', 'A-Z') },
-    { key: 'za', label: t('sort_za', 'Z-A') },
-    { key: 'custom', label: t('custom_order', 'Custom order') },
+    { key: 'newest', label: t('sort_newest_first', 'Newest first') }, { key: 'oldest', label: t('sort_oldest_first', 'Oldest first') },
+    { key: 'az', label: t('sort_az', 'A-Z') }, { key: 'za', label: t('sort_za', 'Z-A') }, { key: 'custom', label: t('custom_order', 'Custom order') },
   ];
-
-  // Render station item (List View)
-  const renderStationItem = ({ item, index }: { item: Station; index: number }) => {
-    const isPlaying = isStationPlaying(item);
-
-    if (isReordering) {
-      return (
-        <View style={styles.stationCard} data-testid={`favorite-station-reorder-${item._id}`}>
-          <ImageWithFallback
-            testID={`favorite-reorder-logo-${item._id}`}
-            uri={getLogoUrl(item)}
-            style={styles.stationLogo}
-          />
-          <View style={styles.stationInfo}>
-            <Text style={styles.stationName} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text style={styles.stationGenre} numberOfLines={1}>
-              {getGenreDisplay(item)}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.dragHandle}
-            data-testid={`drag-handle-${item._id}`}
-          >
-            <MaterialCommunityIcons name="drag" size={24} color="#666" />
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    // Grid View
-    if (viewMode === 'grid') {
-      return (
-        <TouchableOpacity
-          style={styles.gridItem}
-          onPress={() => handleStationPress(item)}
-          activeOpacity={0.7}
-          data-testid={`favorite-grid-${item._id}`}
-        >
-          <View style={styles.gridImageContainer}>
-            <ImageWithFallback
-              testID={`favorite-grid-logo-${item._id}`}
-              uri={getLogoUrl(item)}
-              style={styles.gridImage}
-            />
-            {isPlaying && (
-              <View style={styles.gridPlayingIndicator}>
-                <Ionicons name="pause" size={16} color="#FFF" />
-              </View>
-            )}
-          </View>
-          <Text style={[styles.gridName, isPlaying && styles.stationNamePlaying]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.gridGenre} numberOfLines={1}>
-            {getGenreDisplay(item)}
-          </Text>
-        </TouchableOpacity>
-      );
-    }
-
-    // List View (default)
-    return (
-      <TouchableOpacity
-        style={styles.stationCard}
-        onPress={() => handleStationPress(item)}
-        activeOpacity={0.7}
-        data-testid={`favorite-station-${item._id}`}
-      >
-        <ImageWithFallback
-          testID={`favorite-list-logo-${item._id}`}
-          uri={getLogoUrl(item)}
-          style={styles.stationLogo}
-        />
-        <View style={styles.stationInfo}>
-          <Text style={[styles.stationName, isPlaying && styles.stationNamePlaying]} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.stationGenre} numberOfLines={1}>
-            {getGenreDisplay(item)}
-          </Text>
-        </View>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.playButton}
-            onPress={() => handleStationPress(item)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            data-testid={`play-favorite-${item._id}`}
-          >
-            <Ionicons name={isPlaying ? "pause" : "play"} size={18} color="#FFF" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.heartButton}
-            onPress={() => handleRemoveFavorite(item._id)}
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            data-testid={`remove-favorite-${item._id}`}
-          >
-            <Ionicons name="heart" size={24} color="#FF4081" />
-          </TouchableOpacity>
-        </View>
-      </TouchableOpacity>
-    );
+  const chooseSort = (option: SortOption) => {
+    if (option === 'custom') { setDraft([...sorted]); setSheet('custom'); return false; }
+    setSortOption(option);
   };
-
-  // Empty state
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer} data-testid="favorites-empty-state">
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="heart-outline" size={80} color="#4A4A4A" />
-      </View>
-      <Text style={styles.emptyTitle}>{t('no_favorites_yet', "You don't have any favorites yet")}</Text>
-      <TouchableOpacity
-        style={styles.discoverLink}
-        onPress={() => router.push('/(tabs)')}
-        data-testid="discover-stations-btn"
-      >
-        <Text style={styles.discoverText}>{t('discover_stations_link', 'Discover stations near to you!')}</Text>
-        <Ionicons name="arrow-forward" size={16} color="#FF4081" style={{ marginLeft: 4 }} />
-      </TouchableOpacity>
-    </View>
-  );
-
-  // Search mode header
-  if (isSearchActive) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {/* Search Header */}
-        <View style={styles.searchHeader}>
-          <View style={styles.searchInputContainer}>
-            <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={t('search_favorites', 'Search favorites...')}
-              placeholderTextColor="#888"
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              autoFocus
-              returnKeyType="search"
-              data-testid="favorites-search-input"
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity onPress={handleSearchClear} data-testid="search-clear-btn">
-                <Ionicons name="close-circle" size={20} color="#666" />
-              </TouchableOpacity>
-            )}
-          </View>
-          <TouchableOpacity onPress={handleSearchCancel} data-testid="search-cancel-btn">
-            <Text style={styles.cancelText}>{t('cancel', 'Cancel')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Search Results */}
-        <FlatList
-          data={filteredFavorites}
-          renderItem={renderStationItem}
-          keyExtractor={(item) => item._id}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={11}
-          updateCellsBatchingPeriod={50}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.noResultsContainer}>
-              <Text style={styles.noResultsText}>{t('no_stations_found_search', 'No stations found')}</Text>
-            </View>
-          }
-        />
-      </SafeAreaView>
-    );
-  }
-
-  // Reorder mode
-  if (isReordering) {
-    return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>{t('favorites', 'Favorites')}</Text>
-          <View style={styles.headerActions}>
-            <TouchableOpacity onPress={openSortModal} style={styles.headerButton} data-testid="sort-btn">
-              <Ionicons name="options-outline" size={24} color="#FFF" />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={handleSearchActivate} style={styles.headerButton} data-testid="search-btn">
-              <Ionicons name="search-outline" size={24} color="#FFF" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Reorder List */}
-        <FlatList
-          data={reorderedList}
-          renderItem={renderStationItem}
-          keyExtractor={(item) => item._id}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={11}
-          updateCellsBatchingPeriod={50}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
-
-        {/* Reorder Actions */}
-        <View style={styles.reorderActions}>
-          <TouchableOpacity
-            style={styles.reorderCancelBtn}
-            onPress={handleReorderCancel}
-            data-testid="reorder-cancel-btn"
-          >
-            <Text style={styles.reorderCancelText}>{t('cancel', 'Cancel')}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.reorderSaveBtn}
-            onPress={handleReorderSave}
-            data-testid="reorder-save-btn"
-          >
-            <Text style={styles.reorderSaveText}>{t('save', 'Save')}</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Main view
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerTitleContainer}>
-          <Text style={styles.headerTitle}>{t('favorites', 'Favorites')}</Text>
-          {favorites.length > 0 && (
-            <Text style={styles.headerCount}>{favorites.length}</Text>
-          )}
-        </View>
-        <View style={styles.headerActions}>
-          <TouchableOpacity onPress={openSortModal} style={styles.headerButton} data-testid="sort-btn">
-            <Ionicons name="options-outline" size={24} color="#FFF" />
-          </TouchableOpacity>
-          <TouchableOpacity onPress={handleSearchActivate} style={styles.headerButton} data-testid="search-btn">
-            <Ionicons name="search-outline" size={24} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      {/* Content */}
-      {favorites.length === 0 ? (
-        renderEmptyState()
-      ) : (
-        <FlatList
-          data={filteredFavorites}
-          renderItem={renderStationItem}
-          keyExtractor={(item) => item._id}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={11}
-          updateCellsBatchingPeriod={50}
-          key={`${viewMode}-${responsive.isTablet ? 'tablet' : 'phone'}`} // Force re-render when view mode or device changes
-          numColumns={viewMode === 'grid' ? (responsive.isTablet ? 5 : 3) : 1}
-          contentContainerStyle={[
-            viewMode === 'grid' ? styles.gridContent : styles.listContent,
-            { paddingHorizontal: responsive.sidePadding }
-          ]}
-          columnWrapperStyle={viewMode === 'grid' ? styles.gridRow : undefined}
-          showsVerticalScrollIndicator={false}
-          ListHeaderComponent={
-            viewMode === 'list' ? (
-              <TouchableOpacity
-                style={styles.publicProfilesLink}
-                onPress={() => router.push('/public-profiles')}
-                data-testid="favorites-from-users-btn"
-              >
-                <View style={styles.publicProfilesIcon}>
-                  <Ionicons name="people" size={20} color="#FF4081" />
-                </View>
-                <Text style={styles.publicProfilesText}>{t('favorites_from_users', 'Favorites from Users')}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#888" />
-              </TouchableOpacity>
-            ) : null
-          }
-        />
-      )}
-
-      {/* Sort Modal (Bottom Sheet) */}
-      <Modal visible={showSortModal} transparent animationType="none">
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={closeSortModal}
-        >
-          <Animated.View
-            style={[
-              styles.bottomSheet,
-              { transform: [{ translateY: slideAnim }] },
-            ]}
-          >
-            {/* Handle */}
-            <View style={styles.sheetHandle} />
-
-            {/* Sort Options */}
-            {sortOptions.map((option) => (
-              <TouchableOpacity
-                key={option.key}
-                style={styles.sortOption}
-                onPress={() => handleSortSelect(option.key)}
-                data-testid={`sort-option-${option.key}`}
-              >
-                <Text style={styles.sortOptionText}>{option.label}</Text>
-                <View
-                  style={[
-                    styles.radioOuter,
-                    sortOption === option.key && styles.radioOuterActive,
-                  ]}
-                >
-                  {sortOption === option.key && <View style={styles.radioInner} />}
-                </View>
-              </TouchableOpacity>
-            ))}
-
-            {/* Divider */}
-            <View style={styles.sheetDivider} />
-
-            {/* View Mode Toggle */}
-            <View style={styles.viewModeRow}>
-              <Text style={styles.viewModeLabel}>{t('grid', 'Grid')}</Text>
-              <View style={styles.viewModeButtons}>
-                <TouchableOpacity
-                  style={[
-                    styles.viewModeBtn,
-                    viewMode === 'grid' && styles.viewModeBtnActive,
-                  ]}
-                  onPress={() => handleViewModeSelect('grid')}
-                  data-testid="view-mode-grid"
-                >
-                  <Ionicons
-                    name="grid"
-                    size={18}
-                    color={viewMode === 'grid' ? '#FFF' : '#888'}
-                  />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.viewModeBtn,
-                    viewMode === 'list' && styles.viewModeBtnActive,
-                  ]}
-                  onPress={() => handleViewModeSelect('list')}
-                  data-testid="view-mode-list"
-                >
-                  <Ionicons
-                    name="list"
-                    size={18}
-                    color={viewMode === 'list' ? '#FFF' : '#888'}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Animated.View>
-        </TouchableOpacity>
-      </Modal>
-    </SafeAreaView>
-  );
+  const saveOrder = async (items: Station[]) => {
+    const current = useAuthStore.getState().user;
+    if ((current?._id || current?.id) !== owner) { setSheet(null); return; }
+    if (previewDemo) previewOrder.current = items.map(item => item._id);
+    else {
+      // Reconcile a removal/addition made elsewhere while this sheet was open.
+      const live = useFavoritesStore.getState().favorites;
+      const liveIds = new Set(live.map(item => item._id));
+      const order = items.map(item => item._id).filter(id => liveIds.has(id));
+      await updateCustomOrder([...order, ...live.map(item => item._id).filter(id => !order.includes(id))]);
+    }
+    setSortOption('custom'); setSheet(null);
+  };
+  const columns = responsive.isTablet ? 5 : 3;
+  const gridWidth = (Math.min(responsive.width, 930) - 30 - (columns - 1) * 15) / columns;
+  const renderHeart = (item: Station, grid = false) => <TouchableOpacity testID={`remove-favorite-${item._id}`} accessibilityRole="button" accessibilityLabel={t('remove_favorite_named', 'Remove {{name}} from favorites', { name: item.name })} style={[s.heartTouch, grid && s.gridHeart]} onPress={event => { event.stopPropagation(); if (previewDemo) setPreviewRemoved(previous => [...previous, item._id]); else void removeFavorite(item._id); }}><View style={[s.heartCircle, grid && { backgroundColor: 'transparent' }]}><Image source={require('../../assets/images/mini-player/heart-filled.svg')} style={[s.icon, grid && s.gridHeartGlow]} tintColor="#FF4199" /></View></TouchableOpacity>;
+  const renderStation = ({ item }: { item: Station }) => viewMode === 'grid' ? <TouchableOpacity testID={`favorite-grid-${item._id}`} accessibilityRole="button" accessibilityLabel={item.name} onPress={() => playStation(item)} style={[s.gridItem, { width: gridWidth }]}>
+    <View style={s.gridArtwork}><ImageWithFallback uri={getStationLogoUrl(item)} style={s.gridLogo} />{renderHeart(item, true)}</View><Text numberOfLines={1} style={s.gridName}>{item.name}</Text><Text numberOfLines={1} style={s.gridGenre}>{genre(item)}</Text>
+  </TouchableOpacity> : <TouchableOpacity testID={`favorite-station-${item._id}`} accessibilityRole="button" accessibilityLabel={item.name} accessibilityState={{ selected: currentStation?._id === item._id }} style={s.card} activeOpacity={0.75} onPress={() => playStation(item)}>
+    <ImageWithFallback testID={`favorite-list-logo-${item._id}`} uri={getStationLogoUrl(item)} style={s.logo} />
+    <View style={s.info}><Text style={s.name} numberOfLines={1}>{item.name}</Text><Text style={s.genre} numberOfLines={1}>{genre(item)}</Text></View>
+    {renderHeart(item)}
+  </TouchableOpacity>;
+  return <SafeAreaView style={s.screen} edges={['top']}>
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: insets.top, backgroundColor: darkHeader ? '#131313' : '#1B1C1E' }} />
+    {isSearchActive ? <View style={s.searchHeader}>
+      <View testID="favorites-search-field" style={[s.searchBox,searchFocus.fieldStyle]}><Image source={require('../../assets/images/home/search.svg')} style={s.icon} tintColor="#616161" /><TextInput testID="favorites-search-input" style={[s.input,searchFocus.inputStyle]} onFocus={searchFocus.onFocus} onBlur={searchFocus.onBlur} selectionColor={searchFocus.selectionColor} value={query} onChangeText={setQuery} placeholder={t('search_favorites', 'Search favorites')} placeholderTextColor="#616161" accessibilityLabel={t('search_favorites', 'Search favorites')} autoFocus returnKeyType="search" />
+        {query.length > 0 && <TouchableOpacity testID="search-clear-btn" style={s.clearTouch} accessibilityRole="button" accessibilityLabel={t('clear', 'Clear')} onPress={() => setQuery('')}><Image source={require('../../assets/images/favorites/clear.svg')} style={s.icon} /></TouchableOpacity>}
+      </View><TouchableOpacity testID="search-cancel-btn" style={s.cancelTouch} accessibilityRole="button" onPress={closeSearch}><Text style={s.cancelText}>{t('cancel', 'Cancel')}</Text></TouchableOpacity>
+    </View> : <View style={[s.header, darkHeader && { backgroundColor: '#131313' }]}>
+      <View style={[s.heading, sorted.length === 0 && s.headingEmpty]}><Text style={s.title}>{t('favorites', 'Favorites')}</Text>{sorted.length > 0 && <Text testID="favorites-header-count" style={s.count}>{sorted.length}</Text>}</View>
+      <View style={s.headerActions}><TouchableOpacity testID="sort-btn" style={s.iconTouch} onPress={() => { Keyboard.dismiss(); setSheet('sort'); }} accessibilityRole="button" accessibilityLabel={t('sort', 'Sort')}><Image source={require('../../assets/images/genres/sort.svg')} style={s.icon} /></TouchableOpacity><TouchableOpacity testID="search-btn" style={s.iconTouch} onPress={() => setIsSearchActive(true)} accessibilityRole="button" accessibilityLabel={t('search', 'Search')}><Image source={require('../../assets/images/home/search.svg')} style={s.icon} /></TouchableOpacity></View>
+    </View>}
+    {!previewEmpty && (!isAuthLoaded || !isLoaded || (isLoading && favorites.length === 0)) ? <MegaLoadingState page variant={viewMode==='grid'?'grid':'station-list'} columns={columns} count={viewMode==='grid'?9:6} style={{paddingTop:20}}/> : !isSearchActive && sorted.length === 0 ? error && !previewEmpty ? <View style={s.center}><Text style={s.noResults}>{t('favorites_load_error', 'Could not load favorites.')}</Text><TouchableOpacity style={s.retryTouch} onPress={() => void loadFavorites()} accessibilityRole="button"><Text style={s.discoverText}>{t('retry', 'Retry')}</Text></TouchableOpacity></View> : <ScrollView testID="favorites-empty-state" showsVerticalScrollIndicator={false} contentContainerStyle={s.emptyScroll}><View style={s.empty}><View style={s.emptyContent}>
+      <Image source={require('../../assets/images/favorites/empty-heart.svg')} style={s.emptyHeart} /><Text style={s.emptyTitle}>{t('no_favorites_yet', "You don't have any favorites yet")}</Text><TouchableOpacity testID="discover-stations-btn" style={s.discoverTouch} accessibilityRole="button" onPress={() => router.navigate('/(tabs)')}><Text style={s.discoverText}>{t('discover_stations_link', 'Discover stations near to you!')}</Text><Image source={require('../../assets/images/favorites/discover-arrow.svg')} style={s.discoverArrow} /></TouchableOpacity>
+    </View></View><FavoriteCategories /></ScrollView> : <FlatList key={`${viewMode}-${columns}`} testID="favorites-list" data={filtered} renderItem={renderStation} keyExtractor={item => item._id} numColumns={viewMode === 'grid' ? columns : 1} columnWrapperStyle={viewMode === 'grid' ? s.gridRow : undefined} contentContainerStyle={[s.list, viewMode === 'grid' && s.gridList]} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} ListFooterComponent={!isSearchActive ? <View style={s.categoryFooter}><FavoriteCategories /></View> : null} ListEmptyComponent={<Text style={s.noResults}>{t('no_stations_found_search', 'No stations found')}</Text>} />}
+    <SortBottomSheet<SortOption> visible={sheet !== null} onClose={() => setSheet(null)} sortOption={sortOption} onSortChange={chooseSort} options={sortOptions} variant="favorites" viewMode={viewMode} onViewModeChange={setViewMode} content={sheet === 'custom' ? <FavoriteOrderPanel key={owner || 'guest'} items={draft} onCancel={() => setSheet(null)} onSave={saveOrder} /> : undefined} />
+  </SafeAreaView>;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#000',
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerTitleContainer: {
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFF',
-  },
-  headerCount: {
-    fontSize: 14,
-    color: '#888',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  headerButton: {
-    padding: 4,
-  },
-
-  // Search Header
-  searchHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFF',
-    borderRadius: 24,
-    paddingHorizontal: 16,
-    height: 44,
-  },
-  searchIcon: {
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-    color: '#000',
-  },
-  cancelText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-  },
-
-  // List
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
-
-  // Grid content
-  gridContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 120,
-  },
-  gridRow: {
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  gridItem: {
-    width: '31%',
-    alignItems: 'center',
-  },
-  gridImageContainer: {
-    width: '100%',
-    aspectRatio: 1,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: '#2A2A2C',
-    marginBottom: 8,
-  },
-  gridImage: {
-    width: '100%',
-    height: '100%',
-  },
-  gridPlayingIndicator: {
-    position: 'absolute',
-    bottom: 4,
-    right: 4,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#FF4081',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  gridName: {
-    fontSize: 13,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-    textAlign: 'center',
-    marginBottom: 2,
-  },
-  gridGenre: {
-    fontSize: 11,
-    color: '#888',
-    textAlign: 'center',
-  },
-
-  // Station Card
-  stationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1A1A1C',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  stationLogo: {
-    width: 56,
-    height: 56,
-    borderRadius: 8,
-    backgroundColor: '#2A2A2C',
-  },
-  stationInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  stationName: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-    marginBottom: 2,
-  },
-  stationNamePlaying: {
-    color: '#FF4081',
-  },
-  stationGenre: {
-    fontSize: 14,
-    color: '#888',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  playButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#FF4081',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heartButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#2A2A2C',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  dragHandle: {
-    width: 44,
-    height: 44,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Empty State
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-    marginTop: -60,
-  },
-  emptyIconContainer: {
-    marginBottom: 24,
-  },
-  emptyTitle: {
-    fontSize: 22,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFF',
-    textAlign: 'center',
-    marginBottom: 16,
-    lineHeight: 30,
-  },
-  discoverLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  discoverText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FF4081',
-  },
-
-  // Public Profiles Link
-  publicProfilesLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1A1A1D',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-  },
-  publicProfilesIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 64, 129, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  publicProfilesText: {
-    flex: 1,
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-  },
-
-  // No Results
-  noResultsContainer: {
-    paddingVertical: 40,
-    alignItems: 'center',
-  },
-  noResultsText: {
-    fontSize: 16,
-    color: '#888',
-  },
-
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  bottomSheet: {
-    backgroundColor: '#1A1A1C',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-    paddingTop: 12,
-  },
-  sheetHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#666',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-
-  // Sort Options
-  sortOption: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-  },
-  sortOptionText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-  },
-  radioOuter: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: '#FF4081',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioOuterActive: {
-    borderColor: '#FF4081',
-  },
-  radioInner: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#FF4081',
-  },
-
-  // Divider
-  sheetDivider: {
-    height: 1,
-    backgroundColor: '#333',
-    marginVertical: 16,
-  },
-
-  // View Mode
-  viewModeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-  },
-  viewModeLabel: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-  },
-  viewModeButtons: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  viewModeBtn: {
-    width: 40,
-    height: 32,
-    borderRadius: 4,
-    backgroundColor: '#333',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  viewModeBtnActive: {
-    backgroundColor: '#555',
-  },
-
-  // Reorder Actions
-  reorderActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    backgroundColor: '#000',
-    borderTopWidth: 1,
-    borderTopColor: '#222',
-  },
-  reorderCancelBtn: {
-    paddingHorizontal: 32,
-    paddingVertical: 12,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#666',
-  },
-  reorderCancelText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFF',
-  },
-  reorderSaveBtn: {
-    paddingHorizontal: 40,
-    paddingVertical: 12,
-    borderRadius: 24,
-    backgroundColor: '#FF4081',
-  },
-  reorderSaveText: {
-    fontSize: 16,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFF',
-  },
+const s = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: '#1B1C1E' }, header: { height: 78 }, heading: { position: 'absolute', left: 85, right: 85, top: 18, alignItems: 'center' }, headingEmpty: { top: 29 }, title: { fontFamily: 'Ubuntu-Bold', fontSize: 18, lineHeight: 21, color: '#FFFFFF' }, count: { fontFamily: 'Ubuntu-Medium', fontSize: 12, lineHeight: 14, color: '#A6A6A6', marginTop: 2 }, headerActions: { position: 'absolute', right: 5, top: 18, flexDirection: 'row' }, iconTouch: { width: 44, height: 44, justifyContent: 'center', alignItems: 'center' }, icon: { width: 24, height: 24 },
+  list: { width: '100%', maxWidth: 630, alignSelf: 'center', paddingHorizontal: 15, paddingTop: 20, paddingBottom: 20 }, card: { height: 80, paddingLeft: 15, paddingRight: 13, borderRadius: 10, backgroundColor: '#262626', flexDirection: 'row', alignItems: 'center', marginBottom: 15 }, logo: { width: 50, height: 50, borderRadius: 5 }, info: { flex: 1, minWidth: 0, marginLeft: 15, marginRight: 10 }, name: { fontFamily: 'Ubuntu-Medium', fontSize: 15, lineHeight: 17, color: '#FFFFFF', marginBottom: 6 }, genre: { fontFamily: 'Ubuntu-Regular', fontSize: 14, lineHeight: 16, color: '#BFBFBF' }, heartTouch: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }, heartCircle: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#333333', alignItems: 'center', justifyContent: 'center' },
+  searchHeader: { height: 102, paddingTop: 37, paddingBottom: 20, paddingLeft: 15, paddingRight: 14, flexDirection: 'row', alignItems: 'center', gap: 11 }, searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', height: 45, borderRadius: 10, backgroundColor: '#F7F8FC', paddingLeft: 15, paddingRight: 6, gap: 15 }, input: { flex: 1, minWidth: 0, height: 43, borderWidth:0, padding: 0, fontFamily: 'Ubuntu-Medium', fontSize: 15, lineHeight: 17, color: '#1B1C1E' }, clearTouch: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' }, cancelTouch: { minWidth: 50, height: 44, justifyContent: 'center' }, cancelText: { fontFamily: 'Ubuntu-Medium', fontSize: 15, lineHeight: 17, color: '#FFFFFF' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center' }, emptyScroll: { flexGrow: 1, paddingBottom: 24 }, categoryFooter: { marginHorizontal: -15 }, empty: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 45, paddingBottom: 35, paddingHorizontal: 20 }, emptyContent: { alignItems: 'center' }, emptyHeart: { width: 84, height: 84 }, emptyTitle: { fontFamily: 'Ubuntu-Medium', fontSize: 20, lineHeight: 23, color: '#FFFFFF', textAlign: 'center', maxWidth: 200, minHeight: 46, marginTop: 15 }, discoverTouch: { marginTop: 62, minHeight: 44, alignItems: 'center' }, discoverText: { fontFamily: 'Ubuntu-Medium', fontSize: 13, lineHeight: 15, color: '#FF4199', textAlign: 'center' }, discoverArrow: { width: 16, height: 16, marginTop: 9 }, noResults: { fontFamily: 'Ubuntu-Regular', fontSize: 15, color: '#9C9C9C', textAlign: 'center', paddingVertical: 40 }, retryTouch: { padding: 15 },
+  gridList: { maxWidth: 930 }, gridRow: { gap: 15 }, gridItem: { marginBottom: 20 }, gridArtwork: { position: 'relative' }, gridHeart: { position: 'absolute', right: -7, bottom: -7 }, gridHeartGlow: { shadowColor: '#FF4199', shadowOffset: { width: 0, height: 0 }, shadowOpacity: Platform.OS === 'web' ? 0 : 0.25, shadowRadius: 3, ...(Platform.OS === 'web' ? { filter: 'drop-shadow(0 0 3px rgba(255, 65, 153, 0.38))' } : {}) }, gridLogo: { width: '100%', aspectRatio: 1, borderRadius: 10 }, gridName: { fontFamily: 'Ubuntu-Medium', fontSize: 14, lineHeight: 17, color: '#FFFFFF', marginTop: 10 }, gridGenre: { fontFamily: 'Ubuntu-Regular', fontSize: 12, lineHeight: 15, color: '#BFBFBF', marginTop: 4 },
 });

@@ -17,9 +17,9 @@ import { Platform, InteractionManager, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { usePlayerStore } from '../store/playerStore';
 import { useFavoritesStore } from '../store/favoritesStore';
-import { useRecentlyPlayedStore } from '../store/recentlyPlayedStore';
 import stationService from '../services/stationService';
 import userService from '../services/userService';
+import { useRecentlyPlayedStore } from '../store/recentlyPlayedStore';
 import statsService from '../services/statsService';
 import { useAuthStore } from '../store/authStore';
 import { syncCompanionCatalog } from '../services/companionCatalogService';
@@ -185,6 +185,7 @@ async function doSetupTrackPlayer(): Promise<boolean> {
 // ============================================
 // PROVIDER COMPONENT
 // ============================================
+import { currentTrackText, normalizeNowPlaying, resolveNowPlaying, hasFreshIcyMetadata, isMetadataAdvertisement } from '../utils/nowPlaying';
 import { buildStreamCandidates, isPlaylistStream, isHlsStream } from '../utils/streamSources';
 
 export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
@@ -199,8 +200,11 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   const statsOwner = useAuthStore(state => state.isAuthenticated ? state.user?._id || (state.user as any)?.id || null : null);
   const [isReady, setIsReady] = useState(false);
   const statsIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const nowPlayingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const nowPlayingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const icyMetadataActiveRef = useRef<boolean>(false);
+  const icyMetadataAtRef = useRef(0);
+  const metadataPendingGenerationRef=useRef<number|null>(null);
+  const metadataFallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Use Track Player hooks for state
   const playbackState = usePlaybackState();
@@ -357,19 +361,20 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       const rawTitle = metadata.title || metadata.commonMetadata?.title || '';
       const rawArtist = metadata.artist || metadata.commonMetadata?.artist || '';
       
-      // Skip advertisements (common in radio streams)
-      const adKeywords = ['AdCreativeId', 'adw_ad', 'adId=', 'insertionType=', 'adswizz'];
-      const combinedRaw = `${rawTitle} ${rawArtist}`;
-      if (adKeywords.some(kw => combinedRaw.toLowerCase().includes(kw.toLowerCase()))) {
-        console.log('[AudioProvider] ICY: Skipping advertisement metadata');
+      if(isMetadataAdvertisement(metadata)) return;
+      if (!rawTitle && !rawArtist) return;
+      const validated = normalizeNowPlaying({ title: rawTitle, artist: rawArtist }, station.name);
+      if (!validated || !currentTrackText(validated, station.name, station.country)) {
+        // A server error is not a song, and must not disable the API fallback.
+        icyMetadataActiveRef.current = false;
+        icyMetadataAtRef.current = 0;
+        if(!validated&&!currentTrackText(usePlayerStore.getState().nowPlaying,station.name,station.country))usePlayerStore.getState().setMetadataStatus('error');
         return;
       }
       
-      if (!rawTitle && !rawArtist) return;
-      
       // Parse "Artist - Title" format
-      let songTitle = rawTitle;
-      let artistName = rawArtist;
+      let songTitle = validated.title || '';
+      let artistName = validated.artist || '';
       
       if (songTitle && songTitle.includes(' - ') && !artistName) {
         const parts = songTitle.split(' - ');
@@ -384,8 +389,9 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       
       console.log('[AudioProvider] ICY parsed:', { title: songTitle, artist: artistName });
       
-      // Mark that we received ICY metadata (disables fallback polling)
+      // Prefer fresh native ICY metadata; stale events allow bounded REST recovery.
       icyMetadataActiveRef.current = true;
+      icyMetadataAtRef.current = Date.now();
       
       // Track song changes for stats
       const metadataKey = `${songTitle}-${artistName}`;
@@ -473,6 +479,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Stop stats tracking interval
   const stopStatsTracking = useCallback(() => {
+    if(metadataFallbackTimerRef.current){clearTimeout(metadataFallbackTimerRef.current);metadataFallbackTimerRef.current=null;}
     if (statsIntervalRef.current) {
       clearInterval(statsIntervalRef.current);
       statsIntervalRef.current = null;
@@ -815,21 +822,27 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   // API returns: { station: { id, name, url }, metadata: { title?, artist?, station?, genre? } }
   const fetchNowPlaying = useCallback(async (stationId: string) => {
     const station = usePlayerStore.getState().currentStation;
-    if (!station) return;
-    
+    if (!station || station._id !== stationId) return;
+    const metadataGeneration=globalPlayId;
+    if(metadataPendingGenerationRef.current===metadataGeneration)return;
+    metadataPendingGenerationRef.current=metadataGeneration;
     try {
       // Use the correct metadata API endpoint via stationService
       const response = await stationService.getNowPlaying(stationId);
       console.log('[AudioProvider] Now Playing response:', response);
       
       // API returns { station: {...}, metadata: {...} } format
-      const metadataObj = response?.metadata;
+      if (globalPlayId!==metadataGeneration || usePlayerStore.getState().currentStation?._id !== stationId || (icyMetadataActiveRef.current && hasFreshIcyMetadata(icyMetadataAtRef.current))) return;
+      const state=usePlayerStore.getState();
+      const update=resolveNowPlaying(response,state.nowPlaying,station.name,station.country);
+      if(update.retained)return;
+      const metadataObj=update.metadata;
       
       // Check if we have valid metadata (title or artist)
-      if (metadataObj && (metadataObj.title || metadataObj.artist)) {
+      if (metadataObj && currentTrackText(metadataObj,station.name,station.country)) {
         const songTitle = metadataObj.title || station.name;
         const artistName = metadataObj.artist || '';
-        const genre = metadataObj.genre || '';
+        const genre = metadataObj.album || '';
         
         // Build display text based on available data
         let displayText = songTitle;
@@ -882,30 +895,15 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         return;
       }
       
-      // No metadata from API - use station info as fallback
-      console.log('[AudioProvider] No metadata available, using station info');
-      setNowPlaying({
-        title: station.name,
-        station: station.name,
-        timestamp: Date.now(),
-      });
-      
-      // Update lock screen with station info
-      await updateLockScreenMetadata(station, station.name, station.country || 'Live Radio');
-      
+      setNowPlaying(null);
+      state.setMetadataStatus(update.status);
+      await updateLockScreenMetadata(station,station.name,station.country||'Live Radio');
     } catch (err) {
-      console.log('[AudioProvider] Now playing fetch error:', err);
-      
-      // On error, still update with station info
-      if (station) {
-        setNowPlaying({
-          title: station.name,
-          station: station.name,
-          timestamp: Date.now(),
-        });
-        await updateLockScreenMetadata(station, station.name, station.country || 'Live Radio');
-      }
-    }
+      if(globalPlayId!==metadataGeneration || usePlayerStore.getState().currentStation?._id!==stationId || (icyMetadataActiveRef.current&&hasFreshIcyMetadata(icyMetadataAtRef.current)))return;
+      const state=usePlayerStore.getState();
+      const update=resolveNowPlaying(null,state.nowPlaying,station.name,station.country);
+      if(!update.retained){setNowPlaying(update.metadata);state.setMetadataStatus(update.status);}
+    } finally {if(metadataPendingGenerationRef.current===metadataGeneration)metadataPendingGenerationRef.current=null;}
   }, [setNowPlaying, updateLockScreenMetadata]);
 
   // ============================================
@@ -922,12 +920,13 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (Platform.OS === 'web') {
       console.log('[AudioProvider] Web platform - playback not supported');
       setCurrentStation(station);
+      usePlayerStore.getState().setMetadataStatus('loading');
       setMiniPlayerVisible(true);
       return;
     }
 
     // Same station? Toggle play/pause
-    if (currentPlayingStationId === station._id) {
+    if (currentPlayingStationId === station._id && usePlayerStore.getState().playbackState !== 'error') {
       console.log('[AudioProvider] Same station - toggling');
       if (preparingQueueRef.current) return;
       const state = await TrackPlayer.getPlaybackState();
@@ -998,11 +997,13 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
         listeningStartTime = null;
       }
 
+      icyMetadataActiveRef.current=false; icyMetadataAtRef.current=0;
       // STEP 2: Update UI immediately
       console.log('[AudioProvider] STEP 2: Updating UI...');
       setPlaybackState('loading');
       setError(null);
       setCurrentStation(station);
+      usePlayerStore.getState().setMetadataStatus('loading');
       setMiniPlayerVisible(true);
       currentPlayingStationId = station._id;
 
@@ -1107,11 +1108,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
       console.log('[AudioProvider] ========== NOW PLAYING ==========');
 
-      // Add to recently played store (for CarPlay real-time sync)
-      useRecentlyPlayedStore.getState().addStation(station);
-
-      // Background tasks - also record to API
-      userService.recordRecentlyPlayed(station._id).catch(() => {});
+      // History is recorded by the shared store on confirmed playing events.
       fetchNowPlaying(station._id);
 
       // Save as last played station
@@ -1136,26 +1133,25 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
       // ICY metadata comes directly from the stream (zero server load)
       // Fallback: REST API polling only if ICY not available after 20 seconds
       console.log('[AudioProvider] STEP 8: ICY metadata active, API fallback in 20s...');
-      icyMetadataActiveRef.current = false; // Reset — will be set true by ICY event handler
       if (nowPlayingIntervalRef.current) {
         clearInterval(nowPlayingIntervalRef.current);
       }
       // Initial metadata fetch via API (fast first-display)
       fetchNowPlaying(station._id);
-      // Start fallback polling after 20s delay — only if ICY hasn't kicked in
-      const stationIdForPolling = station._id;
-      setTimeout(() => {
-        if (!icyMetadataActiveRef.current && currentPlayingStationId === stationIdForPolling) {
-          console.log('[AudioProvider] No ICY metadata after 20s, activating API fallback polling (60s)');
-          nowPlayingIntervalRef.current = setInterval(() => {
-            if (currentPlayingStationId && !icyMetadataActiveRef.current) {
-              fetchNowPlaying(currentPlayingStationId);
-            }
-          }, 60000); // 60s fallback (was 15s) — only for streams without ICY
-        } else {
-          console.log('[AudioProvider] ICY metadata active, no API polling needed');
-        }
-      }, 20000);
+      // Keep the bounded fallback alive even when ICY was initially healthy.
+      // Skip fresh ICY; recover after invalid frames or stalled native metadata.
+      if(metadataFallbackTimerRef.current)clearTimeout(metadataFallbackTimerRef.current);
+      const stationIdForPolling=station._id;
+      metadataFallbackTimerRef.current=setTimeout(()=>{
+        metadataFallbackTimerRef.current=null;
+        if(globalPlayId!==myPlayId || currentPlayingStationId!==stationIdForPolling)return;
+        const refresh=()=>{
+          if(globalPlayId===myPlayId && currentPlayingStationId===stationIdForPolling &&
+            !(icyMetadataActiveRef.current&&hasFreshIcyMetadata(icyMetadataAtRef.current)))void fetchNowPlaying(stationIdForPolling);
+        };
+        refresh();
+        nowPlayingIntervalRef.current=setInterval(refresh,60000);
+      },20000);
 
       // STEP 9: Save current station and fetch similar stations for background service
       // This enables Next/Previous controls in lock screen and Control Center
@@ -1225,7 +1221,6 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
           listeningStartTime = new Date();
           
           // Background tasks
-          userService.recordRecentlyPlayed(station._id).catch(() => {});
           fetchNowPlaying(station._id);
           return;
         } catch (fallbackError) {
@@ -1375,7 +1370,7 @@ export const AudioProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   
   // Load recently played store from storage on mount (for CarPlay cold start)
   useEffect(() => {
-    useRecentlyPlayedStore.getState().loadFromAPI();
+    void useRecentlyPlayedStore.getState().loadFromStorage();
   }, []);
 
   // Send favorites to Watch when they change

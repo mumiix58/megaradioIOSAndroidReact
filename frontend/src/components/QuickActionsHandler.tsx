@@ -3,10 +3,10 @@
 // Must be used inside AudioProvider to access playStation function
 // Fully async - never blocks startup
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useContext } from 'react';
 import { Platform, InteractionManager } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAudio } from '../hooks/useAudioPlayer';
+import { AudioContext } from '../providers/AudioProvider';
 import { usePlayerStore } from '../store/playerStore';
 import { reportLaunchSource } from '../services/launchSourceService';
 import i18n from '../services/i18nService';
@@ -22,7 +22,7 @@ const getQuickActions = () => {
 };
 
 export const QuickActionsHandler: React.FC = () => {
-  const { playStation } = useAudio();
+  const playStation = useContext(AudioContext)?.playStation;
   const playStationRef = useRef(playStation);
   playStationRef.current = playStation;
   const handledInitial = useRef(false);
@@ -30,7 +30,7 @@ export const QuickActionsHandler: React.FC = () => {
   const { currentStation } = usePlayerStore();
 
   const playLastStation = async () => {
-    if (playbackPending.current) return;
+    if (!playStationRef.current || playbackPending.current) return;
     playbackPending.current = true;
     try {
       const raw = await AsyncStorage.getItem(LAST_PLAYED_STATION_KEY);
@@ -44,7 +44,7 @@ export const QuickActionsHandler: React.FC = () => {
       // A voice command means PLAY, not toggle/pause an already playing station.
       const current = usePlayerStore.getState();
       if (current.currentStation?._id !== station._id || current.playbackState !== 'playing') {
-        await playStationRef.current(station);
+        await playStationRef.current?.(station);
       }
     } catch (e) {
       console.log('[QuickActions] Play failed:', (e as any)?.message || e);

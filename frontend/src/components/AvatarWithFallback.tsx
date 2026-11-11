@@ -1,17 +1,20 @@
+import {Skeleton} from './Skeleton';
 import React, { useState, useEffect } from 'react';
-import { View, Image, StyleSheet, ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import Svg, { Rect, Circle, Path } from 'react-native-svg';
 
 interface AvatarWithFallbackProps {
   uri: string | null | undefined;
   size: number;
+  figmaFallback?: boolean;
   style?: ViewStyle;
 }
 
 export const AvatarWithFallback: React.FC<AvatarWithFallbackProps> = ({ 
   uri, 
   size,
+  figmaFallback = false,
   style 
 }) => {
   const [imageError, setImageError] = useState(false);
@@ -42,16 +45,15 @@ export const AvatarWithFallback: React.FC<AvatarWithFallbackProps> = ({
     overflow: 'hidden' as const,
   };
   
-  // Render gradient fallback
-  const renderFallback = () => (
-    <LinearGradient
-      colors={['#FF4199', '#FF8C42']}
-      style={[containerStyle, style]}
-    >
-      <View style={styles.fallbackContent}>
-        <Ionicons name="person" size={size * 0.5} color="#FFF" />
-      </View>
-    </LinearGradient>
+  // Match the shared Mega Radio no-avatar asset.
+  const renderFallback = () => figmaFallback ? <View style={[containerStyle, style]}><ExpoImage source={require('../../assets/images/profile/empty-avatar.svg')} style={{ width: size, height: size }} contentFit="contain" /></View> : (
+    <View style={[containerStyle, style]}>
+      <Svg width={size} height={size} viewBox="0 0 64 64">
+        <Rect width="64" height="64" rx="32" fill="#3a3a3a" />
+        <Circle cx="32" cy="26" r="11" fill="#9a9a9a" />
+        <Path d="M12 60c0-11 9-19 20-19s20 8 20 19v4H12z" fill="#9a9a9a" />
+      </Svg>
+    </View>
   );
   
   if (showFallback) {
@@ -60,22 +62,24 @@ export const AvatarWithFallback: React.FC<AvatarWithFallbackProps> = ({
   
   return (
     <View style={[containerStyle, style]}>
-      <Image
+      <ExpoImage
+        key={fullUri}
+        recyclingKey={fullUri}
+        cachePolicy="memory-disk"
+        contentFit="cover"
         source={{ uri: fullUri! }}
         style={{ width: size, height: size }}
         onError={() => {
-          console.log('[AvatarWithFallback] Image failed to load:', fullUri);
           setImageError(true);
           setImageLoading(false);
         }}
         onLoad={() => {
-          console.log('[AvatarWithFallback] Image loaded successfully');
           setImageLoading(false);
         }}
       />
       {/* Show fallback overlay while loading or on error */}
       {imageLoading && (
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: '#333' }]} />
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}><Skeleton width={size} height={size} borderRadius={size/2}/></View>
       )}
     </View>
   );

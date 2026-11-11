@@ -3,10 +3,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from './authStore';
 import { isCurrentSession, sessionVersion } from '../services/sessionRuntime';
 
-export type PremiumPlan = 'none' | 'remove_ads' | 'premium_monthly' | 'premium_yearly' | 'premium_lifetime';
+export type PremiumPlan = 'none' | 'remove_ads' | 'premium_monthly' | 'premium_quarterly' | 'premium_yearly' | 'premium_lifetime';
 export type PremiumFeature = 'remove_ads' | 'song_info' | 'spotify_link' | 'youtube_link' | 'hd_stream' | 'song_history' | 'stream_record';
 export interface Entitlement { plan: PremiumPlan; expiryDate: string | null; isActive: boolean; features: PremiumFeature[]; }
-const PLANS = ['none', 'remove_ads', 'premium_monthly', 'premium_yearly', 'premium_lifetime'];
+const PLANS = ['none', 'remove_ads', 'premium_monthly', 'premium_quarterly', 'premium_yearly', 'premium_lifetime'];
 const FEATURES = ['remove_ads', 'song_info', 'spotify_link', 'youtube_link', 'hd_stream', 'song_history', 'stream_record'];
 const key = (userId: string) => `megaradio_verified_premium_v2:${userId}`;
 // Offline access is bounded and only uses a previously verified account entitlement.

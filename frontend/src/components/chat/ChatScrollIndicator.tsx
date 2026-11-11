@@ -1,0 +1,23 @@
+import React,{forwardRef,useEffect,useImperativeHandle,useRef,useState} from 'react';
+import {Animated,PanResponder,Platform,StyleSheet} from 'react-native';
+import {useTranslation} from 'react-i18next';
+export interface ChatScrollIndicatorHandle {update:(offset:number,viewport:number,content:number)=>void}
+export const ChatScrollIndicator=forwardRef<ChatScrollIndicatorHandle,{onSeek:(offset:number)=>void;onGrab:()=>void;onRelease:()=>void}>(({onSeek,onGrab,onRelease},ref)=>{
+ const {t}=useTranslation(),opacity=useRef(new Animated.Value(0)).current,position=useRef(new Animated.Value(0)).current;
+ const [height,setHeight]=useState(36),[percent,setPercent]=useState(0),[visible,setVisible]=useState(false),shown=useRef(false),dragging=useRef(false),start=useRef(0),timer=useRef<ReturnType<typeof setTimeout>|undefined>(undefined);
+ const webSelection=useRef<{active:boolean;previous:string}>({active:false,previous:''});
+ const setWebDrag=(active:boolean)=>{if(Platform.OS!=='web')return;if(active&&!webSelection.current.active){webSelection.current={active:true,previous:document.documentElement.style.userSelect};document.documentElement.style.userSelect='none';window.getSelection()?.removeAllRanges();}else if(!active&&webSelection.current.active){document.documentElement.style.userSelect=webSelection.current.previous;webSelection.current.active=false;}};
+ const metrics=useRef({offset:0,viewport:0,content:0,travel:0}),callbacks=useRef({onSeek,onGrab,onRelease});callbacks.current={onSeek,onGrab,onRelease};
+ const reveal=()=>{clearTimeout(timer.current);opacity.stopAnimation();opacity.setValue(1);if(!shown.current){shown.current=true;setVisible(true);}};
+ const fade=()=>{clearTimeout(timer.current);timer.current=setTimeout(()=>{if(dragging.current)return;Animated.timing(opacity,{toValue:0,duration:250,useNativeDriver:Platform.OS!=='web'}).start(({finished})=>{if(finished){shown.current=false;setVisible(false);}});},850);};
+ const seek=(offset:number)=>{const m=metrics.current,bounded=Math.max(0,Math.min(m.content-m.viewport,offset));position.setValue(m.travel*bounded/Math.max(1,m.content-m.viewport));callbacks.current.onSeek(bounded);};
+ const pan=useRef(PanResponder.create({onStartShouldSetPanResponder:event=>{const capture=shown.current&&metrics.current.travel>0;if(capture)event.preventDefault?.();return capture;},onMoveShouldSetPanResponder:()=>shown.current&&metrics.current.travel>0,onPanResponderGrant:event=>{event.preventDefault?.();setWebDrag(true);dragging.current=true;start.current=metrics.current.offset;reveal();callbacks.current.onGrab();},onPanResponderMove:(event,gesture)=>{event.preventDefault?.();const m=metrics.current;seek(start.current+gesture.dy*(m.content-m.viewport)/Math.max(1,m.travel));},onPanResponderRelease:()=>{setWebDrag(false);dragging.current=false;callbacks.current.onRelease();fade();},onPanResponderTerminate:()=>{setWebDrag(false);dragging.current=false;callbacks.current.onRelease();fade();},onPanResponderTerminationRequest:()=>false})).current;
+ useEffect(()=>()=>{setWebDrag(false);clearTimeout(timer.current);opacity.stopAnimation();},[opacity]);
+ useImperativeHandle(ref,()=>({update(offset,viewport,content){
+  if(content<=viewport+1){clearTimeout(timer.current);opacity.setValue(0);shown.current=false;setVisible(false);return;}
+  const track=Math.max(0,viewport-16),thumb=Math.min(track,Math.max(36,Math.min(96,track*viewport/content))),travel=track-thumb;
+  metrics.current={offset,viewport,content,travel};setPercent(Math.round(Math.max(0,Math.min(100,100*offset/(content-viewport)))));setHeight(thumb);position.setValue(Math.max(0,Math.min(travel,travel*offset/(content-viewport))));reveal();if(!dragging.current)fade();
+ }}));
+ return <Animated.View testID="chat-scroll-indicator" {...pan.panHandlers} pointerEvents={visible?'auto':'none'} accessibilityRole="adjustable" accessibilityValue={{min:0,max:100,now:percent}} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} accessibilityLabel={t('chat_scroll_history')} accessibilityActions={[{name:'increment'},{name:'decrement'}]} onAccessibilityAction={event=>{callbacks.current.onGrab();seek(metrics.current.offset+(event.nativeEvent.actionName==='increment'?1:-1)*metrics.current.viewport*.8);callbacks.current.onRelease();reveal();fade();}} style={[s.hit,Platform.OS==='web'&&({userSelect:'none',touchAction:'none',cursor:'grab'} as any),{height,opacity,transform:[{translateY:position}]}]}><Animated.View pointerEvents="none" style={s.thumb}/></Animated.View>;
+});
+const s=StyleSheet.create({hit:{position:'absolute',top:8,right:0,width:24,alignItems:'flex-end',paddingRight:3},thumb:{width:3,height:'100%',borderRadius:2,backgroundColor:'rgba(255,255,255,0.28)'}});

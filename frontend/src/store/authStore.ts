@@ -74,6 +74,7 @@ const secureStorage = {
       await SecureStore.setItemAsync(key, value);
     } catch (error) {
       console.error('SecureStore setItem error:', error);
+      throw error;
     }
   },
   
@@ -207,6 +208,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    try{const {socialAuthService}=await import('../services/socialAuthService');await socialAuthService.signOutGoogle();}catch{}
     const token = get().token;
     // Stop old async results immediately; cleanup requests explicitly use the old token.
     resetPrivateMemory();

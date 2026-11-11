@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const mod={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/storeReview.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText,{exports:mod.exports,module:mod});
+const {reviewStore,openStoreReview}=mod.exports;
+(async()=>{
+ assert.equal(reviewStore('ios'),'ios');assert.equal(reviewStore('android'),'android');
+ assert.equal(reviewStore('web','Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X)'),'ios');
+ assert.equal(reviewStore('web','Mozilla/5.0 (Linux; Android 15)'),'android');
+ assert.equal(reviewStore('web','Mozilla/5.0 (Macintosh; Intel Mac OS X)',5),'ios','iPad desktop browsing mode');
+ assert.equal(reviewStore('web','Mozilla/5.0 (Macintosh; Intel Mac OS X)',0),null,'Mac desktop must not silently select Android');
+ assert.equal(reviewStore('web','Mozilla/5.0 (Windows NT 10.0)'),null);
+ const calls=[];
+ await openStoreReview('ios',true,async url=>calls.push(url));
+ assert.match(calls.pop(),/^itms-apps:.*id6759302561\?action=write-review$/);
+ await openStoreReview('android',true,async url=>calls.push(url));
+ assert.equal(calls.pop(),'market://details?id=com.megaradio&showAllReviews=true');
+ await openStoreReview('ios',true,async url=>{calls.push(url);if(url.startsWith('itms-apps:'))throw Error('store handler missing');});
+ assert.deepEqual(calls.splice(0),['itms-apps://itunes.apple.com/app/viewContentsUserReviews/id6759302561?action=write-review','https://apps.apple.com/app/id6759302561?action=write-review']);
+ await openStoreReview('android',false,async url=>calls.push(url));
+ assert.equal(calls.pop(),'https://play.google.com/store/apps/details?id=com.megaradio&showAllReviews=true');
+ await assert.rejects(openStoreReview('android',true,async()=>{throw Error('cannot open');}),/cannot open/);
+ console.log('PASS device/store routing, iPad detection, desktop choice, native/HTTPS review targets and failure fallback');
+})().catch(error=>{console.error(error);process.exitCode=1;});

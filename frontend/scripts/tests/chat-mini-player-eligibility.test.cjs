@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),ts=require('typescript');
+const source=ts.transpileModule(fs.readFileSync('src/hooks/useChatMiniPlayerEligibility.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+let value=null,effects=[],player={currentStation:{_id:'old'},playbackState:'paused'};
+const React={useState:()=>[value,next=>value=typeof next==='function'?next(value):next],useEffect:f=>effects.push(f)};
+const mod={exports:{}};vm.runInNewContext(source,{exports:mod.exports,module:mod,require:id=>id==='react'?React:{usePlayerStore:fn=>fn(player)}});
+const render=(key='me:peer',focused=true)=>{effects=[];const visible=mod.exports.useChatMiniPlayerEligibility(key,focused);effects.forEach(f=>f());return visible;};
+assert.equal(render(),false,'stale paused radio must not appear on entry, including a cleared conversation');
+player.playbackState='loading';assert.equal(render(),false,'an unconfirmed startup is not playback');
+player.playbackState='playing';assert.equal(render(),true,'already playing on entry, or a newly played shared card, enables controls');
+player.playbackState='paused';assert.equal(render(),true,'pause during this visit keeps a resume control');
+assert.equal(render('me:other'),false,'paused station cannot carry into another conversation');
+assert.equal(render(),false,'returning to the old chat does not revive paused controls');
+player.playbackState='playing';assert.equal(render(),true);
+assert.equal(render('me:peer',false),false);player.playbackState='paused';assert.equal(render(),false,'leaving and re-entering a paused conversation stays hidden');
+player.playbackState='playing';render();player.currentStation={_id:'other'};player.playbackState='paused';assert.equal(render(),false,'a different paused station cannot inherit eligibility');
+player.playbackState='playing';render();player.playbackState='error';assert.equal(render(),false,'failed playback is not an active chat player');
+console.log('PASS stale paused/cleared entry, active playback, in-visit pause/resume, chat switch, blur/re-entry, station change and error');

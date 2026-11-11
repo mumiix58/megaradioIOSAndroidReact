@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SharedLinkState } from '../src/components/SharedLinkState';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useAudioPlayer } from '../src/hooks/useAudioPlayer';
 import { usePlayerStore } from '../src/store/playerStore';
 import stationService from '../src/services/stationService';
 import userService from '../src/services/userService';
-import { colors } from '../src/constants/theme';
 
 export default function OpenLink() {
   const { type, identifier } = useLocalSearchParams<{ type: string; identifier: string }>();
@@ -39,19 +37,8 @@ export default function OpenLink() {
           userAvatar: profile.profilePhoto || profile.avatar || '', userSlug: identifier,
         } });
       }
-    })().catch(reason => { if (active) setError(reason?.message || 'Bağlantı açılamadı.'); });
+    })().catch(reason => { if (active) setError(reason?.response ? 'Paylaşılan içeriğe şu anda ulaşılamıyor. Bağlantını kontrol edip yeniden deneyebilirsin.' : reason?.message || 'Bağlantı açılamadı.'); });
     return () => { active = false; };
   }, [type, identifier, router]);
-  return <SafeAreaView testID="open-shared-link" style={styles.page}>
-    {error ? <Text testID="open-shared-link-error" accessibilityRole="alert" style={styles.text}>{error}</Text>
-      : <ActivityIndicator testID="open-shared-link-loading" color={colors.primary} />}
-    <TouchableOpacity testID="open-shared-link-home" style={styles.button} onPress={() => router.replace('/(tabs)')}>
-      <Text style={styles.text}>Ana sayfa</Text>
-    </TouchableOpacity>
-  </SafeAreaView>;
+  return <SharedLinkState testID="open-shared-link" loading={!error} message={error} />;
 }
-const styles = StyleSheet.create({
-  page: { flex: 1, backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 24 },
-  text: { color: colors.text, fontSize: 16, textAlign: 'center' },
-  button: { minHeight: 44, paddingHorizontal: 24, justifyContent: 'center', borderRadius: 22, backgroundColor: colors.primary },
-});

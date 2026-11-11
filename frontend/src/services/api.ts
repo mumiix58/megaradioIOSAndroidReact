@@ -1,3 +1,4 @@
+import {isGlobalCountry} from '../utils/countryScope';
 import axios, { AxiosHeaders, InternalAxiosRequestConfig } from 'axios';
 import { Platform } from 'react-native';
 import { API_BASE_URL } from '../constants/api';
@@ -28,8 +29,10 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config: SessionConfig) => {
-  const target = new URL(config.url || '', config.baseURL || API_BASE_URL);
-  if (target.origin !== new URL(API_BASE_URL).origin) {
+  if(__DEV__&&Platform.OS==='web'&&API_BASE_URL==='/__preview-api'&&config.url?.startsWith('https://api.themegaradio.com/'))config.url=config.url.slice('https://api.themegaradio.com'.length);
+  const productBase=new URL(API_BASE_URL,'https://api.themegaradio.com');
+  const target = new URL(config.url || '', productBase);
+  if (target.origin !== productBase.origin) {
     throw new Error('The product API client only accepts the product API origin.');
   }
   if (config.sessionVersion !== undefined && !isCurrentSession(config.sessionVersion)) {
@@ -52,6 +55,7 @@ api.interceptors.request.use((config: SessionConfig) => {
   config.signal = request.signal;
   config.releaseSessionRequest = request.release;
   if (!config.method || config.method === 'get') config.params = { ...config.params, tv: 1 };
+  for(const field of ['country','countryCode','countrycode']){if(config.params&&isGlobalCountry(config.params[field]))delete config.params[field];}
   try {
     config.performanceTrace = require('./firebaseRuntimeService').startApiPerformanceTrace((config.method || 'get').toUpperCase());
   } catch { /* Older binaries do not have Performance installed. */ }

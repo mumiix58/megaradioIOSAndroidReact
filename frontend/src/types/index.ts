@@ -7,6 +7,7 @@ export interface Station {
   urlResolved?: string;  // API returns camelCase, support both
   homepage?: string;
   favicon?: string;
+  localImagePath?: string;
   logo?: string;
   logoAssets?: {
     folder?: string;
@@ -15,6 +16,8 @@ export interface Station {
     webp192?: string;
     webp256?: string;
     webp384?: string;
+    webp512?: string;
+    webp768?: string;
     original?: string;
     status?: string;
     processedAt?: string;
@@ -24,9 +27,12 @@ export interface Station {
   countrycode?: string;  // API returns lowercase
   countryCode?: string;  // Support both cases
   state?: string;
+  city?: string;
   language?: string;
   languagecodes?: string;
   votes?: number;
+  averageRating?: number;
+  totalRatings?: number;
   clickCount?: number;
   lastCheckOk?: boolean;
   lastCheckTime?: string;
@@ -62,6 +68,7 @@ export interface PrecomputedStationResponse {
 
 // User Types
 export interface User {
+  preferences?: { profileGender?: 'female'|'male'|'other'|'undisclosed'; profileCountryCode?: string|null; [key:string]: unknown };
   _id: string;
   id?: string;
   email: string;

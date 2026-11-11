@@ -1,0 +1,22 @@
+const fs=require('fs'),vm=require('vm'),ts=require('typescript'),assert=require('node:assert/strict');
+const m={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/utils/playerArtwork.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:m.exports,module:m,URL,Number});
+const {playerOriginalCandidate:c,isSharperPlayerOriginal:q}=m.exports;
+const base='https://assets.example/station-logos/radio/logo-256.webp';
+const station=original=>({logoAssets:{status:'completed',original}});
+assert.equal(c(station('original.png'),base),'https://assets.example/station-logos/radio/original.png');
+for(const original of ['https://other.example/original.png','https://assets.example/other/original.png','original.png?token=secret','https://user:pass@assets.example/station-logos/radio/original.png','other.png'])assert.equal(c(station(original),base),null);
+assert.equal(c({logoAssets:{status:'pending',original:'original.png'}},base),null);
+assert.equal(q('original.png',1024,1024),true);assert.equal(q('original.png',192,192),false);assert.equal(q('original.png',1024,768),false);assert.equal(q('original.svg',256,256),true);assert.equal(q('original.png',NaN,NaN),false);
+console.log('PASS archived original identity, trusted directory, incomplete assets, low resolution rejection, crop preservation and vector originals');
+const react={useState:()=>[null,value=>updates.push(value)],useEffect:fn=>effects.push(fn)};
+let updates=[],effects=[],requests=[];
+const hook={exports:{}};vm.runInNewContext(ts.transpileModule(fs.readFileSync('src/hooks/usePlayerArtwork.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,{exports:hook.exports,module:hook,setTimeout,clearTimeout,Map,Promise,require:name=>name==='react'?react:name==='react-native'?{Image:{getSize:(url,ok,fail)=>requests.push({url,ok,fail})}}:m.exports});
+(async()=>{
+ const s=station('original.png');
+ assert.equal(hook.exports.usePlayerArtwork(s,base),base,'working logo is returned before inspection');
+ const cleanup=effects.pop()();assert.equal(requests.length,1);cleanup();requests[0].ok(800,800);await Promise.resolve();await Promise.resolve();assert.equal(updates.length,0,'unmounted/previous station cannot overwrite next artwork');
+ hook.exports.usePlayerArtwork(s,base);effects.pop()();await Promise.resolve();await Promise.resolve();assert.equal(requests.length,1,'same original reuses the checked result');assert.equal(updates[0].url,'https://assets.example/station-logos/radio/original.png');
+ hook.exports.usePlayerArtwork(station('original.webp'),base);effects.pop()();requests[1].ok(192,192);await Promise.resolve();await Promise.resolve();assert.equal(updates.length,1,'small original never replaces working logo');
+ hook.exports.usePlayerArtwork(station('original.jpg'),base);effects.pop()();requests[2].fail();await Promise.resolve();await Promise.resolve();assert.equal(updates.length,1,'network failure retains working logo');
+ console.log('PASS actual artwork hook: immediate fallback, cached single request, unmount race, real high-resolution upgrade, small original and network failure');
+})().catch(e=>{console.error(e);process.exitCode=1;});

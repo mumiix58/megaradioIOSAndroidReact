@@ -7,13 +7,14 @@ import { isCurrentSession, sessionVersion } from './sessionRuntime';
 export const PRODUCT_IDS = {
   REMOVE_ADS_YEARLY: 'megaradio_remove_ads_yearly1',
   PREMIUM_MONTHLY: 'megaradio_premium_monthly1',
+  PREMIUM_QUARTERLY: 'megaradio_premium_quarterly',
   PREMIUM_YEARLY: 'megaradio_premium_yearly',
   PREMIUM_LIFETIME: 'megaradio_premium_lifetime',
 };
 const ALL_SKUS = Object.values(PRODUCT_IDS);
 const RANK: Record<string, number> = {
   [PRODUCT_IDS.REMOVE_ADS_YEARLY]: 1, [PRODUCT_IDS.PREMIUM_MONTHLY]: 2,
-  [PRODUCT_IDS.PREMIUM_YEARLY]: 3, [PRODUCT_IDS.PREMIUM_LIFETIME]: 4,
+  [PRODUCT_IDS.PREMIUM_QUARTERLY]: 3, [PRODUCT_IDS.PREMIUM_YEARLY]: 4, [PRODUCT_IDS.PREMIUM_LIFETIME]: 5,
 };
 export interface IAPProduct { productId: string; title: string; description: string; localizedPrice: string; currency: string; }
 const getIAP = () => {
@@ -24,7 +25,7 @@ const cancelled = (error: any) => ['user-cancelled', 'E_USER_CANCELLED'].include
 const alreadyOwned = (error: any) => ['already-owned', 'E_ALREADY_OWNED'].includes(error?.code);
 const PLAN_PRODUCTS: Record<string, string> = {
   remove_ads: PRODUCT_IDS.REMOVE_ADS_YEARLY, premium_monthly: PRODUCT_IDS.PREMIUM_MONTHLY,
-  premium_yearly: PRODUCT_IDS.PREMIUM_YEARLY, premium_lifetime: PRODUCT_IDS.PREMIUM_LIFETIME,
+  premium_quarterly:PRODUCT_IDS.PREMIUM_QUARTERLY, premium_yearly: PRODUCT_IDS.PREMIUM_YEARLY, premium_lifetime: PRODUCT_IDS.PREMIUM_LIFETIME,
 };
 export function hasPurchasedAccess(productId: string): boolean {
   const state = usePremiumStore.getState();

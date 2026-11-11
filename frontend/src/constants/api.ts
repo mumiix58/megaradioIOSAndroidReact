@@ -1,5 +1,9 @@
-// MegaRadio API Configuration
-export const API_BASE_URL = 'https://api.themegaradio.com';
+import { Platform } from 'react-native';
+
+// Optional same-origin development proxy for the mobile web preview.
+export const API_BASE_URL = typeof __DEV__ !== 'undefined' && __DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1'
+  ? '/__preview-api'
+  : 'https://api.themegaradio.com';
 export const STREAM_PROXY_URL = 'https://stream.themegaradio.com';
 
 export const API_ENDPOINTS = {
@@ -17,6 +21,7 @@ export const API_ENDPOINTS = {
   
   // Station endpoints
   stations: {
+    search: '/api/stations/precomputed',
     list: '/api/stations',
     single: (identifier: string) => `/api/station/${identifier}`,
     popular: '/api/stations/popular',
@@ -76,6 +81,7 @@ export const API_ENDPOINTS = {
     follow: (userId: string) => `/api/user/follow/${userId}`,
     unfollow: (userId: string) => `/api/user/unfollow/${userId}`,
     isFollowing: (userId: string) => `/api/user/is-following/${userId}`,
+    connections: (direction: 'followers' | 'following') => `/api/user-engagement/connections/${direction}`,
     followers: (userId: string) => `/api/user/followers/${userId}`,
     following: (userId: string) => `/api/user/following/${userId}`,
     notifications: '/api/user/notifications',

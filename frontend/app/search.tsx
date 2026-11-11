@@ -1,613 +1,177 @@
-import { searchCatalog } from '../src/services/searchService';
-import React, { useRef, useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Pressable,
-  ActivityIndicator,
-  Keyboard,
-  FlatList,
-  Platform,
-  useWindowDimensions,
-} from 'react-native';
+import {MegaLoadingState} from '../src/components/MegaLoadingState';
+import { STATION_SEARCH_VERSION } from '../src/utils/stationSearch';
+import { MegaLoadingIndicator as ActivityIndicator } from '../src/components/MegaLoadingIndicator';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Pressable, Keyboard, FlatList, Platform, KeyboardAvoidingView, InteractionManager } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
-import { ImageWithFallback } from '../src/components/ImageWithFallback';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useTranslation } from 'react-i18next';
-import stationService from '../src/services/stationService';
-import { useAudioPlayer } from '../src/hooks/useAudioPlayer';
+import { useQuery } from '@tanstack/react-query';
 import { usePlayerStore } from '../src/store/playerStore';
-import { useResponsive } from '../src/hooks/useResponsive';
+import { useLocationStore } from '../src/store/locationStore';
+import { isGlobalCountry } from '../src/utils/countryScope';
+import { useRecentlyPlayedStore } from '../src/store/recentlyPlayedStore';
+import { normalizeDirectory } from '../src/services/publicDirectoryService';
+import { useRouter, useFocusEffect } from 'expo-router';
+import stationService from '../src/services/stationService';
+import { useTranslation } from 'react-i18next';
+import { useAudioPlayer } from '../src/hooks/useAudioPlayer';
 import { getStationLogoUrl } from '../src/utils/stationLogoHelper';
-import type { Station, Genre } from '../src/types';
+import { ImageWithFallback } from '../src/components/ImageWithFallback';
+import { AvatarWithFallback } from '../src/components/AvatarWithFallback';
+import { SearchTelescope } from '../src/components/SearchTelescope';
+import type { Station, Genre, GenreResponse } from '../src/types';
 import api from '../src/services/api';
 import { API_ENDPOINTS } from '../src/constants/api';
 
-// Filter types
-type FilterType = 'all' | 'radios' | 'genres' | 'profiles';
-
-// Result item types
-interface SearchResultItem {
-  _id: string;
-  type: 'radio' | 'genre' | 'profile';
-  name: string;
-  subtitle: string;
-  imageUrl: string | null;
-  data: any;
-}
-
-// Profile type
-interface PublicProfile {
-  _id: string;
-  name: string;
-  profileImageUrl?: string;
-  favorites_count: number;
-  slug?: string;
-}
-
-// Genre type for search
-interface SearchGenre {
-  _id: string;
-  name: string;
-  slug: string;
-  stationCount?: number;
-  discoverableImage?: string;
-}
+type Filter = 'radios' | 'genres' | 'profiles';
+type Result = { _id: string; type: Filter; name: string; subtitle: string; imageUrl?: string | null; data: any };
 
 export default function SearchScreen() {
   const router = useRouter();
   const { t } = useTranslation();
-  const insets = useSafeAreaInsets();
+  const input = useRef<TextInput>(null);
+  const isMiniPlayerVisible = usePlayerStore(state => state.isMiniPlayerVisible);
+  const { countryCode, country, countryEnglish, isLoaded: locationLoaded } = useLocationStore();
+  const genreCountry = isGlobalCountry(countryEnglish || country) ? undefined : countryCode || undefined;
   const [query, setQuery] = useState('');
-  const [allResults, setAllResults] = useState<SearchResultItem[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
-  
-  // Responsive layout
-  const responsive = useResponsive();
-  const numColumns = responsive.isTablet ? 2 : 1;
+  const [filter, setFilter] = useState<Filter>('radios');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const { playStation, currentStation, playbackState, togglePlayPause } = useAudioPlayer();
+  const recentStations = useRecentlyPlayedStore(state => state.stations);
+  useEffect(() => { void useRecentlyPlayedStore.getState().loadFromStorage(); }, []);
+  const term = query.trim();
+  useEffect(() => { const timer = setTimeout(() => setDebouncedQuery(term), 250); return () => clearTimeout(timer); }, [term]);
+  const radioQuery = useQuery({
+    queryKey: ['global-search-radios', STATION_SEARCH_VERSION, debouncedQuery],
+    queryFn: ({signal}) => stationService.searchStations(debouncedQuery, 30, signal),
+    enabled: filter === 'radios' && debouncedQuery.length >= 2, staleTime: 30000, retry: false,
+  });
+  const genreQuery = useQuery({
+    queryKey: ['genres-catalog', genreCountry || 'global'], enabled: filter === 'genres' && locationLoaded, staleTime: 300000,
+    queryFn: async () => {
+      const page = async (number: number) => (await api.get<GenreResponse>(API_ENDPOINTS.genres.list, { params: { country: genreCountry, page: number, limit: 100 } })).data;
+      const first = await page(1);
+      const rest = await Promise.all(Array.from({ length: Math.max(0, first.totalPages - 1) }, (_, i) => page(i + 2)));
+      return [...new Map<string, Genre>([first, ...rest].flatMap(result => result.data).map(genre => [genre.slug, genre])).values()];
+    },
+  });
+  const profileQuery = useQuery({
+    queryKey: ['global-search-profiles', debouncedQuery], enabled: filter === 'profiles', staleTime: 30000,
+    queryFn: async () => normalizeDirectory((await api.get(API_ENDPOINTS.publicProfiles, { params: { search: debouncedQuery || undefined, limit: 100 } })).data),
+  });
+  const filtered = useMemo<Result[]>(() => {
+    const lower = term.toLocaleLowerCase();
+    if (filter === 'genres') return (genreQuery.data || []).filter(genre => genre.name.toLocaleLowerCase().includes(lower)).map(genre => ({ _id: genre._id || genre.slug, type: 'genres', name: genre.name, subtitle: '', data: genre }));
+    if (filter === 'profiles') return (profileQuery.data || []).filter(profile => profile.name.toLocaleLowerCase().includes(lower)).map(profile => ({ _id: profile._id, type: 'profiles', name: profile.name, subtitle: `${profile.favorites_count ?? profile.favoriteStationsCount ?? 0} ${t('radios', 'Radios')}`, imageUrl: profile.profileImageUrl || profile.avatar || profile.profilePhoto, data: profile }));
+    return (term ? radioQuery.data || [] : recentStations).map((station: Station) => ({ _id: station._id, type: 'radios', name: station.name, subtitle: station.genres?.[0] || station.tags?.split(',')[0]?.trim() || station.country || '', imageUrl: getStationLogoUrl(station), data: station }));
+  }, [filter, term, genreQuery.data, profileQuery.data, radioQuery.data, recentStations, t]);
+  const activeQuery = filter === 'genres' ? genreQuery : filter === 'profiles' ? profileQuery : radioQuery;
+  const searching = (filter !== 'genres' && term !== debouncedQuery) || ((filter !== 'radios' || term.length >= 2) && activeQuery.isPending);
+  const failed = activeQuery.isError;
+  const searched = !!term || filter !== 'radios';
 
-  const { playStation } = useAudioPlayer();
-  const { currentStation, playbackState, isMiniPlayerVisible } = usePlayerStore();
-  
-  // Calculate bottom padding for MiniPlayer (70px height + system nav bar)
-  const MINI_PLAYER_HEIGHT = 70;
-  const bottomPadding = isMiniPlayerVisible ? MINI_PLAYER_HEIGHT + insets.bottom + 20 : insets.bottom;
+  useFocusEffect(useCallback(() => {
+    const focus = InteractionManager.runAfterInteractions(() => input.current?.focus());
+    return () => focus.cancel();
+  }, []));
 
-  // Convert station to search result
-  const stationToResult = (station: Station): SearchResultItem => {
-    const imageUrl = getStationLogoUrl(station);
-    
-    // Get proper genre/tag for subtitle
-    let subtitle = 'Radio';
-    if (station.tags && typeof station.tags === 'string' && station.tags.length > 0) {
-      subtitle = station.tags.split(',')[0].trim();
-    } else if (station.genres && Array.isArray(station.genres) && station.genres.length > 0) {
-      subtitle = station.genres[0];
-    } else if (station.country) {
-      subtitle = station.country;
-    }
-    
-    return {
-      _id: station._id,
-      type: 'radio',
-      name: station.name,
-      subtitle,
-      imageUrl,
-      data: station,
-    };
-  };
 
-  // Convert genre to search result
-  const genreToResult = (genre: SearchGenre): SearchResultItem => {
-    const imageUrl = genre.discoverableImage 
-      ? `https://themegaradio.com${genre.discoverableImage}`
-      : null;
-    
-    return {
-      _id: genre._id,
-      type: 'genre',
-      name: genre.name,
-      subtitle: `${genre.stationCount || 0} Stations`,
-      imageUrl,
-      data: genre,
-    };
-  };
-
-  // Convert profile to search result
-  const profileToResult = (profile: PublicProfile): SearchResultItem => {
-    return {
-      _id: profile._id,
-      type: 'profile',
-      name: profile.name,
-      subtitle: `${profile.favorites_count || 0} Radios`,
-      imageUrl: profile.profileImageUrl || null,
-      data: profile,
-    };
-  };
-
-  // Unified search function
-  const searchVersion = useRef(0);
-  const [searchError, setSearchError] = useState(false);
-  const performSearch = useCallback(async (searchQuery: string, signal: AbortSignal, version: number) => {
-    if (!searchQuery.trim()) {
-      setAllResults([]); setHasSearched(false); setIsSearching(false); setSearchError(false);
-      return;
-    }
-    setIsSearching(true); setSearchError(false);
-    try {
-      const { stations, genres, profiles } = await searchCatalog(searchQuery.trim(), signal);
-      if (signal.aborted || version !== searchVersion.current) return;
-      const lower = searchQuery.toLowerCase();
-      setAllResults([
-        ...stations.map(stationToResult),
-        ...(genres || []).filter((g: SearchGenre) => g.name?.toLowerCase().includes(lower)).map(genreToResult),
-        ...(profiles || []).filter((p: PublicProfile) => p.name?.toLowerCase().includes(lower)).map(profileToResult),
-      ]);
-      setHasSearched(true);
-    } catch {
-      if (!signal.aborted && version === searchVersion.current) {
-        setSearchError(true); setAllResults([]); setHasSearched(true);
-      }
-    } finally {
-      if (!signal.aborted && version === searchVersion.current) setIsSearching(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const version = ++searchVersion.current;
-    const controller = new AbortController();
-    const timer = setTimeout(() => performSearch(query, controller.signal, version), query.trim() ? 300 : 0);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [query, performSearch]);
-
-  // Filter results based on active filter
-  const filteredResults = activeFilter === 'all' 
-    ? allResults 
-    : allResults.filter(item => {
-        if (activeFilter === 'radios') return item.type === 'radio';
-        if (activeFilter === 'genres') return item.type === 'genre';
-        if (activeFilter === 'profiles') return item.type === 'profile';
-        return true;
-      });
-
-  const handleItemPress = (item: SearchResultItem) => {
+  const open = (item: Result) => {
+    if (item.type === 'radios') { void playStation(item.data); return; }
     Keyboard.dismiss();
-    if (item.type === 'radio') {
-      playStation(item.data as Station);
-    } else if (item.type === 'genre') {
-      router.push({
-        pathname: '/genre-detail',
-        params: { slug: item.data.slug, name: item.data.name },
-      });
-    } else if (item.type === 'profile') {
-      router.push({
-        pathname: '/user-profile',
-        params: { 
-          userId: item.data._id,
-          userName: item.data.name,
-          userAvatar: item.data.profileImageUrl || '',
-        },
-      });
-    }
+    if (item.type === 'genres') router.push({ pathname: '/genre-detail', params: { slug: item.data.slug, name: item.name } });
+    else router.push({ pathname: '/user-profile', params: { userId: item._id, userName: item.name, userSlug: item.data.slug || '', userAvatar: item.imageUrl || '' } });
   };
-
-  const handleCancel = () => {
-    router.back();
-  };
-
-  const handleClear = () => {
-    setQuery('');
-    setAllResults([]);
-    setHasSearched(false);
-  };
-
-  const isStationPlaying = (station: Station) => {
-    return currentStation?._id === station._id && playbackState === 'playing';
-  };
-
-  // Get icon for result type
-  const getResultIcon = (type: string) => {
-    switch (type) {
-      case 'radio': return 'radio';
-      case 'genre': return 'musical-notes';
-      case 'profile': return 'person';
-      default: return 'radio';
-    }
-  };
-
-  // Render search result card
-  const renderResultCard = ({ item }: { item: SearchResultItem }) => {
-    const isPlaying = item.type === 'radio' && isStationPlaying(item.data);
-    const isLoading = item.type === 'radio' && currentStation?._id === item.data._id && 
-      (playbackState === 'loading' || playbackState === 'buffering');
-
-    return (
-      <TouchableOpacity
-        style={[styles.radioCard, numColumns > 1 && { flex: 1, marginBottom: 12 }]}
-        onPress={() => handleItemPress(item)}
-        activeOpacity={0.7}
-        data-testid={`search-result-${item._id}`}
-      >
-        {/* Logo */}
-        <View style={styles.radioLogo}>
-          {item.type === 'radio' ? (
-            <ImageWithFallback testID={`search-station-logo-${item._id}`} uri={item.imageUrl} style={styles.radioLogoImage} contentFit="contain" />
-          ) : item.imageUrl ? (
-            <Image
-              source={{ uri: item.imageUrl }}
-              style={styles.radioLogoImage}
-              contentFit="cover"
-            />
-          ) : (
-            <Ionicons name={getResultIcon(item.type)} size={24} color="#5B5B5B" />
-          )}
-        </View>
-
-        {/* Info */}
-        <View style={styles.radioInfo}>
-          <Text style={styles.radioName} numberOfLines={1}>
-            {item.name}
-          </Text>
-          <Text style={styles.radioGenre} numberOfLines={1}>
-            {item.subtitle}
-          </Text>
-        </View>
-
-        {/* Action Button */}
-        <TouchableOpacity 
-          style={[styles.playButton, isPlaying && styles.playButtonActive]}
-          onPress={() => handleItemPress(item)}
-        >
-          {item.type === 'radio' ? (
-            isLoading ? (
-              <ActivityIndicator size="small" color="#FFFFFF" />
-            ) : (
-              <Ionicons
-                name={isPlaying ? 'pause' : 'play'}
-                size={20}
-                color="#FFFFFF"
-              />
-            )
-          ) : (
-            <Ionicons name="chevron-forward" size={24} color="#FFFFFF" />
-          )}
-        </TouchableOpacity>
-      </TouchableOpacity>
-    );
-  };
-
-  const filters: { key: FilterType; label: string }[] = [
-    { key: 'all', label: t('filter_all', 'All') },
+  const clear = () => { setQuery(''); setDebouncedQuery(''); input.current?.focus(); };
+  const cancel = () => { Keyboard.dismiss(); if (router.canGoBack()) router.back(); else router.replace('/(tabs)'); };
+  const filters: { key: Filter; label: string }[] = [
     { key: 'radios', label: t('filter_radios', 'Radios') },
     { key: 'genres', label: t('filter_genres', 'Genres') },
     { key: 'profiles', label: t('filter_profiles', 'Profiles') },
   ];
 
-  return (
-    <View style={styles.container}>
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* Search Header */}
-        <View style={styles.header}>
-          {/* Search Box */}
+  return <View style={styles.container}>
+    <SafeAreaView style={styles.fill} edges={['top', 'bottom']}>
+      <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : Platform.OS === 'android' ? 'height' : undefined}>
+        <View style={[styles.header, { paddingHorizontal: 15 }]}>
           <View style={styles.searchBox}>
-            <Ionicons name="search" size={24} color="#5B5B5B" style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder={t('search_radio_user', 'Search radio, user')}
-              placeholderTextColor="#5B5B5B"
-              value={query}
-              onChangeText={setQuery}
-              autoFocus
-              returnKeyType="search"
-              autoCapitalize="none"
-              autoCorrect={false}
-              data-testid="search-input"
-            />
-            {query.length > 0 && (
-              <TouchableOpacity style={styles.clearButton} onPress={handleClear}>
-                <View style={styles.clearButtonInner}>
-                  <Ionicons name="close" size={12} color="#787878" />
-                </View>
-              </TouchableOpacity>
-            )}
+            <Image source={require('../assets/images/home/search.svg')} style={styles.searchIcon} tintColor="#616161" />
+            <TextInput ref={input} style={[styles.input, Platform.OS === 'web' && ({ outlineStyle: 'none' } as any)]} value={query} onChangeText={setQuery}
+              placeholder={t('search_radio_user', 'Search radio, user')} placeholderTextColor="#5B5B5B"
+              autoFocus maxLength={100} keyboardAppearance="dark" returnKeyType="search" autoCapitalize="none" autoCorrect={false}
+              onSubmitEditing={() => Keyboard.dismiss()} testID="search-input" accessibilityLabel={t('search', 'Search')} />
+            <TouchableOpacity style={styles.clear} onPress={clear} accessibilityRole="button" accessibilityLabel={t('clear', 'Clear')} testID="search-clear">
+              <Image source={require('../assets/images/favorites/clear.svg')} style={styles.searchIcon} />
+            </TouchableOpacity>
           </View>
-
-          {/* Cancel Button */}
-          <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+          <TouchableOpacity onPress={cancel} style={styles.cancel} accessibilityRole="button" testID="search-cancel">
             <Text style={styles.cancelText}>{t('cancel', 'Cancel')}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Filter Chips */}
-        <View style={styles.filterContainer}>
-          {filters.map((filter) => (
-            <Pressable
-              key={filter.key}
-              style={[
-                styles.filterChip,
-                activeFilter === filter.key && styles.filterChipActive,
-              ]}
-              onPress={() => setActiveFilter(filter.key)}
-              data-testid={`filter-${filter.key}`}
-            >
-              <Text
-                style={[
-                  styles.filterChipText,
-                  activeFilter === filter.key && styles.filterChipTextActive,
-                ]}
-              >
-                {filter.label}
-              </Text>
-            </Pressable>
-          ))}
+        <View style={[styles.filters, { paddingHorizontal: 15 }]}>
+          {filters.map(item => <Pressable key={item.key} style={[styles.chip, filter === item.key && styles.activeChip]}
+            accessibilityRole="button" accessibilityState={{ selected: filter === item.key }}
+            onPress={() => setFilter(item.key)} testID={`filter-${item.key}`}><Text style={styles.chipText}>{item.label}</Text></Pressable>)}
         </View>
-
-        {/* Results */}
         <View style={styles.content}>
-          {isSearching ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#FF4199" />
-              <Text style={styles.loadingText}>{t('searching', 'Searching...')}</Text>
-            </View>
-          ) : filteredResults.length > 0 ? (
-            <FlatList
-              data={filteredResults}
-              renderItem={renderResultCard}
-              keyExtractor={(item) => `${item.type}-${item._id}`}
-              key={`search-${numColumns}`}
-              numColumns={numColumns}
-              contentContainerStyle={[styles.resultsList, { paddingHorizontal: responsive.sidePadding }]}
-              columnWrapperStyle={numColumns > 1 ? { gap: 12 } : undefined}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            />
-          ) : hasSearched && query.length >= 2 ? (
-            <View style={styles.emptyState}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=200&h=200&fit=crop' }}
-                style={styles.emptyImage}
-              />
-              <Text style={styles.emptyTitle}>{searchError ? t('search_failed', 'Search is unavailable. Please try again.') : t('no_results_found', "We couldn't find any result!")}</Text>
-              <Text style={styles.emptyText}>
-                {t('try_different_search_term', 'Try searching for something else')}
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.initialState}>
-              <Ionicons name="radio-outline" size={64} color="#5B5B5B" />
-              <Text style={styles.initialTitle}>{t('search_stations_title', 'Search Stations')}</Text>
-              <Text style={styles.initialText}>
-                {t('find_favorites', 'Find your favorite radio stations, genres, and users')}
-              </Text>
-            </View>
-          )}
+          {searching ? <MegaLoadingState page variant={filter==='radios'?'station-list':filter==='profiles'?'people':'settings'} count={6}/> : filtered.length ?
+            <FlatList style={styles.resultList} testID="search-results-list" data={filtered} keyExtractor={item => `${item.type}-${item._id}`} keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="on-drag" showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 16 + (isMiniPlayerVisible && currentStation ? 71 : 0), gap: filter === 'radios' ? 15 : 0 }}
+              renderItem={({ item }) => <Pressable style={item.type === 'radios' ? styles.radio : styles.textRow}
+                onPress={() => open(item)} accessibilityRole="button" accessibilityLabel={item.name} testID={`search-result-${item._id}`}>
+                {item.type === 'radios' && <ImageWithFallback uri={item.imageUrl} style={styles.logo} contentFit="contain" />}
+                {item.type === 'profiles' && <AvatarWithFallback uri={item.imageUrl} size={40} />}
+                <View style={styles.info}><Text style={[styles.name, item.type === 'genres' && styles.genreName]} numberOfLines={1}>{item.name}</Text>
+                  {!!item.subtitle && <Text style={styles.subtitle} numberOfLines={1}>{item.subtitle}</Text>}</View>
+                {item.type === 'genres' && <Text style={styles.genreCount} testID={`search-genre-count-${item.data.slug}`}>{(item.data.stationCount ?? item.data.total_stations ?? 0).toLocaleString()}</Text>}
+                {item.type === 'radios' && <TouchableOpacity style={styles.playButton} accessibilityRole="button"
+                  accessibilityLabel={currentStation?._id === item._id && playbackState === 'playing' ? t('pause', 'Pause') : `${t('play', 'Play')} ${item.name}`}
+                  testID={`search-play-${item._id}`} onPress={event => {
+                    event.stopPropagation();
+                    if (currentStation?._id === item._id && playbackState === 'playing') void togglePlayPause();
+                    else void playStation(item.data);
+                  }}>
+                  {currentStation?._id === item._id && (playbackState === 'loading' || playbackState === 'buffering') ?
+                    <ActivityIndicator size="small" color="#FFFFFF" /> : currentStation?._id === item._id && playbackState === 'playing' ?
+                    <Image source={require('../assets/images/mini-player/pause.svg')} style={styles.playIcon} contentFit="contain" accessible={false} /> :
+                    <Image source={require('../assets/images/all-stations/play.svg')} style={styles.playIcon} contentFit="contain" accessible={false} />}
+                </TouchableOpacity>}
+
+              </Pressable>} /> :
+            <View style={styles.empty} testID={searched ? 'search-no-results' : 'search-initial'}>
+              <SearchTelescope />
+              <Text style={styles.emptyText}>{failed ? t('search_error', 'Unable to search. Please try again.') : searched ? t('no_results_found', "We couldn’t find any result!") : t('search_radio_user', 'Search radio, user')}</Text>
+            </View>}
         </View>
-      </SafeAreaView>
-    </View>
-  );
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  </View>;
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#1B1C1E',
-  },
-  safeArea: {
-    flex: 1,
-  },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingTop: 37,
-    gap: 11,
-  },
-
-  // Search Box
-  searchBox: {
-    flex: 1,
-    height: 45,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-  },
-  searchIcon: {
-    marginRight: 15,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#000000',
-  },
-  clearButton: {
-    marginLeft: 10,
-  },
-  clearButtonInner: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: 'rgba(91, 91, 91, 0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Cancel Button
-  cancelButton: {
-    paddingVertical: 10,
-  },
-  cancelText: {
-    fontSize: 15,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-  },
-
-  // Filter Chips
-  filterContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 15,
-    paddingTop: 20,
-    gap: 16,
-  },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    backgroundColor: '#2F2F2F',
-    borderRadius: 25,
-  },
-  filterChipActive: {
-    backgroundColor: '#FF4199',
-  },
-  filterChipText: {
-    fontSize: 12,
-    fontFamily: 'Ubuntu-Bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-  },
-  filterChipTextActive: {
-    color: '#FFFFFF',
-  },
-
-  // Content
-  content: {
-    flex: 1,
-    paddingTop: 28,
-  },
-
-  // Results List
-  resultsList: {
-    paddingHorizontal: 15,
-    paddingBottom: 200, // Extra padding for MiniPlayer + system nav bar
-    gap: 15,
-  },
-
-  // Radio Card
-  radioCard: {
-    width: '100%',
-    height: 80,
-    backgroundColor: '#282828',
-    borderRadius: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-  },
-  radioLogo: {
-    width: 50,
-    height: 50,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 5,
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  radioLogoImage: {
-    width: 46,
-    height: 46,
-  },
-  radioInfo: {
-    flex: 1,
-    marginLeft: 15,
-  },
-  radioName: {
-    fontSize: 15,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-    marginBottom: 6,
-  },
-  radioGenre: {
-    fontSize: 14,
-    fontWeight: '300',
-    color: '#FFFFFF',
-    fontFamily: 'System',
-  },
-  heartButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#1E1E1E',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#1E1E1E',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  playButtonActive: {
-    backgroundColor: '#FF4199',
-  },
-
-  // Loading
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 15,
-    color: '#5B5B5B',
-    fontFamily: 'System',
-  },
-
-  // Empty State
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    gap: 12,
-  },
-  emptyImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    marginBottom: 16,
-    opacity: 0.8,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#5B5B5B',
-    textAlign: 'center',
-    fontFamily: 'System',
-  },
-
-  // Initial State
-  initialState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    gap: 12,
-  },
-  initialTitle: {
-    fontSize: 18,
-    fontFamily: 'Ubuntu-Medium',
-    color: '#FFFFFF',
-  },
-  initialText: {
-    fontSize: 14,
-    color: '#5B5B5B',
-    textAlign: 'center',
-    fontFamily: 'System',
-  },
+  container: { flex: 1, backgroundColor: '#1B1C1E' }, fill: { flex: 1, minHeight: 0 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingTop: 37, gap: 15 },
+  searchBox: { flex: 1, height: 45, borderRadius: 10, backgroundColor: '#F7F8FC', flexDirection: 'row', alignItems: 'center', paddingLeft: 15, paddingRight: 6, gap: 15 },
+  input: { flex: 1, minWidth: 0, color: '#000000', fontFamily: 'Ubuntu-Medium', fontSize: 15, height: 45, lineHeight: 17, padding: 0, outlineWidth: 0 },
+  clear: { width: 36, height: 44, alignItems: 'center', justifyContent: 'center' },
+  cancel: { minHeight: 44, justifyContent: 'center' }, cancelText: { color: '#FFFFFF', fontFamily: 'Ubuntu-Medium', fontSize: 15 },
+  filters: { flexDirection: 'row', paddingTop: 20, gap: 16 },
+  chip: { height: 28, paddingHorizontal: 15, backgroundColor: '#2F2F2F', borderRadius: 25, justifyContent: 'center' },
+  activeChip: { backgroundColor: '#FF4199' }, chipText: { fontFamily: 'Ubuntu-Bold', fontSize: 12, color: '#FFFFFF' },
+  content: { flex: 1, minHeight: 0, paddingTop: 20 },
+  resultList: { flex: 1, minHeight: 0 },
+  genreName: { fontSize: 18, lineHeight: 21 },
+  genreCount: { color: '#A6A6AA', fontFamily: 'Ubuntu-Regular', fontSize: 12, lineHeight: 21, fontVariant: ['tabular-nums'] },
+  radio: { height: 80, flexDirection: 'row', alignItems: 'center', backgroundColor: '#262626', borderRadius: 10, padding: 15, gap: 15 },
+  logo: { width: 50, height: 50, borderRadius: 5, backgroundColor: '#FFFFFF', overflow: 'hidden' },
+  info: { flex: 1, minWidth: 0 }, name: { color: '#FFFFFF', fontFamily: 'Ubuntu-Medium', fontSize: 15, lineHeight: 17 },
+  subtitle: { color: '#FFFFFF', fontFamily: 'Ubuntu-Regular', fontSize: 14, lineHeight: 16, marginTop: 6 },
+  searchIcon: { width: 24, height: 24 },
+  playIcon: { width: 26, height: 26 },
+  playButton: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#1E1E1E', alignItems: 'center', justifyContent: 'center' },
+  textRow: { minHeight: 72, flexDirection: 'row', alignItems: 'center', gap: 15, borderBottomWidth: 1, borderBottomColor: '#2A2A2A' },
+  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24, paddingHorizontal: 24 },
+  emptyText: { color: '#FFFFFF', fontFamily: 'Ubuntu-Medium', fontSize: 18, lineHeight: 24, textAlign: 'center' },
 });

@@ -1,9 +1,11 @@
 
-import React from 'react';
-import { Tabs } from 'expo-router';
-import { View, StyleSheet, Platform, Image } from 'react-native';
+import React, { useCallback } from 'react';
+import { Tabs, useFocusEffect } from 'expo-router';
+import { BottomTabBar } from '@react-navigation/bottom-tabs';
+import { View, Text, StyleSheet, Platform } from 'react-native';
+import { Image, ImageSource } from 'expo-image';
 import { useTranslation } from 'react-i18next';
-import { Ionicons } from '@expo/vector-icons';
+import { MegaMarkIcon } from '../../src/components/BrandIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '../../src/constants/theme';
 import { MiniPlayer } from '../../src/components/MiniPlayer';
@@ -13,20 +15,15 @@ import { useLanguageStore } from '../../src/store/languageStore';
 // Tab bar height constant for MiniPlayer positioning
 export const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 85 : 65;
 
-// Tab icon URLs from uploaded images
+// Original 24 × 24 Figma vectors. Tint follows the navigator's selected state.
 const TAB_ICONS = {
-  discover: 'https://customer-assets.emergentagent.com/job_66205e02-6e8b-4c16-91b2-a96ddee62261/artifacts/u83nevfq_image.png',
-  favorites: 'https://customer-assets.emergentagent.com/job_66205e02-6e8b-4c16-91b2-a96ddee62261/artifacts/xf8ejdrl_image.png',
-  profile: 'https://customer-assets.emergentagent.com/job_66205e02-6e8b-4c16-91b2-a96ddee62261/artifacts/dr5dt9ku_image.png',
+  discover: require('../../assets/images/navigation/discover.svg'),
+  favorites: require('../../assets/images/mini-player/heart-filled.svg'),
+  profile: require('../../assets/images/navigation/profile.svg'),
 };
-
-// Tab icon component
-const TabIcon = ({ iconUrl, size = 24 }: { iconUrl: string; size?: number }) => (
-  <Image
-    source={{ uri: iconUrl }}
-    style={{ width: size, height: size, tintColor: '#FFFFFF' }}
-    resizeMode="contain"
-  />
+const TabIcon = ({ source, color, name }: { source: ImageSource; color: string; name: string }) => (
+  <Image source={source} style={{ width: 24, height: 24 }} tintColor={color}
+    contentFit="contain" transition={0} testID={`tab-icon-${name}`} />
 );
 
 export default function TabLayout() {
@@ -35,6 +32,12 @@ export default function TabLayout() {
   const { languageVersion } = useLanguageStore(); // Subscribe to language changes
   const insets = useSafeAreaInsets();
   const showMiniPlayer = isMiniPlayerVisible && currentStation;
+  useFocusEffect(useCallback(() => {
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') {
+      const notify = (visible: boolean) => window.parent.postMessage({ type: 'megaradio-preview-theme', screen: 'tabDock', visible }, 'http://localhost:8082');
+      notify(true); return () => notify(false);
+    }
+  }, []));
 
   // Calculate tab bar height with safe area for Android edge-to-edge
   const tabBarHeight = Platform.OS === 'ios' ? 85 : 65 + insets.bottom;
@@ -43,6 +46,10 @@ export default function TabLayout() {
   return (
     <View style={styles.container}>
       <Tabs
+        tabBar={props => <View testID="main-bottom-dock" style={styles.bottomDock}>
+          <MiniPlayer docked />
+          <View testID="main-tab-bar"><BottomTabBar {...props} /></View>
+        </View>}
         screenOptions={{
           headerShown: false,
           tabBarStyle: [
@@ -54,8 +61,8 @@ export default function TabLayout() {
             showMiniPlayer && styles.tabBarWithPlayer,
           ],
           tabBarActiveTintColor: '#FFFFFF',
-          tabBarInactiveTintColor: '#888888',
-          tabBarLabelStyle: styles.tabBarLabel,
+          tabBarInactiveTintColor: '#7E7E7E',
+          tabBarLabel: ({ focused, color, children }) => <Text style={[styles.tabBarLabel, { color, fontFamily: focused ? 'Ubuntu-Medium' : 'Ubuntu-Regular' }]}>{children}</Text>,
           tabBarShowLabel: true,
         }}
       >
@@ -64,13 +71,8 @@ export default function TabLayout() {
           name="index"
           options={{
             title: t('tab_discover', 'Discover'),
-            tabBarIcon: () => <TabIcon iconUrl={TAB_ICONS.discover} size={28} />,
-          }}
-        />
-        <Tabs.Screen
-          name="discover"
-          options={{
-            href: null, // Hide from tab bar
+            tabBarButtonTestID: 'tab-discover',
+            tabBarIcon: ({ color }) => <TabIcon source={TAB_ICONS.discover} color={color} name="discover" />,
           }}
         />
         {/* Genres tab */}
@@ -78,21 +80,26 @@ export default function TabLayout() {
           name="genres"
           options={{
             title: t('tab_genres', 'Genres'),
-            tabBarIcon: ({ color }) => <Ionicons name="grid-outline" size={24} color={color} />,
+            tabBarHideOnKeyboard: true,
+            tabBarButtonTestID: 'tab-genres',
+            tabBarIcon: ({ color }) => <MegaMarkIcon color={color} />,
           }}
         />
         <Tabs.Screen
           name="favorites"
           options={{
             title: t('tab_favorites', 'Favorites'),
-            tabBarIcon: () => <TabIcon iconUrl={TAB_ICONS.favorites} size={24} />,
+            tabBarHideOnKeyboard: true,
+            tabBarButtonTestID: 'tab-favorites',
+            tabBarIcon: ({ color }) => <TabIcon source={TAB_ICONS.favorites} color={color} name="favorites" />,
           }}
         />
         <Tabs.Screen
           name="profile"
           options={{
             title: t('tab_profile', 'Profile'),
-            tabBarIcon: () => <TabIcon iconUrl={TAB_ICONS.profile} size={28} />,
+            tabBarButtonTestID: 'tab-profile',
+            tabBarIcon: ({ color }) => <TabIcon source={TAB_ICONS.profile} color={color} name="profile" />,
           }}
         />
         {/* Hide records from tab bar */}
@@ -103,7 +110,6 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      <MiniPlayer />
     </View>
   );
 }
@@ -113,10 +119,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  bottomDock: { backgroundColor: 'transparent' },
   tabBar: {
-    backgroundColor: '#1B1C1E',
+    backgroundColor: '#171717',
     borderTopWidth: 0,
-    paddingTop: 8,
+    paddingTop: 16,
     paddingHorizontal: 10,
     // Height and paddingBottom set dynamically with safe area insets
   },
@@ -124,8 +131,9 @@ const styles = StyleSheet.create({
     // No change needed, MiniPlayer sits above
   },
   tabBarLabel: {
-    fontSize: 11,
+    fontSize: 12,
+    lineHeight: 14,
     fontFamily: 'Ubuntu-Medium',
-    marginTop: 4,
+    marginTop: 0,
   },
 });

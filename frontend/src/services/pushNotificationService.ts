@@ -17,18 +17,16 @@ const NOTIFICATIONS_ENABLED_KEY = '@megaradio_notifications_enabled';
 // Only configure notification handler on native platforms
 if (Platform.OS !== 'web') {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
+    handleNotification: async () => {
+      const scope=captureAccount();
+      const enabled=!!scope.token && await notificationSettingsService.enabled() && isAccountCurrent(scope);
+      return {shouldShowAlert:enabled,shouldShowBanner:enabled,shouldShowList:enabled,shouldPlaySound:enabled,shouldSetBadge:enabled};
+    },
   });
 }
 
 export interface PushNotificationService {
-  registerForPushNotifications: () => Promise<string | null>;
+  registerForPushNotifications: (options?:{requestPermission?:boolean}) => Promise<string | null>;
   sendPushTokenToBackend: (token: string) => Promise<void>;
   deletePushTokenFromBackend: (token: string, authToken?: string) => Promise<void>;
   getStoredPushToken: () => Promise<string | null>;
@@ -44,10 +42,10 @@ const pushNotificationService: PushNotificationService = {
    * Register for push notifications and get the Expo Push Token
    * Call this AFTER user logs in
    */
-  async registerForPushNotifications(): Promise<string | null> {
+  async registerForPushNotifications(options:{requestPermission?:boolean}={}): Promise<string | null> {
     let token: string | null = null;
     const account = captureAccount();
-    if (!account.token || !await notificationSettingsService.enabled()) return null;
+    if (!account.token || (!options.requestPermission && !await notificationSettingsService.enabled())) return null;
 
     // Check if it's a real device (notifications don't work on simulators)
     if (!Device.isDevice) {
@@ -60,7 +58,7 @@ const pushNotificationService: PushNotificationService = {
     let finalStatus = existingStatus;
 
     // Request permission if not granted
-    if (existingStatus !== 'granted') {
+    if (existingStatus !== 'granted' && options.requestPermission) {
       const { status } = await Notifications.requestPermissionsAsync();
       finalStatus = status;
     }

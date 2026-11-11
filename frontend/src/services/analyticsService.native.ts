@@ -73,6 +73,7 @@ class AnalyticsService {
     }
   }
 
+  async logEvent(name:string,params:Record<string,string|number>={}):Promise<void>{await this.logDiagnosticEvent(name,params);}
   // Diagnostic events have bounded fields; callers pass catalog IDs and enums only.
   // Locale is the UI selection, not a user's location.
   async logDiagnosticEvent(name: string, parameters: MetricParameters): Promise<void> {

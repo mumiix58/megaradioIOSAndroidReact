@@ -1,3 +1,4 @@
 import React from 'react';
-import CommunityDirectory from '../src/components/CommunityDirectory';
-export default function PublicProfiles() { return <CommunityDirectory favoritesOnly />; }
+import { Redirect } from 'expo-router';
+// Keep existing links working; the legacy directory UI has been removed.
+export default function PublicProfiles() { return <Redirect href="/users" />; }

@@ -1,106 +1,79 @@
-// PlayAtLoginHandler - Handles automatic playback on app start based on user settings
-// Must be used inside AudioProvider to access playStation function
-
-import { useEffect, useRef } from 'react';
+// Autoplay runs once after a signed-in session and its required data are ready.
+import { useEffect, useRef, useContext } from 'react';
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuthStore } from '../store/authStore';
 import { useFavoritesStore } from '../store/favoritesStore';
-import { useAudio } from '../hooks/useAudioPlayer';
-import stationService from '../services/stationService';
+import { usePlayerStore } from '../store/playerStore';
+import { AudioContext } from '../providers/AudioProvider';
+import { stationService } from '../services/stationService';
+import type { Station } from '../types';
+import { PLAY_AT_LOGIN_KEY, LAST_PLAYED_STATION_KEY, normalizePlayAtLogin } from '../utils/playAtLogin';
 
-const PLAY_AT_LOGIN_KEY = 'play_at_login_setting';
-const LAST_PLAYED_STATION_KEY = '@megaradio_last_played_station';
+const playable = (station: Station | null | undefined): station is Station =>
+  !!station?._id && /^https?:\/\//i.test(station.urlResolved || station.url_resolved || station.url || '');
 
 export const PlayAtLoginHandler: React.FC = () => {
   const hasExecuted = useRef(false);
-  const { isAuthenticated, isAuthLoaded } = useAuthStore();
-  const { favorites, isLoaded: favoritesLoaded } = useFavoritesStore();
-  const { playStation } = useAudio();
+  const { isAuthenticated, isAuthLoaded, user } = useAuthStore();
+  const { favorites, isLoaded: favoritesLoaded, isLoading: favoritesLoading } = useFavoritesStore();
+  const owner = user?._id || user?.id;
+  // The error boundary can deliberately provide no audio context.
+  const audio = useContext(AudioContext);
+  const playStation = audio?.playStation;
 
   useEffect(() => {
-    const executePlayAtLogin = async () => {
-      // Only execute once per app session
-      if (hasExecuted.current) {
-        return;
-      }
-
-      // Wait for auth to be loaded from storage first
-      if (!isAuthLoaded) {
-        console.log('[PlayAtLogin] Auth not loaded yet, waiting...');
-        return;
-      }
-
-      // Check if user is authenticated
-      if (!isAuthenticated) {
-        console.log('[PlayAtLogin] User not authenticated, skipping');
-        hasExecuted.current = true; // Mark as executed to prevent re-running
-        return;
-      }
-
-      // Wait a bit for app to fully initialize after auth confirmed
-      await new Promise(resolve => setTimeout(resolve, 500));
-
+    // Design preview reloads are not app launches; only explicit play gestures start audio.
+    if (__DEV__ && Platform.OS === 'web' && process.env.EXPO_PUBLIC_WEB_PREVIEW_PROXY === '1') return;
+    if (!playStation || !isAuthLoaded || !isAuthenticated || hasExecuted.current) return;
+    let disposed = false;
+    const stillCurrent = () => {
+      const auth = useAuthStore.getState();
+      return !disposed && !hasExecuted.current && auth.isAuthenticated && (auth.user?._id || auth.user?.id) === owner;
+    };
+    const execute = async () => {
       try {
-        const setting = await AsyncStorage.getItem(PLAY_AT_LOGIN_KEY);
-        console.log('[PlayAtLogin] Setting:', setting);
-
-        // Mark as executed regardless of setting to prevent re-runs
+        if (!stillCurrent()) return;
+        const setting = normalizePlayAtLogin(await AsyncStorage.getItem(PLAY_AT_LOGIN_KEY));
+        if (!stillCurrent()) return;
+        if (setting === 'off') { hasExecuted.current = true; return; }
+        if (setting === 'favorite' && (!favoritesLoaded || favoritesLoading)) return;
+        // A manual play, shortcut or deep link always takes priority over startup autoplay.
+        if (usePlayerStore.getState().currentStation) { hasExecuted.current = true; return; }
+        let station: Station | null = null;
+        if (setting === 'last_played') {
+          const raw = await AsyncStorage.getItem(LAST_PLAYED_STATION_KEY);
+          if (raw) {
+            try { const saved = JSON.parse(raw); if (playable(saved)) station = saved; }
+            catch { /* An invalid saved entry must not prevent app startup. */ }
+          }
+        } else if (setting === 'favorite') {
+          station = useFavoritesStore.getState().getSortedFavorites().find(playable) || null;
+        } else {
+          // Select a random position across the entire catalog, rather than its first 50 rows.
+          const first = await stationService.getStations({ limit: 1, page: 1 });
+          if (!stillCurrent()) return;
+          const total = Number(first.totalCount);
+          if (Number.isSafeInteger(total) && total > 0) {
+            const page = 1 + Math.floor(Math.random() * total);
+            const result = page === 1 ? first : await stationService.getStations({ limit: 1, page });
+            station = result.stations.find(playable) || null;
+          }
+        }
+        if (!stillCurrent()) return;
+        // A setting may have changed while the catalog request was in flight.
+        const latest = normalizePlayAtLogin(await AsyncStorage.getItem(PLAY_AT_LOGIN_KEY));
+        if (!stillCurrent()) return;
         hasExecuted.current = true;
-
-        if (!setting || setting === 'off') {
-          console.log('[PlayAtLogin] Disabled or not set');
-          return;
-        }
-
-        let stationToPlay = null;
-
-        switch (setting) {
-          case 'last_played':
-            // Get last played station from storage
-            const lastPlayedJson = await AsyncStorage.getItem(LAST_PLAYED_STATION_KEY);
-            if (lastPlayedJson) {
-              stationToPlay = JSON.parse(lastPlayedJson);
-              console.log('[PlayAtLogin] Last played station:', stationToPlay?.name);
-            }
-            break;
-
-          case 'favorite':
-            // Get first favorite station
-            if (favorites && favorites.length > 0) {
-              stationToPlay = favorites[0];
-              console.log('[PlayAtLogin] First favorite station:', stationToPlay?.name);
-            }
-            break;
-
-          case 'random':
-            // Get random station from API
-            try {
-              const response = await stationService.getStations({ limit: 50 });
-              if (response?.stations && response.stations.length > 0) {
-                const randomIndex = Math.floor(Math.random() * response.stations.length);
-                stationToPlay = response.stations[randomIndex];
-                console.log('[PlayAtLogin] Random station:', stationToPlay?.name);
-              }
-            } catch (error) {
-              console.error('[PlayAtLogin] Failed to fetch random station:', error);
-            }
-            break;
-        }
-
-        if (stationToPlay) {
-          console.log('[PlayAtLogin] Starting playback:', stationToPlay.name);
-          await playStation(stationToPlay);
-        }
+        if (latest !== setting || usePlayerStore.getState().currentStation || !station) return;
+        await playStation(station);
       } catch (error) {
-        console.error('[PlayAtLogin] Error:', error);
+        if (!disposed) { hasExecuted.current = true; console.log('[PlayAtLogin] Autoplay unavailable:', error); }
       }
     };
-
-    executePlayAtLogin();
-  }, [isAuthenticated, isAuthLoaded, favorites, favoritesLoaded, playStation]);
-
-  // This component doesn't render anything
+    const timer = setTimeout(() => { void execute(); }, 500);
+    return () => { disposed = true; clearTimeout(timer); };
+  }, [isAuthenticated, isAuthLoaded, owner, favorites, favoritesLoaded, favoritesLoading, playStation]);
   return null;
 };
-
 export default PlayAtLoginHandler;

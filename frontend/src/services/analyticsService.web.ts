@@ -2,6 +2,7 @@
 // Firebase Analytics only works on native (iOS/Android)
 
 class AnalyticsService {
+  async logEvent(_name:string,_params:Record<string,string|number>={}):Promise<void>{}
   async initialize(): Promise<void> {}
   async logScreenView(_screenName: string, _screenClass?: string): Promise<void> {}
   async logAppOpen(): Promise<void> {}

@@ -1,0 +1,16 @@
+import React from 'react';
+import Svg, { Path, Circle } from 'react-native-svg';
+
+// Preserved first Genres concept, available for future use.
+export function GenreWaveIcon({ color = '#FFFFFF' }: { color?: string }) {
+  return <Svg width={24} height={24} viewBox="0 0 24 24"><Path d="M5 15C5 12 7 10 10 10C12 10 12 17 15 17C17 17 17 11 20 11" stroke={color} strokeWidth={3} strokeLinecap="round" fill="none" /><Path d="M5 15V18C5 20 2 20 2 18C2 16 4 16 5 16" fill={color} /></Svg>;
+}
+
+// Original Mega mark from designs/radio-logo.svg, without its square background.
+export function MegaMarkIcon({ color = '#FFFFFF' }: { color?: string }) {
+  return <Svg width={24} height={24} viewBox="9 9 32 32"><Path d="M36.3879 22.0842C36.1173 20.9412 36.2516 19.6863 36.1812 18.4648C36.1482 17.8686 36.0998 17.2116 35.8071 16.6271C35.6288 16.2404 35.3058 15.9384 34.9071 15.7855C34.5084 15.6326 34.0655 15.6409 33.6729 15.8087C33.1149 16.0317 32.626 16.6306 32.3501 17.0275C32.0168 17.5161 31.7092 18.0216 31.4284 18.5419C30.8856 19.5247 30.3943 20.4895 29.8794 21.3896C29.7134 21.6629 29.5502 21.9479 29.3772 22.2151C29.126 18.6457 30.3337 12.0469 26.1485 11.0411C25.1799 10.8254 24.4318 11.4916 24.0281 12.2587C23.6093 13.0685 23.2617 13.9129 22.9891 14.7825C22.2943 16.9091 21.746 19.0804 21.3478 21.2813C20.9408 23.5266 20.6634 25.5459 19.9823 29.8892C17.7436 28.9149 14.9482 28.1137 12.7666 30.1746C9.01483 33.7189 11.6448 38.5514 16.8455 37.9487C21.194 37.4449 22.703 31.6132 22.703 31.6132H22.7018C23.2808 28.8111 23.7096 24.6205 24.2357 21.5125C24.5881 19.4312 25.1563 17.7109 25.8204 15.7201C25.9077 15.4634 25.9999 15.193 26.0978 14.9264C26.6908 17.0824 26.2942 21.8095 26.6843 23.44C26.9816 25.5344 28.8836 26.6228 30.5917 25.0446C31.3211 24.335 31.7721 23.4935 32.2227 22.6775C32.8576 21.5086 33.3623 20.3164 33.9682 19.1969C34.2313 21.093 34.5584 23.7747 36.6305 23.4666C37.8719 23.0925 38.5154 21.8042 39 20.7423C38.5842 21.0283 36.7363 22.4744 36.3873 22.0842" fill={color} /></Svg>;
+}
+
+export function CountryDiscoveryIcon({ size = 24 }: { size?: number }) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Circle cx={12} cy={12} r={9} stroke="#FFFFFF" strokeWidth={1.5} fill="none" /><Path d="M15.7 8.3L13.5 13.5L8.3 15.7L10.5 10.5Z" stroke="#FFFFFF" strokeWidth={1.5} strokeLinejoin="round" fill="none" /></Svg>;
+}
