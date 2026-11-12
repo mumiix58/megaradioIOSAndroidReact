@@ -607,7 +607,7 @@ export const Search = (): JSX.Element => {
           boxShadow: 'inset 1.1px 1.1px 12.1px 0px rgba(255,255,255,0.12)',
         }}
         data-testid="input-search"
-      >
+       data-tv-gap-axis="row" data-tv-gap="14">
         <div className="w-[31px] h-[31px] flex-shrink-0 opacity-60">
           <img alt="" className="block max-w-none w-full h-full" src={assetPath("images/search-icon.svg")} />
         </div>
@@ -638,7 +638,7 @@ export const Search = (): JSX.Element => {
           style={{ scrollbarWidth: 'none' }}
         >
           {searchQuery.length > 0 && isSearching && visibleSearchResults.length === 0 && (
-            <div className="flex flex-col items-center justify-center mt-[80px] gap-[20px]">
+            <div className="flex flex-col items-center justify-center mt-[80px] gap-[20px]" data-tv-gap-axis="column" data-tv-gap="20">
               <div className="relative w-[48px] h-[48px]">
                 <div className="absolute inset-0 rounded-full border-[3px] border-white/10" />
                 <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-[#ff4199] animate-spin" />
@@ -672,7 +672,7 @@ export const Search = (): JSX.Element => {
                     openStation(station, index, 'search');
                   }
                 }}
-              >
+               data-tv-gap-axis="row" data-tv-gap="16">
                 <img
                   src={getStationImage(station)}
                   alt=""
@@ -704,7 +704,7 @@ export const Search = (): JSX.Element => {
         {KEYBOARD_ROWS.map((row, rowIndex) => {
           const isActionRow = rowIndex === KEYBOARD_ROWS.length - 1;
           return (
-            <div key={`${activeLayout.id}-${rowIndex}`} className={`flex ${isActionRow ? 'gap-[10px] mt-[14px]' : 'gap-[6px] mb-[6px]'}`}>
+            <div key={`${activeLayout.id}-${rowIndex}`} className={`flex ${isActionRow ? 'gap-[10px] mt-[14px]' : 'gap-[6px] mb-[6px]'}`} data-tv-gap-axis="row" data-tv-gap={isActionRow ? 10 : 6}>
               {row.map((keyChar, colIndex) => {
                 const isKeyFocused = focusZone === 'keyboard' && keyboardRow === rowIndex && keyboardCol === colIndex;
                 const isAction = keyChar === 'SPACE' || keyChar === 'DELETE' || keyChar === 'CLEAR';
@@ -759,8 +759,13 @@ export const Search = (): JSX.Element => {
             }}
             tabIndex={-1}
             data-testid="lang-selector-button"
+            onClick={() => {
+              setDropdownOpen(true);
+              setDropdownIndex(activeLayoutIndex);
+              setFocusZone('langDropdown');
+            }}
           >
-            <div className="flex items-center gap-[12px]">
+            <div className="flex items-center gap-[12px]" data-tv-gap-axis="row" data-tv-gap="12">
               <img src={getKbFlagUrl(activeLayout.id)} alt={activeLayout.label} className="w-[32px] h-[22px] rounded-[2px] object-cover" />
               <span>{activeLayout.label}</span>
             </div>
@@ -804,7 +809,7 @@ export const Search = (): JSX.Element => {
                         setKeyboardCol(0);
                       }}
                       data-testid={`layout-${layout.id}`}
-                    >
+                     data-tv-gap-axis="row" data-tv-gap="14">
                       <img src={getKbFlagUrl(layout.id)} alt={layout.label} className="w-[30px] h-[20px] rounded-[2px] object-cover" />
                       <span className="font-['Ubuntu',Helvetica] font-medium text-[19px]">{layout.label}</span>
                       {isActive && !isLangFocused && (
@@ -824,7 +829,7 @@ export const Search = (): JSX.Element => {
             <p className="font-['Ubuntu',Helvetica] font-bold text-[24px] text-white mb-[14px]">
               {t('recently_played') || t('recent') || 'Recently Played'}
             </p>
-            <div className="flex flex-wrap gap-[14px]" style={{ width: '690px' }}>
+            <div className="flex flex-wrap gap-[14px]" style={{ width: '690px' }} data-tv-gap-axis="row" data-tv-gap="14" data-tv-gap-wrap="4">
               {recentStations.slice(0, 8).map((station, index) => {
                 if (!station) return null;
                 const isStationFocused = focusZone === 'recent' && recentFocusIndex === index;

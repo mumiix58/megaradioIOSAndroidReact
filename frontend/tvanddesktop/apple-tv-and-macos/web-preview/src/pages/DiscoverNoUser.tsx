@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { detectPlatform } from "@/lib/platform";
 import { handleEntryBack } from "@/lib/platformBack";
 import { resolveStationImageUrl, handleStationImageError } from "@/lib/imageUtils";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { megaRadioApi, type Station, type Genre } from "@/services/megaRadioApi";
 import { cacheService } from "@/services/cacheService";
@@ -927,11 +927,13 @@ export const DiscoverNoUser = (): JSX.Element => {
 
   // Auto-hide header on scroll down + TRUE INFINITE SCROLL trigger (scroll-based)
   // THROTTLED: Only process scroll events every 100ms for performance
-  useEffect(() => {
+  useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
+    let retired = false;
     const handleScroll = () => {
+      if (retired) return;
       const now = Date.now();
       // Throttle: Skip if less than 100ms since last scroll
       if (now - lastScrollTime.current < 100) {
@@ -959,8 +961,10 @@ export const DiscoverNoUser = (): JSX.Element => {
       }
     };
 
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
+    // Explicit capture is compatible with Chromium38: an options object would
+    // become capture=true there, so a default-false cleanup cannot remove it.
+    scrollContainer.addEventListener('scroll', handleScroll, false);
+    return () => { retired = true; scrollContainer.removeEventListener('scroll', handleScroll, false); };
   }, []);
 
   useEffect(() => {
@@ -1122,9 +1126,9 @@ export const DiscoverNoUser = (): JSX.Element => {
           onClick={function() { setLocation(isAuthenticated ? '/settings' : '/login'); }}
           data-testid="button-header-login"
           data-tv-focusable="true"
-        >
+         data-tv-gap-axis="row" data-tv-gap="8">
           {isAuthenticated && user ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} data-tv-gap-axis="row" data-tv-gap="8">
               {user.avatar ? (
                 <img src={user.avatar} alt="" style={{ width: '34px', height: '34px', borderRadius: '50%', objectFit: 'cover' }} />
               ) : (
@@ -1134,7 +1138,7 @@ export const DiscoverNoUser = (): JSX.Element => {
               )}
             </div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} data-tv-gap-axis="row" data-tv-gap="6">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                 <circle cx="12" cy="8" r="4" stroke="#ffffff" strokeWidth="1.5" fill="none" />
                 <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" fill="none" />
@@ -1187,7 +1191,7 @@ export const DiscoverNoUser = (): JSX.Element => {
               data-testid="discover-recent-scroll"
               className="absolute left-[74px] top-[50px] w-[1580px] overflow-x-auto overflow-y-visible scrollbar-hide scroll-smooth"
             >
-              <div className="flex py-[10px] px-[10px]" style={{ gap: '16px' }}>
+              <div className="flex py-[10px] px-[10px]" style={{ gap: '16px' }} data-tv-gap-axis="row" data-tv-gap="16">
                 {recentStations.map((station, index) => {
                   const focusIdx = recentStart + index;
                   return (
@@ -1240,7 +1244,7 @@ export const DiscoverNoUser = (): JSX.Element => {
               data-testid="discover-for-you-scroll"
               className="absolute left-[74px] top-[50px] w-[1580px] overflow-x-auto overflow-y-visible scrollbar-hide scroll-smooth"
             >
-              <div className="flex py-[10px] px-[10px]" style={{ gap: '16px' }}>
+              <div className="flex py-[10px] px-[10px]" style={{ gap: '16px' }} data-tv-gap-axis="row" data-tv-gap="16">
                 {forYouStations.map((station, index) => {
                   const focusIdx = forYouStart + index;
                   return (
@@ -1297,7 +1301,7 @@ export const DiscoverNoUser = (): JSX.Element => {
           className="absolute left-[74px] top-[59px] w-[1580px] overflow-x-auto overflow-y-visible scrollbar-hide scroll-smooth"
           data-genre-container
         >
-          <div className="flex py-[15px] px-[10px]" style={{ gap: '20px' }}>
+          <div className="flex py-[15px] px-[10px]" style={{ gap: '20px' }} data-tv-gap-axis="row" data-tv-gap="20">
             {genres.map((genre, index) => {
               const focusIdx = genresStart + index;
               return (
@@ -1305,6 +1309,7 @@ export const DiscoverNoUser = (): JSX.Element => {
                   key={`${genre.slug}-${index}`} 
                   href={`/genre-list/${genre.slug}`}
                   style={{ marginRight: '20px', display: 'inline-block', flexShrink: 0 }}
+                  data-tv-gap-existing-right="20"
                 >
                   <div 
                     className={`relative bg-[rgba(255,255,255,0.14)] flex gap-[10px] items-center px-[72px] py-[28px] rounded-[20px] cursor-pointer hover:bg-[rgba(255,255,255,0.2)] transition-colors ${getFocusClasses(isFocused(focusIdx))}`}
@@ -1312,11 +1317,11 @@ export const DiscoverNoUser = (): JSX.Element => {
                     data-genre-pill
                     data-focus-idx={focusIdx}
                     style={{ display: 'inline-flex', whiteSpace: 'nowrap' }}
-                  >
+                   data-tv-gap-axis="row" data-tv-gap="10">
                     <p className="font-['Ubuntu',Helvetica] font-medium leading-normal not-italic text-[22px] text-center text-white whitespace-nowrap">
                       {genre.name}
                     </p>
-                    <div className="absolute inset-0 pointer-events-none shadow-[inset_1.1px_1.1px_12.1px_0px_rgba(255,255,255,0.12)] rounded-[20px]" />
+                    <div className="absolute inset-0 pointer-events-none shadow-[inset_1.1px_1.1px_12.1px_0px_rgba(255,255,255,0.12)] rounded-[20px]" data-tv-gap-ignore />
                   </div>
                 </Link>
               );
@@ -1454,7 +1459,7 @@ export const DiscoverNoUser = (): JSX.Element => {
           <div 
             className="absolute left-[74px] w-[1580px] h-[80px] flex items-center justify-center gap-4"
             style={{ top: `${1013 + recentOffset + forYouOffset + (Math.ceil(displayedStations.length / 7) * 294)}px` }}
-          >
+           data-tv-gap-axis="row" data-tv-gap="16">
             <div className="animate-spin rounded-full h-10 w-10 border-t-3 border-b-3 border-[#ff4199]"></div>
           </div>
         )}
@@ -1548,7 +1553,7 @@ export const DiscoverNoUser = (): JSX.Element => {
             </div>
             
             {/* Buttons */}
-            <div className="absolute bottom-[50px] left-[50px] right-[50px] flex gap-6 justify-center">
+            <div className="absolute bottom-[50px] left-[50px] right-[50px] flex gap-6 justify-center" data-tv-gap-axis="row" data-tv-gap="24">
               {/* Cancel Button */}
               <button
                 className={`px-12 py-4 rounded-[30px] font-['Ubuntu',Helvetica] font-bold text-[24px] transition-all ${

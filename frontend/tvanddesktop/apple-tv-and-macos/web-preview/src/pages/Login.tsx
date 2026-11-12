@@ -310,7 +310,7 @@ export function Login(): JSX.Element {
               gap: '60px',
               marginBottom: '30px',
             }}
-          >
+           data-tv-gap-axis="row" data-tv-gap="60">
             {/* Code display */}
             <div
               style={{
@@ -318,7 +318,7 @@ export function Login(): JSX.Element {
                 gap: '14px',
               }}
               data-testid="text-device-code"
-            >
+             data-tv-gap-axis="row" data-tv-gap="14">
               {codeChars.length > 0 ? (
                 codeChars.map(function(char, idx) {
                   return (
@@ -350,7 +350,7 @@ export function Login(): JSX.Element {
                   );
                 })
               ) : (
-                <div style={{ display: 'flex', gap: '14px' }}>
+                <div style={{ display: 'flex', gap: '14px' }} data-tv-gap-axis="row" data-tv-gap="14">
                   {[0, 1, 2, 3, 4, 5].map(function(idx) {
                     return (
                       <div
@@ -392,7 +392,7 @@ export function Login(): JSX.Element {
                 alignItems: 'center',
                 gap: '8px',
               }}
-            >
+             data-tv-gap-axis="column" data-tv-gap="8">
               <div style={{ width: '2px', height: '40px', background: 'rgba(255,255,255,0.15)' }} />
               <span
                 style={{
@@ -422,7 +422,7 @@ export function Login(): JSX.Element {
                   boxShadow: '0 0 30px rgba(255,65,153,0.2)',
                 }}
                 data-testid="qrcode-tv-login"
-              >
+               data-tv-gap-axis="column" data-tv-gap="10">
                 <QRCodeSVG
                   value={'https://www.themegaradio.com/tv?code=' + deviceCode}
                   size={160}
@@ -493,7 +493,7 @@ export function Login(): JSX.Element {
               alignItems: 'center',
               gap: '12px',
               marginBottom: '20px',
-            }}>
+            }} data-tv-gap-axis="row" data-tv-gap="12">
               <div style={{
                 width: '12px',
                 height: '12px',

@@ -1,12 +1,12 @@
 {
   "id": "com.radiomega.tv",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "vendor": "Vision Go GmbH",
   "type": "web",
   "resolution": "1920x1080",
   "main": "index.html",
   "title": "Radio Mega",
-  "appDescription": "Listen to internet radio on LG webOS TV. Discover stations worldwide, search by name and save favorites. An internet connection is required; stream availability and audio quality vary by station.",
+  "appDescription": "Live internet radio, genres, search and favourites.",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "splashBackground": "splash.png",
@@ -14,7 +14,7 @@
   "bgColor": "#0E0E0E",
   "bgImage": "splash.png",
   "supportTouchMode": "none",
-  "handlesRelaunch": true,
+  "handlesRelaunch": false,
   "transparent": false,
   "disableBackHistoryAPI": true,
   "accessibility": {

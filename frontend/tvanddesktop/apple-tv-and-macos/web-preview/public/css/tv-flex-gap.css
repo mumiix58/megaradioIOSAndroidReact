@@ -1,0 +1,84 @@
+/* Scoped flex-gap fallback: runtime geometry probe, never a UA/CSS.supports guess.
+   Explicit TV containers only; prefixed logical margins also work on Chromium38. */
+html.mr-no-flex-gap [data-tv-gap] { gap: 0 !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="2"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 2px !important; margin-inline-start: 2px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="2"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 2px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="4"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 4px !important; margin-inline-start: 4px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="4"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 4px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="6"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 6px !important; margin-inline-start: 6px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="6"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 6px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="8"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 8px !important; margin-inline-start: 8px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="8"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 8px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="10"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 10px !important; margin-inline-start: 10px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="10"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 10px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="10.66"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 10.66px !important; margin-inline-start: 10.66px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="10.66"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 10.66px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="11.3"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 11.3px !important; margin-inline-start: 11.3px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="11.3"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 11.3px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="12"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 12px !important; margin-inline-start: 12px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="12"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 12px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="13"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 13px !important; margin-inline-start: 13px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="13"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 13px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="14"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 14px !important; margin-inline-start: 14px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="14"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 14px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="16"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 16px !important; margin-inline-start: 16px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="16"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 16px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="18"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 18px !important; margin-inline-start: 18px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="18"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 18px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="19"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 19px !important; margin-inline-start: 19px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="19"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 19px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="20"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 20px !important; margin-inline-start: 20px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="20"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 20px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="21"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 21px !important; margin-inline-start: 21px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="21"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 21px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="24"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 24px !important; margin-inline-start: 24px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="24"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 24px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="32"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 32px !important; margin-inline-start: 32px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="32"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 32px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="40"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 40px !important; margin-inline-start: 40px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="40"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 40px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="48"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 48px !important; margin-inline-start: 48px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="48"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 48px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="60"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 60px !important; margin-inline-start: 60px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="60"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 60px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="64"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto) { -webkit-margin-start: 64px !important; margin-inline-start: 64px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="64"] > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not([data-tv-gap-extra]) { margin-top: 64px !important; }
+/* Preserve intentional auto alignment rather than replacing it with a fixed gap. */
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="32"] > [data-tv-gap-extra="16"] { margin-top: 48px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="48"] > [data-tv-gap-extra="32"] { margin-top: 80px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="column"][data-tv-gap="64"] > [data-tv-gap-extra="48"] { margin-top: 112px !important; }
+/* Search has a fixed 690px four-column row: 4*162 + 3*14. Keep both edges
+   and the original wrapping width; never enlarge/negative-shift the container. */
+html.mr-no-flex-gap [data-tv-gap-wrap="4"] > * { -webkit-margin-start: 14px !important; margin-inline-start: 14px !important; }
+html.mr-no-flex-gap [data-tv-gap-wrap="4"] > :nth-child(4n+1) { -webkit-margin-start: 0 !important; margin-inline-start: 0 !important; }
+html.mr-no-flex-gap [data-tv-gap-wrap="4"] > :nth-child(n+5) { margin-top: 14px !important; }
+
+
+/* Variable-width onboarding badges retain shrink-to-fit sizing within 1824px.
+   Only this inner flow expands by one gap; its outer position and available bound stay unchanged. */
+html.mr-no-flex-gap [data-tv-gap-wrap="flow"][data-tv-gap="16"] { width: calc(100% + 16px); -webkit-margin-start: -16px; margin-inline-start: -16px; margin-top: -16px; }
+html.mr-no-flex-gap [data-tv-gap-wrap="flow"][data-tv-gap="16"] > * { -webkit-margin-start: 16px; margin-inline-start: 16px; margin-top: 16px; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="2"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 2px !important; padding-inline-start: 2px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="4"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 4px !important; padding-inline-start: 4px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="6"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 6px !important; padding-inline-start: 6px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="8"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 8px !important; padding-inline-start: 8px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="10"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 10px !important; padding-inline-start: 10px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="10.66"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 10.66px !important; padding-inline-start: 10.66px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="11.3"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 11.3px !important; padding-inline-start: 11.3px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="12"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 12px !important; padding-inline-start: 12px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="13"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 13px !important; padding-inline-start: 13px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="14"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 14px !important; padding-inline-start: 14px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="16"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 16px !important; padding-inline-start: 16px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="18"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 18px !important; padding-inline-start: 18px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="19"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 19px !important; padding-inline-start: 19px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="20"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 20px !important; padding-inline-start: 20px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="21"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 21px !important; padding-inline-start: 21px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="24"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 24px !important; padding-inline-start: 24px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="32"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 32px !important; padding-inline-start: 32px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="40"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 40px !important; padding-inline-start: 40px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="48"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 48px !important; padding-inline-start: 48px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="60"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 60px !important; padding-inline-start: 60px !important; }
+html.mr-no-flex-gap [data-tv-gap-axis="row"][data-tv-gap="64"] > :not([data-tv-gap-ignore]) ~ .ml-auto { -webkit-padding-start: 64px !important; padding-inline-start: 64px !important; }
+/* Preserve the genre Link existing physical margin-right under RTL as well. */
+html.mr-no-flex-gap[dir="rtl"] [data-tv-gap-axis="row"][data-tv-gap="20"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto)[data-tv-gap-existing-right="20"],
+html.mr-no-flex-gap [dir="rtl"] [data-tv-gap-axis="row"][data-tv-gap="20"]:not([data-tv-gap-wrap]) > :not([data-tv-gap-ignore]) ~ :not([data-tv-gap-ignore]):not(.ml-auto)[data-tv-gap-existing-right="20"] { -webkit-margin-start: 40px !important; margin-inline-start: 40px !important; }

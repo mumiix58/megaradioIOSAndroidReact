@@ -55,7 +55,7 @@ export const PastDueBanner = (): JSX.Element | null => {
         maxWidth: 720,
         animation: "pulse 2s ease-in-out infinite",
       }}
-    >
+     data-tv-gap-axis="row" data-tv-gap="12">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
         <path d="M12 2L1 21h22L12 2z" stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
         <line x1="12" y1="9" x2="12" y2="14" stroke="#fff" strokeWidth="2" strokeLinecap="round" />

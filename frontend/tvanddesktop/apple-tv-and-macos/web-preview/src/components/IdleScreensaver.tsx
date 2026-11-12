@@ -72,11 +72,11 @@ export const IdleScreensaver = ({ isVisible, onInteraction }: IdleScreensaverPro
       <div className="absolute inset-0 bg-gradient-to-b from-black via-[#1a0a1a] to-black opacity-80" />
 
       {/* Content Container */}
-      <div className="relative z-10 flex flex-col items-center gap-16">
+      <div className="relative z-10 flex flex-col items-center gap-16" data-tv-gap-axis="column" data-tv-gap="64">
         
         {/* Large Animated Equalizer */}
         <div className="relative">
-          <div className="flex items-end justify-center gap-8 h-[300px]">
+          <div className="flex items-end justify-center gap-8 h-[300px]" data-tv-gap-axis="row" data-tv-gap="32">
             {/* Bar 1 */}
             <div 
               className="bg-gradient-to-t from-[#ff4199] to-[#ff6bb3] w-[60px] rounded-[20px] animate-screensaver-equalizer-1"
@@ -101,7 +101,7 @@ export const IdleScreensaver = ({ isVisible, onInteraction }: IdleScreensaverPro
         </div>
 
         {/* Clock - positioned between equalizer and text */}
-        <div className="mt-12">
+        <div className="mt-12" data-tv-gap-extra="48">
           <p className="font-['Ubuntu',Helvetica] font-light text-[72px] text-white/50 tracking-wider">
             {formatTime(currentTime)}
           </p>
@@ -109,7 +109,7 @@ export const IdleScreensaver = ({ isVisible, onInteraction }: IdleScreensaverPro
 
         {/* Station Info or Branding Fallback */}
         {currentStation ? (
-          <div className="flex flex-col items-center gap-8">
+          <div className="flex flex-col items-center gap-8" data-tv-gap-axis="column" data-tv-gap="32">
             {/* Station Logo */}
             <div className="bg-white rounded-[12px] w-[200px] h-[200px] overflow-clip shadow-2xl">
               <img 
@@ -127,7 +127,7 @@ export const IdleScreensaver = ({ isVisible, onInteraction }: IdleScreensaverPro
 
             {/* Now Playing */}
             {nowPlayingMetadata && (
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4" data-tv-gap-axis="row" data-tv-gap="16">
                 <div className="w-[60px] h-[3px] bg-[#ff4199]" />
                 <p className="font-['Ubuntu',Helvetica] font-light text-[36px] text-[#ff4199] text-center max-w-[1000px] truncate">
                   {nowPlayingMetadata}
@@ -142,7 +142,7 @@ export const IdleScreensaver = ({ isVisible, onInteraction }: IdleScreensaverPro
             </p>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-8">
+          <div className="flex flex-col items-center gap-8" data-tv-gap-axis="column" data-tv-gap="32">
             {/* App Logo */}
             <img 
               src={assetPath('images/path-8.svg')}

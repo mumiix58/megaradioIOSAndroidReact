@@ -1,4 +1,4 @@
-import { useEffect, RefObject } from "react";
+import { useLayoutEffect, RefObject } from "react";
 
 /**
  * Mouse drag-to-scroll for horizontal lists on Windows / Linux where there are
@@ -17,17 +17,19 @@ import { useEffect, RefObject } from "react";
 export function useDragScroll<T extends HTMLElement>(ref: RefObject<T>, opts?: { threshold?: number }) {
   const threshold = opts?.threshold ?? 6;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
 
+    let retired = false;
     let isDown = false;
+    let swallowClick: ((ev: MouseEvent) => void) | null = null;
     let startX = 0;
     let startScroll = 0;
     let moved = false;
 
     const onPointerMove = (e: PointerEvent) => {
-      if (!isDown) return;
+      if (retired || !isDown) return;
       const dx = e.clientX - startX;
       if (!moved && Math.abs(dx) > threshold) {
         moved = true;
@@ -40,26 +42,30 @@ export function useDragScroll<T extends HTMLElement>(ref: RefObject<T>, opts?: {
     };
 
     const endDrag = () => {
-      if (!isDown) return;
+      if (retired || !isDown) return;
       isDown = false;
       if (moved) {
         // Swallow the click that follows a real drag so cards don't open.
+        if (swallowClick) el.removeEventListener("click", swallowClick, true);
         const swallow = (ev: MouseEvent) => {
+          if (retired) return;
           ev.stopPropagation();
           ev.preventDefault();
           el.removeEventListener("click", swallow, true);
+          swallowClick = null;
         };
+        swallowClick = swallow;
         el.addEventListener("click", swallow, true);
       }
       el.classList.remove("is-dragging");
       moved = false;
-      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointermove", onPointerMove, false);
       window.removeEventListener("pointerup", endDrag);
       window.removeEventListener("pointercancel", endDrag);
     };
 
     const onPointerDown = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return; // native touch scroll handles itself
+      if (retired || e.pointerType === "touch") return; // native touch scroll handles itself
       if (e.button !== 0) return;
       isDown = true;
       moved = false;
@@ -67,7 +73,7 @@ export function useDragScroll<T extends HTMLElement>(ref: RefObject<T>, opts?: {
       startScroll = el.scrollLeft;
       // Window-level listeners so the drag keeps tracking even when the
       // pointer leaves the scroller or hovers a child card.
-      window.addEventListener("pointermove", onPointerMove, { passive: false });
+      window.addEventListener("pointermove", onPointerMove, false);
       window.addEventListener("pointerup", endDrag);
       window.addEventListener("pointercancel", endDrag);
     };
@@ -75,8 +81,11 @@ export function useDragScroll<T extends HTMLElement>(ref: RefObject<T>, opts?: {
     el.addEventListener("pointerdown", onPointerDown);
 
     return () => {
+      retired = true;
+      isDown = false;
+      if (swallowClick) el.removeEventListener("click", swallowClick, true);
       el.removeEventListener("pointerdown", onPointerDown);
-      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointermove", onPointerMove, false);
       window.removeEventListener("pointerup", endDrag);
       window.removeEventListener("pointercancel", endDrag);
     };

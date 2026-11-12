@@ -7,7 +7,7 @@
     function clock(){var value=monotonicNow();return value===null?Date.now():value;}
     var KEY = 'mr_tv_observability_consent_v1';
     var USAGE_KEY = 'mr_tv_usage_analytics_client_v1', usageClient = null, sessionId = null, engagement = 0, lastEngagement = monotonicNow(), wasVisible = document.visibilityState === 'visible';
-    var ENDPOINT = 'https://api.themegaradio.com/api/tv/telemetry/events';
+    var ENDPOINT = (window.MRTVApiOrigin ? window.MRTVApiOrigin.getProductionApiOrigin() : 'https://api.themegaradio.com') + '/api/tv/telemetry/events';
     var diagnostics = ['startup_error','startup_ready','js_error','promise_error','react_error','catalog_error','playback_error'];
     var usage = ['app_open','screen_view','playback_start','playback_pause'];
     var codes = ['none','startup_timeout','asset_load','syntax_error','type_error','reference_error','range_error','security_error','unknown_error','promise_rejected','render_error','http_error','network_error','request_timeout','media_aborted','media_network','media_decode','media_unsupported','playback_failed'];

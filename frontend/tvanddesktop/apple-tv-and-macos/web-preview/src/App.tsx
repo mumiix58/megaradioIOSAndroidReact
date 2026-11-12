@@ -153,10 +153,10 @@ function HelpModal() {
         <h2 style={{ fontFamily: "'Ubuntu', Helvetica, sans-serif", fontSize: '32px', fontWeight: 700, color: '#ffffff', marginBottom: '32px', textAlign: 'center' }}>
           {t('help_title') || 'Remote Control Colors'}
         </h2>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }} data-tv-gap-axis="column" data-tv-gap="20">
           {HELP_REMOTE_COLORS.map(function(item) {
             return (
-              <div key={item.color} style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+              <div key={item.color} style={{ display: 'flex', alignItems: 'center', gap: '20px' }} data-tv-gap-axis="row" data-tv-gap="20">
                 <span style={{ width: '36px', height: '36px', borderRadius: '50%', backgroundColor: item.color, boxShadow: '0 0 12px ' + item.color + '80', flexShrink: 0 }} />
                 <span style={{ fontFamily: "'Ubuntu', Helvetica, sans-serif", fontSize: '24px', fontWeight: 500, color: '#e0e0e0' }}>
                   {t(item.key) || item.fallback}

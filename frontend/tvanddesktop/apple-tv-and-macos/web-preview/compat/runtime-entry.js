@@ -37,4 +37,29 @@ if (!Element.prototype.scrollBy) {
 if (!window.CSS || !window.CSS.supports || !window.CSS.supports('--mr-test', '0') || !window.CSS.supports('color', '#0000')) {
   document.documentElement.className += ' mr-legacy-css';
 }
+// Grid gap support does not imply flex gap support (for example Chromium53/69).
+// Measure an attached flex layout instead; this script runs before <body> exists.
+(function markMissingFlexGap() {
+  const root = document.documentElement;
+  if (!root || typeof document.createElement !== 'function' || typeof root.appendChild !== 'function') return;
+  const probe = document.createElement('div');
+  probe.style.cssText = 'position:absolute;left:-9999px;top:-9999px;display:flex;flex-direction:column;row-gap:1px;width:1px;padding:0;margin:0;border:0;line-height:0;visibility:hidden;pointer-events:none;';
+  for (let i = 0; i < 2; i++) {
+    const child = document.createElement('div');
+    child.style.cssText = 'height:1px;min-height:1px;width:1px;flex:0 0 1px;padding:0;margin:0;border:0;';
+    probe.appendChild(child);
+  }
+  let supported;
+  try {
+    root.appendChild(probe);
+    supported = probe.scrollHeight === 3;
+  } catch (_) {
+    return; // Unknown layout capability must not block app startup.
+  } finally {
+    if (probe.parentNode) probe.parentNode.removeChild(probe);
+  }
+  if (!supported && (' ' + root.className + ' ').indexOf(' mr-no-flex-gap ') < 0) {
+    root.className += ' mr-no-flex-gap';
+  }
+})();
 window.__MR_COMPAT_READY__ = true;

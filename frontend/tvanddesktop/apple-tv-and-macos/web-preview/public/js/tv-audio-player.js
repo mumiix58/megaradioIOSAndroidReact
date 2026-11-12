@@ -24,8 +24,35 @@
         // Samsung Tizen AVPlay implementation
         initSamsungPlayer: function() {
             var self = this;
+            var generation = 0;
+            var paused = false;
+            var preparing = false;
+            var restartOnResume = false;
             
             this.play = function(url) {
+                var attempt = ++generation;
+                var settled = false;
+                var failed = false;
+                paused = false;
+                preparing = true;
+                restartOnResume = false;
+                function active() { return attempt === generation; }
+                function fail(error) {
+                    if (!active() || paused || failed) return;
+                    failed = true;
+                    preparing = false;
+                    settled = true;
+                    if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
+                    self.isPlaying = false;
+                    self.onError && self.onError(error);
+                }
+                function startNativePlayback() {
+                    // Catch only the vendor call, not errors from consumer callbacks.
+                    try { webapis.avplay.play(); }
+                    catch (error) { fail(error); return false; }
+                    // play() may synchronously report an error or replace this attempt.
+                    return active() && !paused && !failed;
+                }
                 self.currentUrl = url;
                 
                 // Cancel any watchdog left over from a PREVIOUS play() call.
@@ -66,23 +93,27 @@
                     // Set up event listeners
                     var listener = {
                         onbufferingstart: function() {
+                            if (!active() || paused || failed) return;
                             console.log('Buffering started');
                             self.onBuffering && self.onBuffering();
                         },
                         onbufferingcomplete: function() {
+                            if (!active() || paused || failed) return;
                             console.log('Buffering complete');
                             self.onReady && self.onReady();
                         },
                         onstreamcompleted: function() {
+                            if (!active() || paused || failed) return;
                             console.log('Stream completed');
                             self.onEnded && self.onEnded();
                         },
                         oncurrentplaytime: function(currentTime) {
+                            if (!active() || paused || failed) return;
                             self.onTimeUpdate && self.onTimeUpdate(currentTime / 1000);
                         },
                         onerror: function(eventType) {
                             console.error('AVPlay error:', eventType);
-                            self.onError && self.onError(eventType);
+                            fail(eventType);
                         }
                     };
                     
@@ -94,9 +125,8 @@
                     // onError) so it looks like "nothing plays". The 15s watchdog turns
                     // that silent hang into an onError, so the app's existing retry
                     // chain (3 attempts) kicks in instead of stalling forever.
-                    var settled = false;
                     self._watchdog = setTimeout(function() {
-                        if (settled) return;
+                        if (!active() || paused || settled || failed) return;
                         // Before declaring a timeout, verify the player isn't
                         // actually PLAYING. Samsung sometimes starts playback
                         // without firing the prepareAsync success callback; killing
@@ -105,10 +135,13 @@
                         var liveState = 'UNKNOWN';
                         try { liveState = webapis.avplay.getState(); } catch (e) {}
                         if (liveState === 'PLAYING' || liveState === 'READY') {
-                            console.log('[Samsung Player] Watchdog: state is ' + liveState + ' — stream is fine, NOT erroring');
+                            console.log('[Samsung Player] Watchdog state:', liveState);
                             settled = true;
                             self._watchdog = null;
-                            self.isPlaying = (liveState === 'PLAYING');
+                            preparing = false;
+                            if (liveState === 'READY' && !startNativePlayback()) return;
+                            if (!active() || paused || failed) return;
+                            self.isPlaying = true;
                             self.onPlay && self.onPlay();
                             return;
                         }
@@ -116,31 +149,42 @@
                         self._watchdog = null;
                         console.error('[Samsung Player] prepareAsync timeout (15s) — treating as error');
                         try { webapis.avplay.stop(); webapis.avplay.close(); } catch (e) {}
-                        self.onError && self.onError('PREPARE_TIMEOUT');
+                        fail('PREPARE_TIMEOUT');
                     }, 15000);
 
                     webapis.avplay.prepareAsync(function() {
-                        if (settled) return;
+                        if (!active() || paused || settled || failed) return;
                         settled = true;
                         if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
-                        webapis.avplay.play();
+                        preparing = false;
+                        if (!startNativePlayback()) return;
                         self.isPlaying = true;
                         self.onPlay && self.onPlay();
                     }, function(error) {
-                        if (settled) return;
+                        if (!active() || paused || settled || failed) return;
                         settled = true;
                         if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
                         console.error('Prepare failed');
-                        self.onError && self.onError(error);
+                        fail(error);
                     });
                     
                 } catch (e) {
                     console.error('Samsung player failed');
-                    self.onError && self.onError(e);
+                    fail(e);
                 }
             };
             
             this.pause = function() {
+                paused = true;
+                // AVPlay cannot resume an unfinished prepare from IDLE/READY.
+                // Cancel it; only an explicit resume may start a fresh attempt.
+                if (preparing) {
+                    generation++;
+                    preparing = false;
+                    restartOnResume = true;
+                    try { webapis.avplay.stop(); webapis.avplay.close(); } catch (e) {}
+                }
+                if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
                 try {
                     var state = webapis.avplay.getState();
                     console.log('[Samsung Player] Pause requested, current state:', state);
@@ -166,6 +210,11 @@
             };
             
             this.resume = function() {
+                if (restartOnResume && self.currentUrl) {
+                    self.play(self.currentUrl);
+                    return;
+                }
+                paused = false;
                 try {
                     var state = webapis.avplay.getState();
                     console.log('[Samsung Player] Resume requested, current state:', state);
@@ -188,6 +237,11 @@
             };
             
             this.stop = function() {
+                generation++;
+                preparing = false;
+                restartOnResume = false;
+                paused = true;
+                if (self._watchdog) { clearTimeout(self._watchdog); self._watchdog = null; }
                 try {
                     webapis.avplay.stop();
                     webapis.avplay.close();

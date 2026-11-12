@@ -11,6 +11,7 @@ import type { Plugin, ResolvedConfig } from 'vite';
 
 const require = createRequire(import.meta.url);
 const { legacyCss } = require('./legacy-css.cjs');
+const { compatibleDependencyFunctionNames } = require('./dependency-function-names.cjs');
 
 export function legacyTvSupport(): Plugin {
   let config: ResolvedConfig;
@@ -21,7 +22,17 @@ export function legacyTvSupport(): Plugin {
   return {
     name: 'megaradio-legacy-tv-support', apply: 'build', enforce: 'post',
     configResolved(value) { config = value; },
+    transform(code, id) {
+      const compatible = compatibleDependencyFunctionNames(code, id);
+      return compatible === null ? null : { code: compatible, map: null };
+    },
     async buildStart() {
+      // One selector implementation for React clients and the classic opt-in reporter.
+      const origin = await build({ entryPoints: [path.join(config.root, 'src/lib/apiOrigin.ts')],
+        bundle: true, write: false, format: 'iife', globalName: 'MRTVApiOrigin',
+        platform: 'browser', target: 'es2015', logLevel: 'warning' });
+      const originOutput = await minify(es5(origin.outputFiles[0].text), { ecma: 5, format: { ecma: 5, comments: false } });
+      this.emitFile({ type: 'asset', fileName: 'js/tv-api-origin.js', source: originOutput.code! });
       const runtime = await build({ entryPoints: [path.join(config.root, 'compat/runtime-entry.js')],
         bundle: true, write: false, format: 'iife', platform: 'browser', target: 'es2015', logLevel: 'warning' });
       const output = await minify(es5(runtime.outputFiles[0].text), { ecma: 5, format: { ecma: 5, comments: false } });
@@ -36,6 +47,7 @@ export function legacyTvSupport(): Plugin {
         const build = { appVersion:/^\d+\.\d+\.\d+$/.test(embedded) ? embedded : '0.0.0', bundleVersion:/^gha-/.test(embedded) ? embedded : revision, platform:['tizen','webos'].includes(config.env.VITE_TV_PACKAGE_PLATFORM) ? config.env.VITE_TV_PACKAGE_PLATFORM : null };
         return [
           { tag:'script', children:'window.__MR_TV_BUILD__='+JSON.stringify(build)+';', injectTo:'head-prepend' },
+          { tag:'script', attrs:{src:`${config.base}js/tv-api-origin.js`}, injectTo:'head-prepend' },
           { tag:'script', attrs:{src:`${config.base}js/tv-observability.js`}, injectTo:'head-prepend' },
           { tag: 'script' , attrs: { src: `${config.base}js/compat-runtime.js`, 'data-mr-compat': 'true' }, injectTo: 'head-prepend' },
           { tag: 'link', attrs: { rel: 'stylesheet', href: `${config.base}css/legacy-compat.css` }, injectTo: 'head' },

@@ -1,3 +1,4 @@
+import { getProductionApiOrigin } from '../lib/apiOrigin';
 /**
  * Update Banner — TV / Desktop için "yeni sürüm var" bildirimi.
  *
@@ -30,7 +31,7 @@ type VersionResponse = {
   storeUrl?: Partial<Record<Platform, string>>;
 };
 
-const VERSION_ENDPOINT = 'https://api.themegaradio.com/api/tv/version';
+const VERSION_ENDPOINT = getProductionApiOrigin() + '/api/tv/version';
 const DISMISS_KEY = 'mr_update_dismissed_at';
 const SOFT_REMIND_DAYS = 7;
 

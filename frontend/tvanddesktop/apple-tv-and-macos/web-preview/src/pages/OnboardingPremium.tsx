@@ -130,7 +130,7 @@ const QrOnboardingPremium = (): JSX.Element => {
       />
 
       {/* Logo */}
-      <div style={{ position: 'absolute', left: 96, top: 80, display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ position: 'absolute', left: 96, top: 80, display: 'flex', alignItems: 'center', gap: 12 }} data-tv-gap-axis="row" data-tv-gap="12">
         <img src={assetPath("images/path-8.svg")} alt="" style={{ width: 56, height: 56 }} />
         <span style={{ fontSize: 30 }}>
           <span style={{ fontWeight: 'bold' }}>mega</span>radio
@@ -164,7 +164,8 @@ const QrOnboardingPremium = (): JSX.Element => {
           </div>
 
           {/* Benefit pills */}
-          <div style={{ position: 'absolute', left: 96, top: 580, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <div data-testid="premium-benefit-wrap-bound" style={{ position: 'absolute', left: 96, top: 580, maxWidth: 1824 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }} data-tv-gap-axis="row" data-tv-gap="16" data-tv-gap-wrap="flow">
             {[
               { icon: '✨', label: t('premium_benefit_no_ads') || 'Ad-free listening' },
               { icon: '🎧', label: t('premium_benefit_quality') || 'HQ audio streams' },
@@ -180,11 +181,12 @@ const QrOnboardingPremium = (): JSX.Element => {
                 display: 'flex',
                 gap: 10,
                 alignItems: 'center',
-              }}>
+              }} data-tv-gap-axis="row" data-tv-gap="10">
                 <span style={{ fontSize: 22 }}>{b.icon}</span>
-                {b.label}
+                <span>{b.label}</span>
               </div>
             ))}
+            </div>
           </div>
 
           {/* Trial line */}
@@ -199,7 +201,7 @@ const QrOnboardingPremium = (): JSX.Element => {
           </p>
 
           {/* CTA buttons */}
-          <div style={{ position: 'absolute', left: 96, bottom: 96, display: 'flex', gap: 24 }}>
+          <div style={{ position: 'absolute', left: 96, bottom: 96, display: 'flex', gap: 24 }} data-tv-gap-axis="row" data-tv-gap="24">
             <button
               data-testid="button-onboarding-upgrade"
               onClick={() => setCodeRevealed(true)}
@@ -221,9 +223,9 @@ const QrOnboardingPremium = (): JSX.Element => {
                 alignItems: 'center',
                 gap: 12,
               }}
-            >
+             data-tv-gap-axis="row" data-tv-gap="12">
               <span style={{ fontSize: 26 }}>⭐</span>
-              {t('onboarding_premium_cta_primary') || 'Upgrade with QR code'}
+              <span>{t('onboarding_premium_cta_primary') || 'Upgrade with QR code'}</span>
             </button>
             <button
               data-testid="button-onboarding-skip"
@@ -321,7 +323,7 @@ const QrOnboardingPremium = (): JSX.Element => {
                   {t('or') || 'OR ENTER CODE'}
                 </p>
 
-                <div style={{ display: 'flex', gap: 10, marginTop: 14 }} data-testid="onboarding-premium-code">
+                <div style={{ display: 'flex', gap: 10, marginTop: 14 }} data-testid="onboarding-premium-code" data-tv-gap-axis="row" data-tv-gap="10">
                   {(code || '······').split('').map((ch, i) => (
                     <div key={i} style={{
                       width: 48, height: 64, borderRadius: 10,
@@ -369,7 +371,7 @@ const QrOnboardingPremium = (): JSX.Element => {
               alignItems: 'center',
               gap: 10,
             }}
-          >
+           data-tv-gap-axis="row" data-tv-gap="10">
             {t('onboarding_premium_maybe_later') || 'Maybe later — Continue free'}
           </button>
         </>

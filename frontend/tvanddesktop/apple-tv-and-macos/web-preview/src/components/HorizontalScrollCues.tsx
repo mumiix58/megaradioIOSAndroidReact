@@ -1,4 +1,4 @@
-import { CSSProperties, RefObject, useEffect, useState } from 'react';
+import { CSSProperties, RefObject, useLayoutEffect, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Props {
@@ -13,21 +13,23 @@ interface Props {
 /** Pointer buttons and TV edge cues; D-pad continues to navigate the cards. */
 export function HorizontalScrollCues({ id, scrollRef, count, onNavigate, itemSelector = '[data-station-id]', style }: Props) {
   const [edges, setEdges] = useState({ left: false, right: false });
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    let retired = false;
     const update = () => {
+      if (retired) return;
       const left = el.scrollLeft > 5;
       const right = el.scrollWidth - el.clientWidth - el.scrollLeft > 5;
       setEdges(previous => previous.left === left && previous.right === right ? previous : { left, right });
     };
     const frame = requestAnimationFrame(update);
-    el.addEventListener('scroll', update, { passive: true });
+    el.addEventListener('scroll', update, false);
     window.addEventListener('resize', update);
     const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(update) : null;
     observer?.observe(el);
     if (el.firstElementChild) observer?.observe(el.firstElementChild);
-    return () => { cancelAnimationFrame(frame); el.removeEventListener('scroll', update); window.removeEventListener('resize', update); observer?.disconnect(); };
+    return () => { retired = true; cancelAnimationFrame(frame); el.removeEventListener('scroll', update, false); window.removeEventListener('resize', update); observer?.disconnect(); };
   }, [scrollRef, count]);
 
   const move = (direction: number) => {

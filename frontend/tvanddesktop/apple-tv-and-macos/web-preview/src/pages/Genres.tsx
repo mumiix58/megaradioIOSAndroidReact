@@ -428,7 +428,7 @@ export const Genres = (): JSX.Element => {
           </p>
 
           {/* Popular Genres - Row 1 (4 cols) */}
-          <div className="flex gap-[21px] mb-[19px]">
+          <div className="flex gap-[21px] mb-[19px]" data-tv-gap-axis="row" data-tv-gap="21">
             {popularGenres.slice(0, 4).map((genre, index) => {
               const focusIdx = 7 + index;
               return (
@@ -454,7 +454,7 @@ export const Genres = (): JSX.Element => {
           </div>
 
           {/* Popular Genres - Row 2 (4 cols) */}
-          <div className="flex gap-[21px] mb-[40px]">
+          <div className="flex gap-[21px] mb-[40px]" data-tv-gap-axis="row" data-tv-gap="21">
             {popularGenres.slice(4, 8).map((genre, index) => {
               const focusIdx = 11 + index;
               return (
@@ -486,7 +486,7 @@ export const Genres = (): JSX.Element => {
 
           {/* All Genres - Dynamic Grid (4 cols) using flexbox rows */}
           {Array.from({ length: Math.ceil(allGenres.length / 4) }).map((_, rowIdx) => (
-            <div key={rowIdx} className="flex gap-[21px] mb-[19px]">
+            <div key={rowIdx} className="flex gap-[21px] mb-[19px]" data-tv-gap-axis="row" data-tv-gap="21">
               {allGenres.slice(rowIdx * 4, rowIdx * 4 + 4).map((genre, colIdx) => {
                 const focusIdx = 15 + (rowIdx * 4) + colIdx;
                 return (

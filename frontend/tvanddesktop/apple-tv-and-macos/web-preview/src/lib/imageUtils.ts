@@ -1,4 +1,5 @@
-const IMAGE_API_BASE = 'https://api.themegaradio.com';
+import { getProductionApiOrigin } from './apiOrigin';
+const IMAGE_API_BASE = getProductionApiOrigin();
 
 // Backend HTTPS icon-proxy — upgrades legacy http://…/favicon.png URLs to
 // https://…/api/tv-icon-proxy?url=… so Chrome/Electron don't fire Mixed-Content
@@ -43,6 +44,10 @@ export function resolveStationImageUrl(favicon: string | undefined | null): stri
     // Web/Electron https: upgrade insecure origins through the backend icon-proxy.
     return ICON_PROXY + encodeURIComponent(favicon);
   }
+  // Keep first-party absolute logo URLs on the same validated API alias too.
+  if (favicon.startsWith('https://api.themegaradio.com/')) {
+    return IMAGE_API_BASE + favicon.slice('https://api.themegaradio.com'.length);
+  }
   if (favicon.startsWith('https://')) return favicon;
 
   // Relative favicon path. On packaged TV the /api/image/ route is also absent
@@ -74,5 +79,8 @@ export function handleStationImageError(
 
   // Step 2 — local fallback image (final).
   img.dataset.fbStep = 'fallback';
-  if (img.src !== fallbackImage) img.src = fallbackImage;
+  // src resolves relative file paths to absolute URLs, while the attribute keeps
+  // the assigned path. Compare both so a failed local fallback is not reloaded
+  // by every subsequent error; a reused element with a new source can still fall back.
+  if (img.src !== fallbackImage && img.getAttribute('src') !== fallbackImage) img.src = fallbackImage;
 }

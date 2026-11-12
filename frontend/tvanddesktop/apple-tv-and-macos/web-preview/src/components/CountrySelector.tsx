@@ -459,7 +459,7 @@ export const CountrySelector = ({ isOpen, onClose, selectedCountry, onSelectCoun
             border: focusZone === 'list' ? '2.594px solid #ff4199' : '2.594px solid #717171',
             boxShadow: 'inset 1.1px 1.1px 12.1px 0px rgba(255,255,255,0.12)',
           }}
-        >
+         data-tv-gap-axis="row" data-tv-gap="14">
           <div className="w-[31px] h-[31px] flex-shrink-0 opacity-60">
             <img alt="" className="block max-w-none w-full h-full" src={assetPath("images/search-icon.svg")} />
           </div>
@@ -519,7 +519,7 @@ export const CountrySelector = ({ isOpen, onClose, selectedCountry, onSelectCoun
                     }}
                     onClick={() => { onSelectCountry(country); onClose(); }}
                     data-testid={`country-option-${country.code}`}
-                  >
+                   data-tv-gap-axis="row" data-tv-gap="16">
                     <img
                       src={country.flag}
                       alt={country.name}
@@ -546,7 +546,7 @@ export const CountrySelector = ({ isOpen, onClose, selectedCountry, onSelectCoun
           {KEYBOARD_ROWS.map((row, rowIndex) => {
             const isActionRow = rowIndex === KEYBOARD_ROWS.length - 1;
             return (
-              <div key={`${activeLayout.id}-${rowIndex}`} className={`flex ${isActionRow ? 'gap-[10px] mt-[14px]' : 'gap-[6px] mb-[6px]'}`}>
+              <div key={`${activeLayout.id}-${rowIndex}`} className={`flex ${isActionRow ? 'gap-[10px] mt-[14px]' : 'gap-[6px] mb-[6px]'}`} data-tv-gap-axis="row" data-tv-gap={isActionRow ? 10 : 6}>
                 {row.map((keyChar, colIndex) => {
                   const isKeyFocused = focusZone === 'keyboard' && keyboardRow === rowIndex && keyboardCol === colIndex;
                   const isAction = keyChar === 'SPACE' || keyChar === 'DELETE' || keyChar === 'CLEAR';
@@ -603,7 +603,7 @@ export const CountrySelector = ({ isOpen, onClose, selectedCountry, onSelectCoun
               tabIndex={-1}
               data-testid="lang-selector-button"
             >
-              <div className="flex items-center gap-[12px]">
+              <div className="flex items-center gap-[12px]" data-tv-gap-axis="row" data-tv-gap="12">
                 <img src={getKbFlagUrl(activeLayout.id)} alt={activeLayout.label} className="w-[32px] h-[22px] rounded-[2px] object-cover" />
                 <span>{activeLayout.label}</span>
               </div>
@@ -647,7 +647,7 @@ export const CountrySelector = ({ isOpen, onClose, selectedCountry, onSelectCoun
                           setKeyboardCol(0);
                         }}
                         data-testid={`layout-${layout.id}`}
-                      >
+                       data-tv-gap-axis="row" data-tv-gap="14">
                         <img src={getKbFlagUrl(layout.id)} alt={layout.label} className="w-[30px] h-[20px] rounded-[2px] object-cover" />
                         <span className="font-['Ubuntu',Helvetica] font-medium text-[19px]">{layout.label}</span>
                         {isActive && !isFocused && (
@@ -661,14 +661,14 @@ export const CountrySelector = ({ isOpen, onClose, selectedCountry, onSelectCoun
             )}
           </div>
 
-          <div className="flex items-center gap-[20px] mt-[16px] px-[4px]">
-            <div className="flex items-center gap-[6px]">
+          <div className="flex items-center gap-[20px] mt-[16px] px-[4px]" data-tv-gap-axis="row" data-tv-gap="20">
+            <div className="flex items-center gap-[6px]" data-tv-gap-axis="row" data-tv-gap="6">
               <div className="w-[28px] h-[28px] rounded-[6px] bg-[rgba(255,255,255,0.14)] flex items-center justify-center" style={{ boxShadow: 'inset 1px 1px 6px rgba(255,255,255,0.12)' }}>
                 <span className="text-white/60 text-[14px]">←</span>
               </div>
               <span className="font-['Ubuntu',Helvetica] text-[16px] text-white/30">{t('results') || 'Results'}</span>
             </div>
-            <div className="flex items-center gap-[6px]">
+            <div className="flex items-center gap-[6px]" data-tv-gap-axis="row" data-tv-gap="6">
               <div className="w-[28px] h-[28px] rounded-[6px] bg-[rgba(255,255,255,0.14)] flex items-center justify-center" style={{ boxShadow: 'inset 1px 1px 6px rgba(255,255,255,0.12)' }}>
                 <span className="text-white/60 text-[14px]">OK</span>
               </div>

@@ -570,3 +570,6 @@ html, body {
 .amb-ring-2 { animation: amb-ring-spin-rev 70s linear infinite; will-change: transform; }
 .amb-text-pulse { animation: amb-text-pulse 4s ease-in-out infinite; }
 .amb-fadein { animation: amb-fadein 2s ease-out forwards; }
+
+/* Existing Search backdrop, resolved literally for engines without CSS variables. */
+html.mr-legacy-css [data-testid="page-search"] { background-image: linear-gradient(to bottom right, #1a1a1a, #0e0e0e); }

@@ -5,7 +5,7 @@ export function ScreensaverTest() {
   const [showScreensaver, setShowScreensaver] = useState(false);
 
   return (
-    <div className="fixed inset-0 w-[1920px] h-[1080px] bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex flex-col items-center justify-center gap-12">
+    <div className="fixed inset-0 w-[1920px] h-[1080px] bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 flex flex-col items-center justify-center gap-12" data-tv-gap-axis="column" data-tv-gap="48">
       <h1 className="font-['Ubuntu',Helvetica] font-bold text-[80px] text-white text-center">
         Idle Screensaver Test Page
       </h1>
@@ -22,7 +22,7 @@ export function ScreensaverTest() {
         🌙 Show Screensaver Preview
       </button>
 
-      <div className="flex flex-col items-center gap-4 mt-8">
+      <div className="flex flex-col items-center gap-4 mt-8" data-tv-gap-axis="column" data-tv-gap="16" data-tv-gap-extra="32">
         <p className="font-['Ubuntu',Helvetica] font-light text-[24px] text-white/50 text-center">
           Features:
         </p>

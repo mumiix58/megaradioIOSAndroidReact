@@ -130,7 +130,7 @@ function PremiumUpgradeQr(): JSX.Element {
       }}
     >
       {/* Logo */}
-      <div style={{ position: "absolute", left: 96, top: 80, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ position: "absolute", left: 96, top: 80, display: "flex", alignItems: "center", gap: 12 }} data-tv-gap-axis="row" data-tv-gap="12">
         <img src={assetPath("images/path-8.svg")} alt="" style={{ width: 60, height: 60 }} />
         <span style={{ fontSize: 32 }}>
           <span style={{ fontWeight: "bold" }}>mega</span>radio
@@ -157,9 +157,9 @@ function PremiumUpgradeQr(): JSX.Element {
             t("premium_benefit_quality") || "High-quality streams",
             t("premium_benefit_multi") || "Works on all your devices",
           ].map((line) => (
-            <li key={line} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <li key={line} style={{ display: "flex", alignItems: "center", gap: 12 }} data-tv-gap-axis="row" data-tv-gap="12">
               <span style={{ color: "#ff4199", fontSize: 24 }}>✦</span>
-              {line}
+              <span>{line}</span>
             </li>
           ))}
         </ul>
@@ -263,7 +263,7 @@ function PremiumUpgradeQr(): JSX.Element {
             </p>
 
             {/* 6-digit code */}
-            <div style={{ display: "flex", gap: 12, marginTop: 18 }} data-testid="premium-code-digits">
+            <div style={{ display: "flex", gap: 12, marginTop: 18 }} data-testid="premium-code-digits" data-tv-gap-axis="row" data-tv-gap="12">
               {codeChars.map((ch, idx) => (
                 <div
                   key={idx}
@@ -315,7 +315,7 @@ function PremiumUpgradeQr(): JSX.Element {
       </div>
 
       {/* Footer buttons */}
-      <div style={{ position: "absolute", left: 96, bottom: 64, display: "flex", gap: 24 }}>
+      <div style={{ position: "absolute", left: 96, bottom: 64, display: "flex", gap: 24 }} data-tv-gap-axis="row" data-tv-gap="24">
         <button
           data-testid="button-premium-cancel"
           onClick={() => setLocation("/discover-no-user")}

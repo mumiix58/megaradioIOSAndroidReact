@@ -689,7 +689,7 @@ export const RadioPlaying = (): JSX.Element => {
   // Show error state
   if (stationError) {
     return (
-      <div className="absolute inset-0 w-[1920px] h-[1080px] bg-black flex flex-col items-center justify-center gap-8">
+      <div className="absolute inset-0 w-[1920px] h-[1080px] bg-black flex flex-col items-center justify-center gap-8" data-tv-gap-axis="column" data-tv-gap="32">
         <p className="font-['Ubuntu',Helvetica] font-bold text-[40px] text-white">{t('failed_to_load_station') || 'Failed to load station'}</p>
         <p className="font-['Ubuntu',Helvetica] font-medium text-[24px] text-gray-400">
           {stationError instanceof Error ? stationError.message : 'Unknown error'}
@@ -706,7 +706,7 @@ export const RadioPlaying = (): JSX.Element => {
   // Show loading state with better debugging
   if (!stationId) {
     return (
-      <div className="absolute inset-0 w-[1920px] h-[1080px] bg-black flex flex-col items-center justify-center gap-8">
+      <div className="absolute inset-0 w-[1920px] h-[1080px] bg-black flex flex-col items-center justify-center gap-8" data-tv-gap-axis="column" data-tv-gap="32">
         <p className="font-['Ubuntu',Helvetica] font-bold text-[40px] text-white">{t('no_station_selected') || 'No Station Selected'}</p>
         <p className="font-['Ubuntu',Helvetica] font-medium text-[24px] text-gray-400">
           {t('please_select_station') || 'Please select a station to play'}
@@ -722,12 +722,12 @@ export const RadioPlaying = (): JSX.Element => {
 
   if (!station) {
     return (
-      <div className="absolute inset-0 w-[1920px] h-[1080px] bg-black flex flex-col items-center justify-center gap-8">
+      <div className="absolute inset-0 w-[1920px] h-[1080px] bg-black flex flex-col items-center justify-center gap-8" data-tv-gap-axis="column" data-tv-gap="32">
         <div className="animate-spin rounded-full h-24 w-24 border-t-4 border-b-4 border-[#ff4199]"></div>
         <p className="font-['Ubuntu',Helvetica] font-medium text-[32px] text-white animate-pulse">
           {t('loading_station') || 'Loading station...'}
         </p>
-        <p className="font-['Ubuntu',Helvetica] font-normal text-[16px] text-gray-600 mt-4">{t('press_return_to_go_back') || 'Press RETURN to go back'}</p>
+        <p className="font-['Ubuntu',Helvetica] font-normal text-[16px] text-gray-600 mt-4" data-tv-gap-extra="16">{t('press_return_to_go_back') || 'Press RETURN to go back'}</p>
       </div>
     );
   }
@@ -794,7 +794,7 @@ export const RadioPlaying = (): JSX.Element => {
             />
           </div>
 
-          <div className="absolute flex items-end justify-center" style={{ top: '45%', left: '50%', transform: 'translate(-50%, -50%)', width: '200px', height: '60px', gap: '4px', pointerEvents: 'none', marginTop: '170px' }}>
+          <div className="absolute flex items-end justify-center" style={{ top: '45%', left: '50%', transform: 'translate(-50%, -50%)', width: '200px', height: '60px', gap: '4px', pointerEvents: 'none', marginTop: '170px' }} data-tv-gap-axis="row" data-tv-gap="4">
             {[0, 0.15, 0.3, 0.1, 0.25, 0.35, 0.05, 0.2].map(function(delay, i) {
               var barColors = [p, s, a];
               var barColor = barColors[i % 3];
@@ -829,7 +829,7 @@ export const RadioPlaying = (): JSX.Element => {
           </div>
 
           <div className="absolute" style={{ top: '48px', left: '48px' }}>
-            <div className="flex items-center" style={{ gap: '8px' }}>
+            <div className="flex items-center" style={{ gap: '8px' }} data-tv-gap-axis="row" data-tv-gap="8">
               <img alt="" src={assetPath("images/path-8.svg")} style={{ width: '32px', height: '32px', opacity: 0.4 }} />
               <p className="font-['Ubuntu',Helvetica]" style={{ fontSize: '24px', color: 'rgba(255,255,255,0.3)' }}>
                 <span style={{ fontWeight: 700 }}>mega</span>radio
@@ -868,7 +868,7 @@ export const RadioPlaying = (): JSX.Element => {
 
       {/* Country capsule and favorite frame share the same right edge. */}
       <div data-testid="player-header-actions" className="absolute top-[67px] z-50 flex items-center gap-[19px]"
-        style={{ right: TV_LAYOUT.width - RADIO_PLAYER_RIGHT }}>
+        style={{ right: TV_LAYOUT.width - RADIO_PLAYER_RIGHT }} data-tv-gap-axis="row" data-tv-gap="19">
       {/* Equalizer Icon */}
       <div data-testid="player-header-equalizer" className={`relative overflow-clip rounded-[30px] w-[51px] h-[51px] flex-shrink-0 transition-colors ${isPlaying ? 'bg-[#ff4199]' : 'bg-[rgba(255,255,255,0.1)]'}`}>
         <div className="absolute h-[25px] left-[13.75px] overflow-clip top-[13px] w-[23.75px]">
@@ -927,7 +927,7 @@ export const RadioPlaying = (): JSX.Element => {
       </p>
 
       {/* Station Info Tags */}
-      <div className="absolute left-[596px] top-[476px] flex gap-[11.3px] items-center">
+      <div className="absolute left-[596px] top-[476px] flex gap-[11.3px] items-center" data-tv-gap-axis="row" data-tv-gap="11.3">
         {/* Country Flag — hide entirely if country is unknown/XX (was showing brand icon as fallback) */}
         {countryCode && typeof countryCode === 'string' && countryCode.toLowerCase() !== 'xx' && (
           <div className="w-[34.783px] h-[34.783px] rounded-full overflow-hidden flex-shrink-0">
@@ -1057,7 +1057,7 @@ export const RadioPlaying = (): JSX.Element => {
         <div
           className="absolute left-[1372px] top-[460px] flex items-center gap-[8px]"
           data-testid="sleep-timer-indicator"
-        >
+         data-tv-gap-axis="row" data-tv-gap="8">
           <p className="font-['Ubuntu',Helvetica] font-bold text-[24px] text-[#ff4199]">
             💤 {formatSleepTimer(remainingSeconds)}
           </p>
@@ -1073,7 +1073,7 @@ export const RadioPlaying = (): JSX.Element => {
           <p className="font-['Ubuntu',Helvetica] font-light text-[18px] text-[rgba(255,255,255,0.7)] mb-[16px]">
             {t('stream_error_message') || 'This station is currently not responding. Please try again or select another station.'}
           </p>
-          <div className="flex gap-[16px]">
+          <div className="flex gap-[16px]" data-tv-gap-axis="row" data-tv-gap="16">
             <div
               className={`bg-[#ff4199] rounded-[12px] px-[32px] py-[12px] cursor-pointer hover:bg-[#e0368a] transition-colors ${isFocused(100) ? 'ring-2 ring-white scale-105' : ''}`}
               onClick={retryCurrentStation}

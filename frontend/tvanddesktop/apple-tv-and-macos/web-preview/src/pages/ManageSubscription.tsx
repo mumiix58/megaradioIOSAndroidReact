@@ -76,7 +76,7 @@ const ManageSubscriptionQr = (): JSX.Element => {
       }}
     >
       {/* Logo */}
-      <div style={{ position: "absolute", left: 96, top: 80, display: "flex", alignItems: "center", gap: 12 }}>
+      <div style={{ position: "absolute", left: 96, top: 80, display: "flex", alignItems: "center", gap: 12 }} data-tv-gap-axis="row" data-tv-gap="12">
         <img src={assetPath("images/path-8.svg")} alt="" style={{ width: 56, height: 56 }} />
         <span style={{ fontSize: 28 }}>
           <span style={{ fontWeight: "bold" }}>mega</span>radio
@@ -111,9 +111,9 @@ const ManageSubscriptionQr = (): JSX.Element => {
             fontWeight: 700,
             letterSpacing: 1,
           }}
-        >
+         data-tv-gap-axis="row" data-tv-gap="8">
           <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: sx.color }} />
-          {sx.label.toUpperCase()}
+          <span>{sx.label.toUpperCase()}</span>
         </div>
 
         {/* Detail rows */}
@@ -186,7 +186,7 @@ const ManageSubscriptionQr = (): JSX.Element => {
       </div>
 
       {/* Footer buttons */}
-      <div style={{ position: "absolute", left: 96, bottom: 80, display: "flex", gap: 16 }}>
+      <div style={{ position: "absolute", left: 96, bottom: 80, display: "flex", gap: 16 }} data-tv-gap-axis="row" data-tv-gap="16">
         <FooterButton focused={focusIndex === 0} onClick={() => setLocation("/settings")} testid="button-manage-back">
           {t("back") || "Back"}
         </FooterButton>
@@ -199,7 +199,7 @@ const ManageSubscriptionQr = (): JSX.Element => {
 };
 
 const Row = ({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) => (
-  <div style={{ display: "flex", gap: 16 }}>
+  <div style={{ display: "flex", gap: 16 }} data-tv-gap-axis="row" data-tv-gap="16">
     <span style={{ color: "rgba(255,255,255,0.45)", minWidth: 140 }}>{label}</span>
     <span style={{ color: highlight ? "#ff4199" : "#fff", fontWeight: 500 }}>{value}</span>
   </div>

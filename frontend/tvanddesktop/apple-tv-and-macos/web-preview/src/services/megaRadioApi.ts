@@ -1,10 +1,11 @@
+import { getProductionApiOrigin } from '../lib/apiOrigin';
 // Mega Radio API Service - VERSION 3.0 - COUNTRY FILTERED GENRES
 // In preview mode (served from preview.emergentagent.com), route through our backend
 // proxy at /api/tv-proxy/* to bypass Cloudflare bot-protection on the headless browser.
 // On real Apple TV / macOS / Tizen / webOS the page is loaded from a non-Cloudflare-blocked
 // origin so we hit the production API directly.
 const __isPreview = typeof window !== 'undefined' && window.location && /preview\.emergentagent\.com$/i.test(window.location.hostname);
-const BASE_URL = __isPreview ? window.location.origin : 'https://api.themegaradio.com';
+const BASE_URL = __isPreview ? window.location.origin : getProductionApiOrigin();
 const API_PREFIX = __isPreview ? '/api/tv-proxy' : '/api';
 export const SUBSCRIPTION_API_URL = BASE_URL + API_PREFIX + '/user/subscription';
 
